@@ -14,7 +14,7 @@ import edu.wpi.first.math.controller.SimpleMotorFeedforward;
 
 public class Mk4iModule {
     // SDS Mk4i L3 Constants
-    private static final double DRIVE_GEAR_RATIO = 6.75;
+    private static final double DRIVE_GEAR_RATIO = 6.12; //Changed from 6.75 which is the GR for L3's
     private static final double STEER_GEAR_RATIO = 150.0 / 7.0;
     private static final double WHEEL_DIAMETER_METERS = 0.1016;
     
@@ -63,7 +63,7 @@ public class Mk4iModule {
         steerEncoder = new CANcoder(encoderID);
         
         // PID for steering
-        steerPID = new PIDController(1.0, 0.0, 0.0);
+        steerPID = new PIDController(0.375, 0.0, 0.0);
         steerPID.enableContinuousInput(-Math.PI, Math.PI);
         
         // Feedforward for driving
