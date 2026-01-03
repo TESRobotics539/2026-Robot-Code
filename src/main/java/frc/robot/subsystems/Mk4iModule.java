@@ -63,7 +63,7 @@ public class Mk4iModule {
         steerEncoder = new CANcoder(encoderID);
         
         // PID for steering
-        steerPID = new PIDController(0.375, 0.0, 0.0);
+        steerPID = new PIDController(0.1, 0.0, 0.1);
         steerPID.enableContinuousInput(-Math.PI, Math.PI);
         
         // Feedforward for driving
