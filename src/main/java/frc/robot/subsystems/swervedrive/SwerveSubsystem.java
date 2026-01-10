@@ -75,8 +75,17 @@ public class SwerveSubsystem extends SubsystemBase
    */
   private       Vision      vision;
 
-  private final SwerveAbsoluteEncoder absoluteEncoder;
-  private final CANcoder cancoder;
+  private final SwerveAbsoluteEncoder absoluteEncoder_fl;
+  private final CANcoder cancoder_fl;
+  
+  private final SwerveAbsoluteEncoder absoluteEncoder_fr;
+  private final CANcoder cancoder_fr;
+  
+  private final SwerveAbsoluteEncoder absoluteEncoder_bl;
+  private final CANcoder cancoder_bl;
+  
+  private final SwerveAbsoluteEncoder absoluteEncoder_br;
+  private final CANcoder cancoder_br;
 
 
 
@@ -124,8 +133,14 @@ public class SwerveSubsystem extends SubsystemBase
     RobotModeTriggers.autonomous().onTrue(Commands.runOnce(this::zeroGyroWithAlliance));
 
 
-    cancoder = new CANcoder(9);
-    absoluteEncoder = new CANCoderSwerve(9);
+    cancoder_fl = new CANcoder(9);
+    absoluteEncoder_fl = new CANCoderSwerve(9);
+    cancoder_fr = new CANcoder(12);
+    absoluteEncoder_fr = new CANCoderSwerve(12);
+    cancoder_bl = new CANcoder(6);
+    absoluteEncoder_bl = new CANCoderSwerve(6);
+    cancoder_br = new CANcoder(3);
+    absoluteEncoder_br = new CANCoderSwerve(3);
   }
 
   /**
@@ -142,8 +157,14 @@ public class SwerveSubsystem extends SubsystemBase
                                   new Pose2d(new Translation2d(Meter.of(2), Meter.of(0)),
                                              Rotation2d.fromDegrees(0)));
 
-    cancoder = new CANcoder(9);
-    absoluteEncoder = new CANCoderSwerve(9);
+    cancoder_fl = new CANcoder(9);
+    absoluteEncoder_fl = new CANCoderSwerve(9);
+    cancoder_fr = new CANcoder(12);
+    absoluteEncoder_fr = new CANCoderSwerve(12);
+    cancoder_bl = new CANcoder(6);
+    absoluteEncoder_bl = new CANCoderSwerve(6);
+    cancoder_br = new CANcoder(3);
+    absoluteEncoder_br = new CANCoderSwerve(3);
   }
 
   /**
@@ -157,10 +178,21 @@ public class SwerveSubsystem extends SubsystemBase
   @Override
   public void periodic()
   {
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 position").setNumber(cancoder.getAbsolutePosition().getValueAsDouble());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 units").setString(cancoder.getAbsolutePosition().getUnits());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 9 position").setNumber(absoluteEncoder.getAbsolutePosition());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 position").setNumber(cancoder_fl.getAbsolutePosition().getValueAsDouble());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 units").setString(cancoder_fl.getAbsolutePosition().getUnits());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 9 position").setNumber(absoluteEncoder_fl.getAbsolutePosition());
 
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 12 position").setNumber(cancoder_fr.getAbsolutePosition().getValueAsDouble());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 12 units").setString(cancoder_fr.getAbsolutePosition().getUnits());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 12 position").setNumber(absoluteEncoder_fr.getAbsolutePosition());
+
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 6 position").setNumber(cancoder_bl.getAbsolutePosition().getValueAsDouble());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 6 units").setString(cancoder_bl.getAbsolutePosition().getUnits());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 6 position").setNumber(absoluteEncoder_bl.getAbsolutePosition());
+
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 3 position").setNumber(cancoder_br.getAbsolutePosition().getValueAsDouble());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 3 units").setString(cancoder_br.getAbsolutePosition().getUnits());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 3 position").setNumber(absoluteEncoder_br.getAbsolutePosition());
     
 
     // When vision is enabled we must manually update odometry in SwerveDrive
