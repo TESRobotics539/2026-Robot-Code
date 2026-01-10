@@ -36,6 +36,7 @@ import frc.robot.Constants;
 import frc.robot.subsystems.swervedrive.Vision.Cameras;
 import java.io.File;
 import java.io.IOException;
+import java.net.NetworkInterface;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -53,6 +54,11 @@ import swervelib.parser.SwerveParser;
 import swervelib.telemetry.SwerveDriveTelemetry;
 import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
 
+import swervelib.encoders.SwerveAbsoluteEncoder;
+import swervelib.encoders.CANCoderSwerve;
+import com.ctre.phoenix6.hardware.CANcoder;
+import edu.wpi.first.networktables.NetworkTableInstance;
+
 public class SwerveSubsystem extends SubsystemBase
 {
 
@@ -68,6 +74,12 @@ public class SwerveSubsystem extends SubsystemBase
    * PhotonVision class to keep an accurate odometry.
    */
   private       Vision      vision;
+
+  private final SwerveAbsoluteEncoder absoluteEncoder;
+  private final CANcoder cancoder;
+
+
+
 
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
@@ -110,6 +122,10 @@ public class SwerveSubsystem extends SubsystemBase
     }
     setupPathPlanner();
     RobotModeTriggers.autonomous().onTrue(Commands.runOnce(this::zeroGyroWithAlliance));
+
+
+    cancoder = new CANcoder(9);
+    absoluteEncoder = new CANCoderSwerve(9);
   }
 
   /**
@@ -125,6 +141,9 @@ public class SwerveSubsystem extends SubsystemBase
                                   Constants.MAX_SPEED,
                                   new Pose2d(new Translation2d(Meter.of(2), Meter.of(0)),
                                              Rotation2d.fromDegrees(0)));
+
+    cancoder = new CANcoder(9);
+    absoluteEncoder = new CANCoderSwerve(9);
   }
 
   /**
@@ -138,6 +157,12 @@ public class SwerveSubsystem extends SubsystemBase
   @Override
   public void periodic()
   {
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 position").setNumber(cancoder.getAbsolutePosition().getValueAsDouble());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 units").setString(cancoder.getAbsolutePosition().getUnits());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 9 position").setNumber(absoluteEncoder.getAbsolutePosition());
+
+    
+
     // When vision is enabled we must manually update odometry in SwerveDrive
     if (visionDriveTest)
     {
