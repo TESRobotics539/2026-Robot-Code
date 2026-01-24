@@ -1,9 +1,9 @@
 {
   "location": {
-    "front": 12.0625,
-    "left": -12.0625
+    "front": 10.875,
+    "left": -10.875
   },
-  "absoluteEncoderOffset": 204.521484375,
+  "absoluteEncoderOffset": 271.318359375,
   "drive": {
     "type": "sparkflex_vortex",
     "id": 11,
