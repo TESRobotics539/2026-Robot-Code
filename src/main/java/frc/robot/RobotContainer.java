@@ -22,8 +22,11 @@ import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.subsystems.SwerveSubsystem;
+import frc.robot.subsystems.VisionSubsystem;
 
 import java.io.File;
+import java.util.Optional;
+
 import swervelib.SwerveInputStream;
 
 /**
@@ -39,6 +42,7 @@ public class RobotContainer
   // The robot's subsystems and commands are defined here...
   private final SwerveSubsystem       drivebase  = new SwerveSubsystem(new File(Filesystem.getDeployDirectory(),
                                                                                 "swerve/neo"));
+  private final VisionSubsystem limelight = new VisionSubsystem("limelight-front");
 
   // Establish a Sendable Chooser that will be able to be sent to the SmartDashboard, allowing selection of desired auto
   private final SendableChooser<Command> autoChooser = new SendableChooser<>();
@@ -135,6 +139,7 @@ public class RobotContainer
     Command driveFieldOrientedDirectAngleKeyboard      = drivebase.driveFieldOriented(driveDirectAngleKeyboard);
     Command driveFieldOrientedAnglularVelocityKeyboard = drivebase.driveFieldOriented(driveAngularVelocityKeyboard);
 
+    limelight.setDefaultCommand(updateVisionCommand());
 
     if (RobotBase.isSimulation())
     {
@@ -202,5 +207,20 @@ public class RobotContainer
   public void setMotorBrake(boolean brake)
   {
     drivebase.setMotorBrake(brake);
+  }
+  
+  private Command updateVisionCommand() {
+      return limelight.run(() -> {
+          final Pose2d currentRobotPose = drivebase.getPose();
+          final Optional<VisionSubsystem.Measurement> measurement = limelight.getMeasurement(currentRobotPose);
+          measurement.ifPresent(m -> {
+              drivebase.addVisionMeasurement(
+                  m.poseEstimate.pose, 
+                  m.poseEstimate.timestampSeconds,
+                  m.standardDeviations
+              );
+          });
+      })
+      .ignoringDisable(true);
   }
 }
