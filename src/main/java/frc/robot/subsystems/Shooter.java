@@ -1,22 +1,18 @@
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.RPM;
-import static edu.wpi.first.units.Units.RotationsPerSecond;
-import static edu.wpi.first.units.Units.Volts;
 
 import java.util.List;
 
-import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
-import com.ctre.phoenix6.configs.MotorOutputConfigs;
-import com.ctre.phoenix6.configs.Slot0Configs;
-import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.configs.VoltageConfigs;
-import com.ctre.phoenix6.controls.VelocityVoltage;
-import com.ctre.phoenix6.controls.VoltageOut;
-import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.InvertedValue;
-import com.ctre.phoenix6.signals.NeutralModeValue;
+import com.revrobotics.PersistMode;
+import com.revrobotics.RelativeEncoder;
+import com.revrobotics.ResetMode;
+import com.revrobotics.spark.FeedbackSensor;
+import com.revrobotics.spark.SparkClosedLoopController;
+import com.revrobotics.spark.SparkFlex;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import com.revrobotics.spark.config.SparkFlexConfig;
 
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.util.sendable.SendableBuilder;
@@ -24,77 +20,74 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.Constants.KrakenX60;
 import frc.robot.Ports;
 
 public class Shooter extends SubsystemBase {
+    private static final double kNeoVortexFreeSpeed = 6784.0; // RPM
     private static final AngularVelocity kVelocityTolerance = RPM.of(100);
 
-    private final TalonFX leftMotor, middleMotor, rightMotor;
-    private final List<TalonFX> motors;
-    private final VelocityVoltage velocityRequest = new VelocityVoltage(0).withSlot(0);
-    private final VoltageOut voltageRequest = new VoltageOut(0);
+    private final SparkFlex leftMotor, middleMotor, rightMotor;
+    private final RelativeEncoder leftEncoder, middleEncoder, rightEncoder;
+    private final List<RelativeEncoder> encoders;
+    private final SparkClosedLoopController leftController, middleController, rightController;
 
+    private double targetRPM = 0.0;
     private double dashboardTargetRPM = 0.0;
+    private boolean isVelocityMode = false;
 
     public Shooter() {
-        leftMotor = new TalonFX(Ports.kShooterLeft, Ports.kRoboRioCANBus);
-        middleMotor = new TalonFX(Ports.kShooterMiddle, Ports.kRoboRioCANBus);
-        rightMotor = new TalonFX(Ports.kShooterRight, Ports.kRoboRioCANBus);
-        motors = List.of(leftMotor, middleMotor, rightMotor);
+        leftMotor = new SparkFlex(Ports.kShooterLeft, MotorType.kBrushless);
+        middleMotor = new SparkFlex(Ports.kShooterMiddle, MotorType.kBrushless);
+        rightMotor = new SparkFlex(Ports.kShooterRight, MotorType.kBrushless);
 
-        configureMotor(leftMotor, InvertedValue.CounterClockwise_Positive);
-        configureMotor(middleMotor, InvertedValue.Clockwise_Positive);
-        configureMotor(rightMotor, InvertedValue.Clockwise_Positive);
+        leftEncoder = leftMotor.getEncoder();
+        middleEncoder = middleMotor.getEncoder();
+        rightEncoder = rightMotor.getEncoder();
+        encoders = List.of(leftEncoder, middleEncoder, rightEncoder);
+
+        leftController = leftMotor.getClosedLoopController();
+        middleController = middleMotor.getClosedLoopController();
+        rightController = rightMotor.getClosedLoopController();
+
+        configureMotor(leftMotor, leftController, false);
+        configureMotor(middleMotor, middleController, true);
+        configureMotor(rightMotor, rightController, true);
 
         SmartDashboard.putData(this);
     }
 
-    private void configureMotor(TalonFX motor, InvertedValue invertDirection) {
-        final TalonFXConfiguration config = new TalonFXConfiguration()
-            .withMotorOutput(
-                new MotorOutputConfigs()
-                    .withInverted(invertDirection)
-                    .withNeutralMode(NeutralModeValue.Coast)
-            )
-            .withVoltage(
-                new VoltageConfigs()
-                    .withPeakReverseVoltage(Volts.of(0))
-            )
-            .withCurrentLimits(
-                new CurrentLimitsConfigs()
-                    .withStatorCurrentLimit(Amps.of(120))
-                    .withStatorCurrentLimitEnable(true)
-                    .withSupplyCurrentLimit(Amps.of(70))
-                    .withSupplyCurrentLimitEnable(true)
-            )
-            .withSlot0(
-                new Slot0Configs()
-                    .withKP(0.5)
-                    .withKI(2)
-                    .withKD(0)
-                    .withKV(12.0 / KrakenX60.kFreeSpeed.in(RotationsPerSecond)) // 12 volts when requesting max RPS
-            );
+    private void configureMotor(SparkFlex motor, SparkClosedLoopController controller, boolean inverted) {
+        SparkFlexConfig config = new SparkFlexConfig();
         
-        motor.getConfigurator().apply(config);
+        config.inverted(inverted);
+        config.idleMode(IdleMode.kCoast);
+        config.smartCurrentLimit(70); // Supply current limit
+        config.secondaryCurrentLimit(120); // Stator current limit
+        
+        // PID configuration
+        config.closedLoop
+            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+            .pid(0.0002, 0.0008, 0.0) // kP, kI, kD for velocity control in RPM
+            .velocityFF(12.0 / kNeoVortexFreeSpeed) // kV: 12 volts when requesting max RPM
+            .iZone(0);
+        
+        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
     public void setRPM(double rpm) {
-        for (final TalonFX motor : motors) {
-            motor.setControl(
-                velocityRequest
-                    .withVelocity(RPM.of(rpm))
-            );
-        }
+        targetRPM = rpm;
+        isVelocityMode = true;
+        leftController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
+        middleController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
+        rightController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
     }
 
     public void setPercentOutput(double percentOutput) {
-        for (final TalonFX motor : motors) {
-            motor.setControl(
-                voltageRequest
-                    .withOutput(Volts.of(percentOutput * 12.0))
-            );
-        }
+        isVelocityMode = false;
+        double voltage = percentOutput * 12.0;
+        leftMotor.setVoltage(voltage);
+        middleMotor.setVoltage(voltage);
+        rightMotor.setVoltage(voltage);
     }
 
     public void stop() {
@@ -111,27 +104,27 @@ public class Shooter extends SubsystemBase {
     }
 
     public boolean isVelocityWithinTolerance() {
-        return motors.stream().allMatch(motor -> {
-            final boolean isInVelocityMode = motor.getAppliedControl().equals(velocityRequest);
-            final AngularVelocity currentVelocity = motor.getVelocity().getValue();
-            final AngularVelocity targetVelocity = velocityRequest.getVelocityMeasure();
-            return isInVelocityMode && currentVelocity.isNear(targetVelocity, kVelocityTolerance);
+        if (!isVelocityMode) return false;
+        
+        return encoders.stream().allMatch(encoder -> {
+            final AngularVelocity currentVelocity = RPM.of(encoder.getVelocity());
+            final AngularVelocity targetVelocity = RPM.of(targetRPM);
+            return currentVelocity.isNear(targetVelocity, kVelocityTolerance);
         });
     }
 
-    private void initSendable(SendableBuilder builder, TalonFX motor, String name) {
-        builder.addDoubleProperty(name + " RPM", () -> motor.getVelocity().getValue().in(RPM), null);
-        builder.addDoubleProperty(name + " Stator Current", () -> motor.getStatorCurrent().getValue().in(Amps), null);
-        builder.addDoubleProperty(name + " Supply Current", () -> motor.getSupplyCurrent().getValue().in(Amps), null);
+    private void initSendable(SendableBuilder builder, SparkFlex motor, RelativeEncoder encoder, String name) {
+        builder.addDoubleProperty(name + " RPM", () -> encoder.getVelocity(), null);
+        builder.addDoubleProperty(name + " Output Current", () -> motor.getOutputCurrent(), null);
     }
 
     @Override
     public void initSendable(SendableBuilder builder) {
-        initSendable(builder, leftMotor, "Left");
-        initSendable(builder, middleMotor, "Middle");
-        initSendable(builder, rightMotor, "Right");
+        initSendable(builder, leftMotor, leftEncoder, "Left");
+        initSendable(builder, middleMotor, middleEncoder, "Middle");
+        initSendable(builder, rightMotor, rightEncoder, "Right");
         builder.addStringProperty("Command", () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "null", null);
         builder.addDoubleProperty("Dashboard RPM", () -> dashboardTargetRPM, value -> dashboardTargetRPM = value);
-        builder.addDoubleProperty("Target RPM", () -> velocityRequest.getVelocityMeasure().in(RPM), null);
+        builder.addDoubleProperty("Target RPM", () -> targetRPM, null);
     }
 }

@@ -14,9 +14,9 @@ public final class Ports {
     public static final int kFloor = 61;
     public static final int kFeeder = 54;
 
-    public static final int kShooterLeft = 14;
-    public static final int kShooterMiddle = 15;
-    public static final int kShooterRight = 16;
+    public static final int kShooterLeft = 57;
+    public static final int kShooterMiddle = 56;
+    public static final int kShooterRight = 55;
     
     public static final int kHanger = 18;
 

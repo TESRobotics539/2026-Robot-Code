@@ -46,7 +46,7 @@ public class RobotContainer
     //private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
-    // private final Shooter shooter = new Shooter();
+    private final Shooter shooter = new Shooter();
     // private final Hood hood = new Hood();
     // private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
@@ -156,7 +156,7 @@ public class RobotContainer
       
       //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
       driverXbox.rightBumper().whileTrue(feeder.feedCommand());
-      driverXbox.leftBumper().whileTrue(floor.feedCommand());
+      driverXbox.leftBumper().whileTrue(Commands.parallel(floor.feedCommand(), shooter.spinUpCommand(3000)));
 
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
