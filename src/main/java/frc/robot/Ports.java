@@ -10,11 +10,14 @@ public final class Ports {
     // Motor IDs
     public static final int kIntakePivot = 10;
     public static final int kIntakeRollers = 11;
-    public static final int kFloor = 12;
+    
+    public static final int kFloor = 61;
     public static final int kFeeder = 54;
+
     public static final int kShooterLeft = 14;
     public static final int kShooterMiddle = 15;
     public static final int kShooterRight = 16;
+    
     public static final int kHanger = 18;
 
     // PWM Ports

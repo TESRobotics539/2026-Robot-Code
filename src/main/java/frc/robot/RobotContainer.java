@@ -44,7 +44,7 @@ import swervelib.SwerveInputStream;
 public class RobotContainer
 {
     //private final Intake intake = new Intake();
-    //private final Floor floor = new Floor();
+    private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
     // private final Shooter shooter = new Shooter();
     // private final Hood hood = new Hood();
@@ -156,6 +156,7 @@ public class RobotContainer
       
       //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
       driverXbox.rightBumper().whileTrue(feeder.feedCommand());
+      driverXbox.leftBumper().whileTrue(floor.feedCommand());
 
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
