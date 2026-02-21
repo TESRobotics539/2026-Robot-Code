@@ -49,7 +49,7 @@ public class RobotContainer
     private final Shooter shooter = new Shooter();
     private final Hood hood = new Hood();
     private final Hanger hanger = new Hanger();
-    private final Limelight limelight = new Limelight("limelight");
+    private final Limelight limelight = new Limelight("limelight-front");
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"));
 
     // Replace with CommandPS4Controller or CommandJoystick if needed
