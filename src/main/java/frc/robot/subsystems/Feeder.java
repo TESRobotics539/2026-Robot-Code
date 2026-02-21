@@ -54,7 +54,7 @@ public class Feeder extends SubsystemBase {
     }
 
     public void set(Speed speed) {
-        motor.getClosedLoopController().setReference(
+        motor.getClosedLoopController().setSetpoint(
             speed.angularVelocity().in(RPM),
             ControlType.kVelocity
         );
