@@ -57,7 +57,7 @@ public class Shooter extends SubsystemBase {
     private void configureMotor(SparkFlex motor, SparkClosedLoopController controller, boolean inverted) {
         SparkFlexConfig config = new SparkFlexConfig();
         
-        //config.inverted(inverted);
+        config.inverted(inverted);
        //config.idleMode(IdleMode.kCoast);
         //config.smartCurrentLimit(70); // Supply current limit
         //config.secondaryCurrentLimit(120); // Stator current limit
@@ -93,14 +93,15 @@ public class Shooter extends SubsystemBase {
     }
 
     public Command spinUpCommand(double rpm) {
-        return runOnce(() -> setRPM(rpm));
+        return startEnd(() -> setPercentOutput(10), () -> stop());
+        //return runOnce(() -> setRPM(rpm));
             //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }
 
     public Command dashboardSpinUpCommand() {
         return defer(() -> spinUpCommand(dashboardTargetRPM)); 
     }
-
+ 
     // public boolean isVelocityWithinTolerance() {
     //     if (!isVelocityMode) return false;
         

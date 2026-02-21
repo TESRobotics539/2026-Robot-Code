@@ -38,7 +38,7 @@ public class Feeder extends SubsystemBase {
         motor = new SparkMax(Ports.kFeeder, MotorType.kBrushless);
 
         SparkMaxConfig config = new SparkMaxConfig();
-        config.inverted(false);
+        config.inverted(true);
         config.idleMode(IdleMode.kCoast);
         config.smartCurrentLimit(50);
         
