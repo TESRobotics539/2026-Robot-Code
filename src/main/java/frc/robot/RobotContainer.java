@@ -43,12 +43,12 @@ import swervelib.SwerveInputStream;
  */
 public class RobotContainer
 {
-    private final Intake intake = new Intake();
-    private final Floor floor = new Floor();
+    //private final Intake intake = new Intake();
+    //private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
-    private final Shooter shooter = new Shooter();
-    private final Hood hood = new Hood();
-    private final Hanger hanger = new Hanger();
+    // private final Shooter shooter = new Shooter();
+    // private final Hood hood = new Hood();
+    // private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"));
 
@@ -66,17 +66,19 @@ public class RobotContainer
     //     hanger,
     //     limelight
     // );
-    private final SubsystemCommands subsystemCommands = new SubsystemCommands(
-        drivebase,
-        intake,
-        floor,
-        feeder,
-        shooter,
-        hood,
-        hanger,
-        () -> -driverXbox.getLeftY(),
-        () -> -driverXbox.getLeftX()
-    );
+
+    //  TODO: Uncomment when commands are implemented
+    // private final SubsystemCommands subsystemCommands = new SubsystemCommands(
+    //     drivebase,
+    //     intake,
+    //     floor,
+    //     feeder,
+    //     shooter,
+    //     hood,
+    //     hanger,
+    //     () -> -driverXbox.getLeftY(),
+    //     () -> -driverXbox.getLeftX()
+    // );
     
     // Establish a Sendable Chooser that will be able to be sent to the SmartDashboard, allowing selection of desired auto
     private final SendableChooser<Command> autoChooser = new SendableChooser<>();
@@ -149,15 +151,19 @@ public class RobotContainer
       //     .onTrue(intake.homingCommand())
       //     .onTrue(hanger.homingCommand());
 
-      driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
+      // TODO: Uncomment when shoot commands are implemented
+      //driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
+      
       //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
       driverXbox.rightBumper().whileTrue(feeder.feedCommand());
-      
-      driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
-      driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 
-      driverXbox.povUp().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
-      driverXbox.povDown().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
+      // TODO: Uncomment when intake commands are implemented
+      // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
+      // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
+
+      // TODO: Uncomment when hanger commands are implemented
+      // driverXbox.povUp().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
+      // driverXbox.povDown().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
 
       //Set the default auto (do nothing) 
       // autoChooser.setDefaultOption("Do Nothing", Commands.runOnce(drivebase::zeroGyroWithAlliance)
