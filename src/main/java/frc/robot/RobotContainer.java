@@ -150,7 +150,8 @@ public class RobotContainer
       //     .onTrue(hanger.homingCommand());
 
       driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
-      driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually());
+      //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
+      driverXbox.rightBumper().whileTrue(feeder.feedCommand());
       driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
       driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 

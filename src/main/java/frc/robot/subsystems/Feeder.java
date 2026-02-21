@@ -1,31 +1,24 @@
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.RPM;
-import static edu.wpi.first.units.Units.RotationsPerSecond;
-import static edu.wpi.first.units.Units.Volts;
 
-import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
-import com.ctre.phoenix6.configs.MotorOutputConfigs;
-import com.ctre.phoenix6.configs.Slot0Configs;
-import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.VelocityVoltage;
-import com.ctre.phoenix6.controls.VoltageOut;
-import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.InvertedValue;
-import com.ctre.phoenix6.signals.NeutralModeValue;
+import com.revrobotics.*;
+import com.revrobotics.spark.SparkBase.ControlType;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
 
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.Constants.KrakenX60;
 import frc.robot.Ports;
 
 public class Feeder extends SubsystemBase {
     public enum Speed {
-        FEED(5000);
+        FEED(1000); // TODO: Tune this
 
         private final double rpm;
 
@@ -38,50 +31,37 @@ public class Feeder extends SubsystemBase {
         }
     }
 
-    private final TalonFX motor;
-    private final VelocityVoltage velocityRequest = new VelocityVoltage(0).withSlot(0);
-    private final VoltageOut voltageRequest = new VoltageOut(0);
+    private final SparkMax motor;
+    private final RelativeEncoder encoder;
 
     public Feeder() {
-        motor = new TalonFX(Ports.kFeeder, Ports.kRoboRioCANBus);
+        motor = new SparkMax(Ports.kFeeder, MotorType.kBrushless);
 
-        final TalonFXConfiguration config = new TalonFXConfiguration()
-            .withMotorOutput(
-                new MotorOutputConfigs()
-                    .withInverted(InvertedValue.CounterClockwise_Positive)
-                    .withNeutralMode(NeutralModeValue.Coast)
-            )
-            .withCurrentLimits(
-                new CurrentLimitsConfigs()
-                    .withStatorCurrentLimit(Amps.of(120))
-                    .withStatorCurrentLimitEnable(true)
-                    .withSupplyCurrentLimit(Amps.of(50))
-                    .withSupplyCurrentLimitEnable(true)
-            )
-            .withSlot0(
-                new Slot0Configs()
-                    .withKP(1)
-                    .withKI(0)
-                    .withKD(0)
-                    .withKV(12.0 / KrakenX60.kFreeSpeed.in(RotationsPerSecond)) // 12 volts when requesting max RPS
-            );
+        SparkMaxConfig config = new SparkMaxConfig();
+        config.inverted(false);
+        config.idleMode(IdleMode.kCoast);
+        config.smartCurrentLimit(50);
         
-        motor.getConfigurator().apply(config);
+        config.closedLoop
+            .pid(0.0001, 0, 0)
+            .velocityFF(0.000175);
+        
+        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+        
+        encoder = motor.getEncoder();
+        
         SmartDashboard.putData(this);
     }
 
     public void set(Speed speed) {
-        motor.setControl(
-            velocityRequest
-                .withVelocity(speed.angularVelocity())
+        motor.getClosedLoopController().setReference(
+            speed.angularVelocity().in(RPM),
+            ControlType.kVelocity
         );
     }
 
     public void setPercentOutput(double percentOutput) {
-        motor.setControl(
-            voltageRequest
-                .withOutput(Volts.of(percentOutput * 12.0))
-        );
+        motor.set(percentOutput);
     }
 
     public Command feedCommand() {
@@ -91,8 +71,7 @@ public class Feeder extends SubsystemBase {
     @Override
     public void initSendable(SendableBuilder builder) {
         builder.addStringProperty("Command", () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "null", null);
-        builder.addDoubleProperty("RPM", () -> motor.getVelocity().getValue().in(RPM), null);
-        builder.addDoubleProperty("Stator Current", () -> motor.getStatorCurrent().getValue().in(Amps), null);
-        builder.addDoubleProperty("Supply Current", () -> motor.getSupplyCurrent().getValue().in(Amps), null);
+        builder.addDoubleProperty("RPM", () -> encoder.getVelocity(), null);
+        builder.addDoubleProperty("Output Current", () -> motor.getOutputCurrent(), null);
     }
 }
