@@ -49,8 +49,8 @@ public class Shooter extends SubsystemBase {
         middleController = middleMotor.getClosedLoopController();
         rightController = rightMotor.getClosedLoopController();
 
-        configureMotor(leftMotor, leftController, false);
-        configureMotor(middleMotor, middleController, true);
+        configureMotor(leftMotor, leftController, false); // Inverted in REV client
+        configureMotor(middleMotor, middleController, false);
         configureMotor(rightMotor, rightController, true);
 
         SmartDashboard.putData(this);
@@ -59,10 +59,10 @@ public class Shooter extends SubsystemBase {
     private void configureMotor(SparkFlex motor, SparkClosedLoopController controller, boolean inverted) {
         SparkFlexConfig config = new SparkFlexConfig();
         
-        config.inverted(inverted);
-        config.idleMode(IdleMode.kCoast);
-        config.smartCurrentLimit(70); // Supply current limit
-        config.secondaryCurrentLimit(120); // Stator current limit
+        //config.inverted(inverted);
+       //config.idleMode(IdleMode.kCoast);
+        //config.smartCurrentLimit(70); // Supply current limit
+        //config.secondaryCurrentLimit(120); // Stator current limit
         
         // PID configuration
         config.closedLoop
