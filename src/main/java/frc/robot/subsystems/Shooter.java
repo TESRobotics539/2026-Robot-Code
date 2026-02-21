@@ -11,14 +11,12 @@ import com.revrobotics.spark.FeedbackSensor;
 import com.revrobotics.spark.SparkClosedLoopController;
 import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
 
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Ports;
 
@@ -95,23 +93,23 @@ public class Shooter extends SubsystemBase {
     }
 
     public Command spinUpCommand(double rpm) {
-        return runOnce(() -> setRPM(rpm))
-            .andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
+        return runOnce(() -> setRPM(rpm));
+            //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }
 
     public Command dashboardSpinUpCommand() {
         return defer(() -> spinUpCommand(dashboardTargetRPM)); 
     }
 
-    public boolean isVelocityWithinTolerance() {
-        if (!isVelocityMode) return false;
+    // public boolean isVelocityWithinTolerance() {
+    //     if (!isVelocityMode) return false;
         
-        return encoders.stream().allMatch(encoder -> {
-            final AngularVelocity currentVelocity = RPM.of(encoder.getVelocity());
-            final AngularVelocity targetVelocity = RPM.of(targetRPM);
-            return currentVelocity.isNear(targetVelocity, kVelocityTolerance);
-        });
-    }
+    //     return encoders.stream().allMatch(encoder -> {
+    //         final AngularVelocity currentVelocity = RPM.of(encoder.getVelocity());
+    //         final AngularVelocity targetVelocity = RPM.of(targetRPM);
+    //         return currentVelocity.isNear(targetVelocity, kVelocityTolerance);
+    //     });
+    // }
 
     private void initSendable(SendableBuilder builder, SparkFlex motor, RelativeEncoder encoder, String name) {
         builder.addDoubleProperty(name + " RPM", () -> encoder.getVelocity(), null);
