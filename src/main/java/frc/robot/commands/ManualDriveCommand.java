@@ -5,12 +5,9 @@ import static edu.wpi.first.units.Units.Seconds;
 import java.util.Optional;
 import java.util.function.DoubleSupplier;
 
-import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
-import com.ctre.phoenix6.swerve.SwerveModule.SteerRequestType;
-import com.ctre.phoenix6.swerve.SwerveRequest;
-import com.ctre.phoenix6.swerve.SwerveRequest.ForwardPerspectiveValue;
-
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Constants.Driving;
@@ -37,20 +34,6 @@ public class ManualDriveCommand extends Command {
 
     private final Swerve swerve;
     private final DriveInputSmoother inputSmoother;
-    private final SwerveRequest.Idle idleRequest = new SwerveRequest.Idle();
-
-    private final SwerveRequest.FieldCentric fieldCentricRequest = new SwerveRequest.FieldCentric()
-        .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
-        .withSteerRequestType(SteerRequestType.MotionMagicExpo)
-        .withForwardPerspective(ForwardPerspectiveValue.OperatorPerspective);
-
-    private final SwerveRequest.FieldCentricFacingAngle fieldCentricFacingAngleRequest = new SwerveRequest.FieldCentricFacingAngle()
-        .withRotationalDeadband(Driving.kPIDRotationDeadband)
-        .withMaxAbsRotationalRate(Driving.kMaxRotationalRate)
-        .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
-        .withSteerRequestType(SteerRequestType.MotionMagicExpo)
-        .withForwardPerspective(ForwardPerspectiveValue.OperatorPerspective)
-        .withHeadingPID(5, 0, 0);
 
     private State currentState = State.IDLING;
     private Optional<Rotation2d> lockedHeading = Optional.empty();
@@ -70,7 +53,7 @@ public class ManualDriveCommand extends Command {
 
     public void seedFieldCentric() {
         initialize();
-        swerve.seedFieldCentric();
+        // YAGSL handles field-centric automatically, no special seeding needed
     }
 
     public void setLockedHeading(Rotation2d heading) {
@@ -79,9 +62,8 @@ public class ManualDriveCommand extends Command {
     }
 
     private void setLockedHeadingToCurrent() {
-        final Rotation2d headingInBlueAlliancePerspective = swerve.getPose().getRotation();
-        final Rotation2d headingInOperatorPerspective = headingInBlueAlliancePerspective.rotateBy(swerve.getOperatorForwardDirection());
-        setLockedHeading(headingInOperatorPerspective);
+        // Use the current robot heading directly
+        setLockedHeading(swerve.getHeading());
     }
 
     private void lockHeadingIfRotationStopped(ManualDriveInput input) {
@@ -102,6 +84,8 @@ public class ManualDriveCommand extends Command {
         lockedHeading = Optional.empty();
         headingLockStopwatch.reset();
         previousInput = new ManualDriveInput();
+        // Enable heading correction for locked heading mode
+        swerve.getSwerveDrive().setHeadingCorrection(true);
     }
 
     @Override
@@ -118,24 +102,27 @@ public class ManualDriveCommand extends Command {
 
         switch (currentState) {
             case IDLING:
-                swerve.setControl(idleRequest);
+                // Stop the robot
+                swerve.drive(new Translation2d(0, 0), 0, true);
                 break;
             case DRIVING_WITH_MANUAL_ROTATION:
                 lockHeadingIfRotationStopped(input);
-                swerve.setControl(
-                    fieldCentricRequest
-                        .withVelocityX(Driving.kMaxSpeed.times(input.forward))
-                        .withVelocityY(Driving.kMaxSpeed.times(input.left))
-                        .withRotationalRate(Driving.kMaxRotationalRate.times(input.rotation))
+                // Use YAGSL's drive method with manual rotation
+                Translation2d translation = new Translation2d(
+                    input.forward * Driving.kMaxSpeed.in(edu.wpi.first.units.Units.MetersPerSecond),
+                    input.left * Driving.kMaxSpeed.in(edu.wpi.first.units.Units.MetersPerSecond)
                 );
+                double rotationRate = input.rotation * Driving.kMaxRotationalRate.in(edu.wpi.first.units.Units.RadiansPerSecond);
+                swerve.drive(translation, rotationRate, true);
                 break;
             case DRIVING_WITH_LOCKED_HEADING:
-                swerve.setControl(
-                    fieldCentricFacingAngleRequest
-                        .withVelocityX(Driving.kMaxSpeed.times(input.forward))
-                        .withVelocityY(Driving.kMaxSpeed.times(input.left))
-                        .withTargetDirection(lockedHeading.get())
+                // Use YAGSL's heading controller
+                ChassisSpeeds targetSpeeds = swerve.getTargetSpeeds(
+                    input.forward,
+                    input.left,
+                    lockedHeading.get()
                 );
+                swerve.driveFieldOriented(targetSpeeds);
                 break;
         }
     }
@@ -144,5 +131,11 @@ public class ManualDriveCommand extends Command {
     public boolean isFinished() {
         // Default drive command: runs until interrupted
         return false;
+    }
+
+    @Override
+    public void end(boolean interrupted) {
+        // Disable heading correction when command ends
+        swerve.getSwerveDrive().setHeadingCorrection(false);
     }
 }

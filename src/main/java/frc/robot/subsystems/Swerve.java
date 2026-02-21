@@ -6,6 +6,7 @@ package frc.robot.subsystems;
 
 import static edu.wpi.first.units.Units.Meter;
 
+import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.controller.SimpleMotorFeedforward;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -540,6 +541,24 @@ public class Swerve extends SubsystemBase
   {
     return swerveDrive;
   }
+  /**
+   * Add a vision measurement to the pose estimator.
+   *
+   * @param visionPose The pose of the robot as measured by the vision camera.
+   * @param timestamp The timestamp of the vision measurement in seconds.
+   * @param measurementStdDevs Standard deviations of the vision pose measurement (x, y, and rotation).
+   */
+  public void addVisionMeasurement(Pose2d visionPose, double timestamp, Matrix<N3, N1> measurementStdDevs) {
+      swerveDrive.addVisionMeasurement(visionPose, timestamp, measurementStdDevs);
+  }
 
-
+  /**
+   * Add a vision measurement to the pose estimator with default standard deviations.
+   *
+   * @param visionPose The pose of the robot as measured by the vision camera.
+   * @param timestamp The timestamp of the vision measurement in seconds.
+   */
+  public void addVisionMeasurement(Pose2d visionPose, double timestamp) {
+      swerveDrive.addVisionMeasurement(visionPose, timestamp);
+  }
 }
