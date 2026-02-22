@@ -11,8 +11,8 @@ public final class Ports {
     public static final int kIntakePivot = 10;
     public static final int kIntakeRollers = 11;
     
-    public static final int kFloor = 61;
-    public static final int kFeeder = 54;
+    public static final int kFloor = 54;
+    public static final int kFeeder = 61;
 
     public static final int kShooterLeft = 57;
     public static final int kShooterMiddle = 56;

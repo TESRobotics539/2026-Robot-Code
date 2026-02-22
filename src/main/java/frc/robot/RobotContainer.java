@@ -156,7 +156,7 @@ public class RobotContainer
       
       //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
       driverXbox.rightBumper().whileTrue(feeder.feedCommand());
-      driverXbox.leftBumper().whileTrue(Commands.parallel(floor.feedCommand(), shooter.spinUpCommand(100)));
+      driverXbox.leftBumper().whileTrue(Commands.parallel(floor.feedCommand(), shooter.spinUpCommand()));
 
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
@@ -202,7 +202,7 @@ public class RobotContainer
       //  drivebase.setDefaultCommand(driveFieldOrientedDirectAngleKeyboard);
       //} else
       //{
-        drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
+        drivebase.setDefaultCommand(driveRobotOrientedAngularVelocity);
       //}
 
       if (Robot.isSimulation())
@@ -243,6 +243,7 @@ public class RobotContainer
       driverXbox.a().onTrue((Commands.runOnce(drivebase::zeroGyro)));
       driverXbox.start().whileTrue(Commands.none());
       driverXbox.back().whileTrue(Commands.none());
+      
       // driverXbox.leftBumper().whileTrue(Commands.runOnce(drivebase::lock, drivebase).repeatedly());
       // driverXbox.rightBumper().onTrue(Commands.none());
       //}

@@ -8,6 +8,7 @@ import com.revrobotics.PersistMode;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
 import com.revrobotics.spark.FeedbackSensor;
+import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkClosedLoopController;
 import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
@@ -21,6 +22,21 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Ports;
 
 public class Shooter extends SubsystemBase {
+    public enum Speed {
+        SHOOT(1000),
+        DASHBOARD(0);
+
+        private final double rpm;
+
+        private Speed(double rpm) {
+            this.rpm = rpm;
+        }
+
+        public AngularVelocity angularVelocity() {
+            return RPM.of(rpm);
+        }
+    }
+
     private static final double kNeoVortexFreeSpeed = 6784.0; // RPM
     private static final AngularVelocity kVelocityTolerance = RPM.of(100);
 
@@ -72,13 +88,13 @@ public class Shooter extends SubsystemBase {
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
-    public void setRPM(double rpm) {
-        targetRPM = rpm;
-        isVelocityMode = true;
-        leftController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
-        middleController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
-        rightController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
-    }
+    // public void setRPM(double rpm) {
+    //     targetRPM = rpm;
+    //     isVelocityMode = true;
+    //     leftController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
+    //     middleController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
+    //     rightController.setSetpoint(rpm, SparkFlex.ControlType.kVelocity);
+    // }
 
     public void setPercentOutput(double percentOutput) {
         isVelocityMode = false;
@@ -87,19 +103,40 @@ public class Shooter extends SubsystemBase {
         middleMotor.setVoltage(voltage);
         rightMotor.setVoltage(voltage);
     }
+    
+    public void set(Speed speed) {
+        leftMotor.getClosedLoopController().setSetpoint(
+            speed.angularVelocity().in(RPM),
+            ControlType.kVelocity
+        );
+        middleMotor.getClosedLoopController().setSetpoint(
+            speed.angularVelocity().in(RPM),
+            ControlType.kVelocity
+        );
+        rightMotor.getClosedLoopController().setSetpoint(
+            speed.angularVelocity().in(RPM),
+            ControlType.kVelocity
+        );
+    }
 
     public void stop() {
         setPercentOutput(0.0);
     }
 
-    public Command spinUpCommand(double rpm) {
-        return startEnd(() -> setPercentOutput(10), () -> stop());
+    public Command spinUpCommand() {
+        return startEnd(() -> set(Speed.SHOOT), () -> stop());
+        //return runOnce(() -> setRPM(rpm));
+            //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
+    }
+    
+    public Command spinUpCommand(Speed speed) {
+        return startEnd(() -> set(speed), () -> stop());
         //return runOnce(() -> setRPM(rpm));
             //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }
 
     public Command dashboardSpinUpCommand() {
-        return defer(() -> spinUpCommand(dashboardTargetRPM)); 
+        return defer(() -> spinUpCommand(Speed.DASHBOARD)); 
     }
  
     // public boolean isVelocityWithinTolerance() {
