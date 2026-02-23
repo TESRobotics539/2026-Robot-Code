@@ -22,13 +22,12 @@ public final class Constants {
     public static final double DEADBAND = 0.05;
   }
 
-  public static final double maxSpeed = Units.feetToMeters(12.4);
+  public static final double maxSpeed = Units.feetToMeters(4.5);
   
-  public static class Driving {
-      public static final LinearVelocity kMaxSpeed = MetersPerSecond.of(5.42);;
-      public static final AngularVelocity kMaxRotationalRate = RotationsPerSecond.of(1);
-      public static final AngularVelocity kPIDRotationDeadband = kMaxRotationalRate.times(0.005);
-  }
+  // public static class Driving {
+  //     public static final AngularVelocity kMaxRotationalRate = RotationsPerSecond.of(1);
+  //     public static final AngularVelocity kPIDRotationDeadband = kMaxRotationalRate.times(0.005);
+  // }
 
   public static class KrakenX60 {
       public static final AngularVelocity kFreeSpeed = RPM.of(6000);

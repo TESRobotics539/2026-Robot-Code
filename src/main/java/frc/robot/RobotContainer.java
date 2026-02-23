@@ -4,6 +4,7 @@
 
 package frc.robot;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -92,7 +93,7 @@ public class RobotContainer
                                                               .withControllerRotationAxis(driverXbox::getRightX)
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(0.8)
-                                                              .allianceRelativeControl(true);
+                                                              .allianceRelativeControl(false); // TODO: changed this
 
     /**
      * Clone's the angular velocity input stream and converts it to a fieldRelative input stream.
@@ -202,7 +203,7 @@ public class RobotContainer
       //  drivebase.setDefaultCommand(driveFieldOrientedDirectAngleKeyboard);
       //} else
       //{
-        drivebase.setDefaultCommand(driveRobotOrientedAngularVelocity);
+      drivebase.setDefaultCommand(driveFieldOrientedDirectAngle);
       //}
 
       if (Robot.isSimulation())

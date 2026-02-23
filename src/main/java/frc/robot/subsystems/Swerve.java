@@ -65,20 +65,20 @@ public class Swerve extends SubsystemBase
    *
    * @param directory Directory of swerve drive config files.
    */
-   public Swerve(File directory)
+  public Swerve(File directory)
   { 
-    boolean blueAlliance = false;
-    Pose2d startingPose = blueAlliance ? new Pose2d(new Translation2d(Meter.of(1),
-                                                                      Meter.of(4)),
-                                                    Rotation2d.fromDegrees(0))
-                                       : new Pose2d(new Translation2d(Meter.of(16),
-                                                                      Meter.of(4)),
-                                                    Rotation2d.fromDegrees(180));
+    // boolean blueAlliance = false;
+    // Pose2d startingPose = blueAlliance ? new Pose2d(new Translation2d(Meter.of(1),
+    //                                                                   Meter.of(4)),
+    //                                                 Rotation2d.fromDegrees(0))
+    //                                    : new Pose2d(new Translation2d(Meter.of(16),
+    //                                                                   Meter.of(4)),
+    //                                                 Rotation2d.fromDegrees(180));
     // Configure the Telemetry before creating the SwerveDrive to avoid unnecessary objects being created.
-    SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
+    //SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
     try
     {
-      swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed, startingPose);
+      swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed); //, startingPose);
       // Alternative method if you don't want to supply the conversion factor via JSON files.
       // swerveDrive = new SwerveParser(directory).createSwerveDrive(maximumSpeed, angleConversionFactor, driveConversionFactor);
     } catch (Exception e)
@@ -90,7 +90,7 @@ public class Swerve extends SubsystemBase
     swerveDrive.setAngularVelocityCompensation(true,
                                                true,
                                                0.1); //Correct for skew that gets worse as angular velocity increases. Start with a coefficient of 0.1.
-    swerveDrive.setModuleEncoderAutoSynchronize(false,
+    swerveDrive.setModuleEncoderAutoSynchronize(true, // TODO: enabled this
                                                 1); // Enable if you want to resynchronize your absolute encoders and motor encoders periodically when they are not moving.
     // swerveDrive.pushOffsetsToEncoders(); // Set the absolute encoder to be used over the internal encoder and push the offsets onto it. Throws warning if not possible
   
@@ -137,18 +137,26 @@ public class Swerve extends SubsystemBase
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 position").setNumber(cancoder_fl.getAbsolutePosition().getValueAsDouble());
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 units").setString(cancoder_fl.getAbsolutePosition().getUnits());
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 9 position").setNumber(absoluteEncoder_fl.getAbsolutePosition());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module FL Relative Angle").setNumber(swerveDrive.getModules()[0].getState().angle.getDegrees());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module FL Drift").setNumber(absoluteEncoder_fl.getAbsolutePosition() - swerveDrive.getModules()[0].getState().angle.getDegrees());
 
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 12 position").setNumber(cancoder_fr.getAbsolutePosition().getValueAsDouble());
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 12 units").setString(cancoder_fr.getAbsolutePosition().getUnits());
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 12 position").setNumber(absoluteEncoder_fr.getAbsolutePosition());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module FR Relative Angle").setNumber(swerveDrive.getModules()[1].getState().angle.getDegrees());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module FR Drift").setNumber(absoluteEncoder_fr.getAbsolutePosition() - swerveDrive.getModules()[1].getState().angle.getDegrees());
 
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 6 position").setNumber(cancoder_bl.getAbsolutePosition().getValueAsDouble());
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 6 units").setString(cancoder_bl.getAbsolutePosition().getUnits());
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 6 position").setNumber(absoluteEncoder_bl.getAbsolutePosition());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module BL Relative Angle").setNumber(swerveDrive.getModules()[2].getState().angle.getDegrees());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module BL Drift").setNumber(absoluteEncoder_bl.getAbsolutePosition() - swerveDrive.getModules()[2].getState().angle.getDegrees());
 
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 3 position").setNumber(cancoder_br.getAbsolutePosition().getValueAsDouble());
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 3 units").setString(cancoder_br.getAbsolutePosition().getUnits());
     NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 3 position").setNumber(absoluteEncoder_br.getAbsolutePosition());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module BR Relative Angle").setNumber(swerveDrive.getModules()[3].getState().angle.getDegrees());
+    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module BR Drift").setNumber(absoluteEncoder_br.getAbsolutePosition() - swerveDrive.getModules()[3].getState().angle.getDegrees());
     
   }
 
@@ -237,7 +245,7 @@ public class Swerve extends SubsystemBase
                             translationX.getAsDouble() * swerveDrive.getMaximumChassisVelocity(),
                             translationY.getAsDouble() * swerveDrive.getMaximumChassisVelocity()), 0.8),
                         Math.pow(angularRotationX.getAsDouble(), 3) * swerveDrive.getMaximumChassisAngularVelocity(),
-                        true,
+                        false, // TODO: Changed this to false, but it may need to be true depending on the use case. Field oriented is usually better for teleop, but robot oriented can be better for certain autonomous routines.
                         false);
     });
   }
