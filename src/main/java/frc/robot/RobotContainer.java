@@ -44,11 +44,11 @@ import swervelib.SwerveInputStream;
  */
 public class RobotContainer
 {
-    //private final Intake intake = new Intake();
+    private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
     private final Shooter shooter = new Shooter();
-    // private final Hood hood = new Hood();
+    private final Hood hood = new Hood();
     // private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"));
@@ -156,9 +156,16 @@ public class RobotContainer
       //driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
       
       //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
-      driverXbox.rightBumper().whileTrue(feeder.feedCommand());
-      driverXbox.leftBumper().whileTrue(Commands.parallel(floor.feedCommand(), shooter.spinUpCommand()));
+      
+      
+      // Temporary triggers for testing
+      driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
+      driverXbox.rightBumper().whileTrue(floor.feedCommand());
+      driverXbox.leftBumper().whileTrue(Commands.parallel(feeder.feedCommand(), shooter.spinUpCommand()));
 
+      
+      
+      
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
       // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
@@ -241,9 +248,9 @@ public class RobotContainer
       //   driverXbox.rightBumper().onTrue(Commands.none());
       // } else
       // {
-      driverXbox.a().onTrue((Commands.runOnce(drivebase::zeroGyro)));
-      driverXbox.start().whileTrue(Commands.none());
-      driverXbox.back().whileTrue(Commands.none());
+        driverXbox.a().onTrue((Commands.runOnce(drivebase::zeroGyro)));
+        driverXbox.start().whileTrue(Commands.none());
+        driverXbox.back().whileTrue(Commands.none());
       
       // driverXbox.leftBumper().whileTrue(Commands.runOnce(drivebase::lock, drivebase).repeatedly());
       // driverXbox.rightBumper().onTrue(Commands.none());

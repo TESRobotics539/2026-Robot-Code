@@ -44,8 +44,8 @@ public class Floor extends SubsystemBase {
         SparkMaxConfig config = new SparkMaxConfig();
         config.inverted(true);
         config.idleMode(IdleMode.kBrake);
-        config.smartCurrentLimit(30);
-        config.secondaryCurrentLimit(120);
+        // config.smartCurrentLimit(30);
+        // config.secondaryCurrentLimit(120);
         
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
         SmartDashboard.putData(this);

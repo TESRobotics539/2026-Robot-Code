@@ -16,6 +16,7 @@ import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.trajectory.Trajectory;
+import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -47,6 +48,7 @@ public class Swerve extends SubsystemBase
    * Swerve drive object.
    */
   private final SwerveDrive swerveDrive;
+  private final NetworkTable telemetryTable;
 
   private final SwerveAbsoluteEncoder absoluteEncoder_fl;
   private final CANcoder cancoder_fl;
@@ -74,14 +76,16 @@ public class Swerve extends SubsystemBase
     //                                    : new Pose2d(new Translation2d(Meter.of(16),
     //                                                                   Meter.of(4)),
     //                                                 Rotation2d.fromDegrees(180));
+    
     // Configure the Telemetry before creating the SwerveDrive to avoid unnecessary objects being created.
     SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
+    this.telemetryTable = NetworkTableInstance.getDefault().getTable("AbsoluteEncoders");
+
     try
     {
       swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed); //, startingPose);
-      // Alternative method if you don't want to supply the conversion factor via JSON files.
-      // swerveDrive = new SwerveParser(directory).createSwerveDrive(maximumSpeed, angleConversionFactor, driveConversionFactor);
-    } catch (Exception e)
+    } 
+    catch (Exception e)
     {
       throw new RuntimeException(e);
     }
@@ -113,13 +117,13 @@ public class Swerve extends SubsystemBase
    */
   public Swerve(SwerveDriveConfiguration driveCfg, SwerveControllerConfiguration controllerCfg)
   {
+    this.telemetryTable = NetworkTableInstance.getDefault().getTable("AbsoluteEncoders");
+
     swerveDrive = new SwerveDrive(driveCfg,
                                   controllerCfg,
                                   Constants.maxSpeed,
                                   new Pose2d(new Translation2d(Meter.of(2), Meter.of(0)),
-                                             Rotation2d.fromDegrees(0)));
-
-    
+                                             Rotation2d.fromDegrees(0))); 
 
     cancoder_fl = new CANcoder(9);
     absoluteEncoder_fl = new CANCoderSwerve(9);
@@ -134,30 +138,29 @@ public class Swerve extends SubsystemBase
   @Override
   public void periodic()
   {
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 position").setNumber(cancoder_fl.getAbsolutePosition().getValueAsDouble());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 9 units").setString(cancoder_fl.getAbsolutePosition().getUnits());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 9 position").setNumber(absoluteEncoder_fl.getAbsolutePosition());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module FL Relative Angle").setNumber(swerveDrive.getModules()[0].getState().angle.getDegrees());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module FL Drift").setNumber(absoluteEncoder_fl.getAbsolutePosition() - swerveDrive.getModules()[0].getState().angle.getDegrees());
-
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 12 position").setNumber(cancoder_fr.getAbsolutePosition().getValueAsDouble());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 12 units").setString(cancoder_fr.getAbsolutePosition().getUnits());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 12 position").setNumber(absoluteEncoder_fr.getAbsolutePosition());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module FR Relative Angle").setNumber(swerveDrive.getModules()[1].getState().angle.getDegrees());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module FR Drift").setNumber(absoluteEncoder_fr.getAbsolutePosition() - swerveDrive.getModules()[1].getState().angle.getDegrees());
-
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 6 position").setNumber(cancoder_bl.getAbsolutePosition().getValueAsDouble());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 6 units").setString(cancoder_bl.getAbsolutePosition().getUnits());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 6 position").setNumber(absoluteEncoder_bl.getAbsolutePosition());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module BL Relative Angle").setNumber(swerveDrive.getModules()[2].getState().angle.getDegrees());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module BL Drift").setNumber(absoluteEncoder_bl.getAbsolutePosition() - swerveDrive.getModules()[2].getState().angle.getDegrees());
-
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 3 position").setNumber(cancoder_br.getAbsolutePosition().getValueAsDouble());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("CANcoder 3 units").setString(cancoder_br.getAbsolutePosition().getUnits());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Absolute Encoder 3 position").setNumber(absoluteEncoder_br.getAbsolutePosition());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module BR Relative Angle").setNumber(swerveDrive.getModules()[3].getState().angle.getDegrees());
-    NetworkTableInstance.getDefault().getTable("AbsoluteEncoders").getEntry("Module BR Drift").setNumber(absoluteEncoder_br.getAbsolutePosition() - swerveDrive.getModules()[3].getState().angle.getDegrees());
+    telemetryTable.getEntry("CANcoder 9 position").setNumber(cancoder_fl.getAbsolutePosition().getValueAsDouble());
+    telemetryTable.getEntry("CANcoder 9 units").setString(cancoder_fl.getAbsolutePosition().getUnits());
+    telemetryTable.getEntry("Absolute Encoder 9 position").setNumber(absoluteEncoder_fl.getAbsolutePosition());
+    telemetryTable.getEntry("Module FL Relative Angle").setNumber(swerveDrive.getModules()[0].getState().angle.getDegrees());
+    telemetryTable.getEntry("Module FL Drift").setNumber(absoluteEncoder_fl.getAbsolutePosition() - swerveDrive.getModules()[0].getState().angle.getDegrees());
     
+    telemetryTable.getEntry("CANcoder 12 position").setNumber(cancoder_fr.getAbsolutePosition().getValueAsDouble());
+    telemetryTable.getEntry("CANcoder 12 units").setString(cancoder_fr.getAbsolutePosition().getUnits());
+    telemetryTable.getEntry("Absolute Encoder 12 position").setNumber(absoluteEncoder_fr.getAbsolutePosition());
+    telemetryTable.getEntry("Module FR Relative Angle").setNumber(swerveDrive.getModules()[1].getState().angle.getDegrees());
+    telemetryTable.getEntry("Module FR Drift").setNumber(absoluteEncoder_fr.getAbsolutePosition() - swerveDrive.getModules()[1].getState().angle.getDegrees());
+
+    telemetryTable.getEntry("CANcoder 6 position").setNumber(cancoder_bl.getAbsolutePosition().getValueAsDouble());
+    telemetryTable.getEntry("CANcoder 6 units").setString(cancoder_bl.getAbsolutePosition().getUnits());
+    telemetryTable.getEntry("Absolute Encoder 6 position").setNumber(absoluteEncoder_bl.getAbsolutePosition());
+    telemetryTable.getEntry("Module BL Relative Angle").setNumber(swerveDrive.getModules()[2].getState().angle.getDegrees());
+    telemetryTable.getEntry("Module BL Drift").setNumber(absoluteEncoder_bl.getAbsolutePosition() - swerveDrive.getModules()[2].getState().angle.getDegrees());
+
+    telemetryTable.getEntry("CANcoder 3 position").setNumber(cancoder_br.getAbsolutePosition().getValueAsDouble());
+    telemetryTable.getEntry("CANcoder 3 units").setString(cancoder_br.getAbsolutePosition().getUnits());
+    telemetryTable.getEntry("Absolute Encoder 3 position").setNumber(absoluteEncoder_br.getAbsolutePosition());
+    telemetryTable.getEntry("Module BR Relative Angle").setNumber(swerveDrive.getModules()[3].getState().angle.getDegrees());
+    telemetryTable.getEntry("Module BR Drift").setNumber(absoluteEncoder_br.getAbsolutePosition() - swerveDrive.getModules()[3].getState().angle.getDegrees());
   }
 
   @Override

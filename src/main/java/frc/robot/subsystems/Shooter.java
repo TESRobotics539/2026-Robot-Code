@@ -74,7 +74,7 @@ public class Shooter extends SubsystemBase {
         SparkFlexConfig config = new SparkFlexConfig();
         
         config.inverted(inverted);
-       //config.idleMode(IdleMode.kCoast);
+        //config.idleMode(IdleMode.kCoast);
         //config.smartCurrentLimit(70); // Supply current limit
         //config.secondaryCurrentLimit(120); // Stator current limit
         
