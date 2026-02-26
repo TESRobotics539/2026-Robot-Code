@@ -157,16 +157,11 @@ public class RobotContainer
       //driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
       
       //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
-      
-      
-      // Temporary triggers for testing
-      driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
       driverXbox.rightBumper().whileTrue(floor.feedCommand());
-      driverXbox.leftBumper().whileTrue(Commands.parallel(feeder.feedCommand(), shooter.spinUpCommand()));
+      
+      driverXbox.leftTrigger().whileTrue(feeder.reverseCommand());
+      driverXbox.leftBumper().whileTrue(Commands.parallel(Commands.sequence(Commands.waitSeconds(2.0), feeder.feedCommand()), shooter.spinUpCommand()));
 
-      
-      
-      
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
       // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
