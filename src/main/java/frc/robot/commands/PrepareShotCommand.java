@@ -38,20 +38,22 @@ public class PrepareShotCommand extends Command {
     }
 
     private final Shooter shooter;
-    private final Hood hood;
+    //private final Hood hood;
     private final Supplier<Pose2d> robotPoseSupplier;
 
     public PrepareShotCommand(Shooter shooter, Hood hood, Supplier<Pose2d> robotPoseSupplier) {
         this.shooter = shooter;
-        this.hood = hood;
+        //this.hood = hood;
         this.robotPoseSupplier = robotPoseSupplier;
-        addRequirements(shooter, hood);
+        //addRequirements(shooter, hood);
+        addRequirements(shooter);
     }
 
     public boolean isReadyToShoot() {
         // TODO
         // return shooter.isVelocityWithinTolerance() && hood.isPositionWithinTolerance();
-        return hood.isPositionWithinTolerance();
+        //return hood.isPositionWithinTolerance();
+        return true;
     }
 
     private Distance getDistanceToHub() {
@@ -64,8 +66,8 @@ public class PrepareShotCommand extends Command {
     public void execute() {
         final Distance distanceToHub = getDistanceToHub();
         final Shot shot = distanceToShotMap.get(distanceToHub);
-        //shooter.setRPM(shot.shooterRPM);  TODO: Fix this
-        hood.setPosition(shot.hoodPosition);
+        shooter.set(shot.shooterRPM);
+        //hood.setPosition(shot.hoodPosition);
         SmartDashboard.putNumber("Distance to Hub (inches)", distanceToHub.in(Inches));
     }
 

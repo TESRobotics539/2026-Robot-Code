@@ -44,12 +44,12 @@ import swervelib.SwerveInputStream;
  */
 public class RobotContainer
 {
-    private final Intake intake = new Intake();
+    //private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
     private final Shooter shooter = new Shooter();
     private final Hood hood = new Hood();
-    private final Hanger hanger = new Hanger();
+    //private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"));
 
@@ -68,12 +68,12 @@ public class RobotContainer
 
     private final SubsystemCommands subsystemCommands = new SubsystemCommands(
         drivebase,
-        intake,
+        //intake,
         floor,
         feeder,
         shooter,
         hood,
-        hanger,
+        //hanger,
         () -> -driverXbox.getLeftY(),
         () -> -driverXbox.getLeftX()
     );
@@ -87,8 +87,8 @@ public class RobotContainer
     SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
                                                                   () -> driverXbox.getLeftY() * -1,
                                                                   () -> driverXbox.getLeftX() * -1)
-                                                              //.withControllerRotationAxis(driverXbox::getRightX)
-                                                              .aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))                                                           
+                                                              .withControllerRotationAxis(driverXbox::getRightX)
+                                                              //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))                                                           
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(0.8)
                                                               .allianceRelativeControl(false); // TODO: changed this
@@ -102,9 +102,12 @@ public class RobotContainer
       limelight.setDefaultCommand(updateVisionCommand());
 
       // TODO: Uncomment when subsystem commands are implemented
-      driverXbox.rightBumper().whileTrue(floor.feedCommand());
-      driverXbox.leftTrigger().whileTrue(feeder.reverseCommand());
-      driverXbox.leftBumper().whileTrue(Commands.parallel(Commands.sequence(Commands.waitSeconds(2.0), feeder.feedCommand()), shooter.spinUpCommand()));
+      //driverXbox.rightBumper().whileTrue(floor.feedCommand());
+      //driverXbox.leftTrigger().whileTrue(feeder.reverseCommand());
+      //driverXbox.leftBumper().whileTrue(Commands.parallel(Commands.sequence(Commands.waitSeconds(2.0), feeder.feedCommand()), shooter.spinUpCommand()));
+
+
+
 
 
       // ORIGINAL COMMANDS
@@ -113,9 +116,9 @@ public class RobotContainer
       //     .onTrue(hanger.homingCommand());
 
       // TODO: Uncomment when shoot commands are implemented
-      //driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
+      driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
       
-      //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
+      driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
       
 
       // TODO: Uncomment when intake commands are implemented
@@ -147,23 +150,23 @@ public class RobotContainer
       drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
 
       
-      if (DriverStation.isTest())
-      {
-        drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity); // Overrides drive command above!
-        driverXbox.x().whileTrue(Commands.runOnce(drivebase::lock, drivebase).repeatedly());
-        driverXbox.start().onTrue((Commands.runOnce(drivebase::zeroGyro)));
-        driverXbox.back().whileTrue(drivebase.centerModulesCommand());
-        driverXbox.leftBumper().onTrue(Commands.none());
-        driverXbox.rightBumper().onTrue(Commands.none());
-      } else
-      {
+    //   if (DriverStation.isTest())
+    //   {
+    //     drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity); // Overrides drive command above!
+    //     driverXbox.x().whileTrue(Commands.runOnce(drivebase::lock, drivebase).repeatedly());
+    //     driverXbox.start().onTrue((Commands.runOnce(drivebase::zeroGyro)));
+    //     driverXbox.back().whileTrue(drivebase.centerModulesCommand());
+    //     driverXbox.leftBumper().onTrue(Commands.none());
+    //     driverXbox.rightBumper().onTrue(Commands.none());
+    //   } else
+    //   {
         driverXbox.a().onTrue((Commands.runOnce(drivebase::zeroGyro)));
         driverXbox.start().whileTrue(Commands.none());
         driverXbox.back().whileTrue(Commands.none());
       
         // driverXbox.leftBumper().whileTrue(Commands.runOnce(drivebase::lock, drivebase).repeatedly());
         // driverXbox.rightBumper().onTrue(Commands.none());
-      }
+      //}
     }
 
     /**
