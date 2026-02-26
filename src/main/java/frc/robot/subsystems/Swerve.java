@@ -69,13 +69,13 @@ public class Swerve extends SubsystemBase
    */
   public Swerve(File directory)
   { 
-    // boolean blueAlliance = true;
-    // Pose2d startingPose = blueAlliance ? new Pose2d(new Translation2d(Meter.of(1),
-    //                                                                   Meter.of(4)),
-    //                                                 Rotation2d.fromDegrees(0))
-    //                                    : new Pose2d(new Translation2d(Meter.of(16),
-    //                                                                   Meter.of(4)),
-    //                                                 Rotation2d.fromDegrees(180));
+    boolean blueAlliance = true;
+    Pose2d startingPose = blueAlliance ? new Pose2d(new Translation2d(Meter.of(4),
+                                                                      Meter.of(0.5)),
+                                                    Rotation2d.fromDegrees(180))
+                                       : new Pose2d(new Translation2d(Meter.of(16),
+                                                                      Meter.of(4)),
+                                                    Rotation2d.fromDegrees(0));
     
     // Configure the Telemetry before creating the SwerveDrive to avoid unnecessary objects being created.
     SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
@@ -83,7 +83,7 @@ public class Swerve extends SubsystemBase
 
     try
     {
-      swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed); //, startingPose);
+      swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed, startingPose);
     } 
     catch (Exception e)
     {

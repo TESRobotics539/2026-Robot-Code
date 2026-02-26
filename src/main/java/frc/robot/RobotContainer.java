@@ -91,7 +91,7 @@ public class RobotContainer
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))                                                           
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(0.8)
-                                                              .allianceRelativeControl(false); // TODO: changed this
+                                                              .allianceRelativeControl(true); // TODO: changed this
 
     public RobotContainer()
     {
