@@ -22,7 +22,7 @@ public final class Constants {
     public static final double DEADBAND = 0.05;
   }
 
-  public static final double maxSpeed = Units.feetToMeters(4.5);
+  public static final double maxSpeed = Units.feetToMeters(8); //was 16 before
   
   // public static class Driving {
   //     public static final AngularVelocity kMaxRotationalRate = RotationsPerSecond.of(1);
