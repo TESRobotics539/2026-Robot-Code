@@ -110,6 +110,17 @@ public class RobotContainer
 
 
 
+
+        //dis is js fer testing dem ackcheuwators ;)
+        driverXbox.leftTrigger().whileTrue(hood.positionCommand(1.5));
+        driverXbox.leftBumper().whileTrue(hood.positionCommand(0.15));
+
+
+
+
+
+
+
       // ORIGINAL COMMANDS
       // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())
       //     .onTrue(intake.homingCommand())
@@ -199,4 +210,5 @@ public class RobotContainer
         })
         .ignoringDisable(true);
     }
+
 }
