@@ -73,9 +73,6 @@ public class Intake extends SubsystemBase {
     private final SparkMax pivotMotor;
     private final SparkFlex rollerMotor;
 
-    
-    private final CANcoder roller_cancoder;
-
     private boolean isHomed = false;
 
     public Intake() {
@@ -84,32 +81,40 @@ public class Intake extends SubsystemBase {
         configurePivotMotor();
         configureRollerMotor();
         SmartDashboard.putData(this);
-
-        roller_cancoder = new CANcoder(3);
+    }
+    
+    @Override
+    public void periodic()
+    {
+        SmartDashboard.putNumber("Intake Pivot Current (A)", pivotMotor.getOutputCurrent());
+        SmartDashboard.putNumber("Intake Roller Current (A)", rollerMotor.getOutputCurrent());
+        SmartDashboard.putNumber("Intake Pivot Position (deg)", pivotMotor.getEncoder().getPosition());
+        SmartDashboard.putNumber("Intake Roller Velocity (RPM)", rollerMotor.getEncoder().getVelocity());
+        SmartDashboard.putBoolean("Intake Homed", isHomed);
     }
 
     private void configurePivotMotor() {
         final SparkMaxConfig config = new SparkMaxConfig();
         
-        config.inverted(true)
+        config.inverted(false)
             .idleMode(IdleMode.kBrake);
         
-        config.smartCurrentLimit(5) //was 70
+        config.smartCurrentLimit(20) //was 70
             .secondaryCurrentLimit(120);
         
-        // config.encoder
-        //     .positionConversionFactor(360.0 / kPivotReduction) // degrees
-        //     .velocityConversionFactor(1.0 / kPivotReduction);  // RPM
+        config.encoder
+            .positionConversionFactor(360.0 / kPivotReduction) // degrees
+            .velocityConversionFactor(1.0 / kPivotReduction);  // RPM
         
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
             .p(0.1)
             .i(0.0)
             .d(0.0)
-            .velocityFF(12.0 / kMaxPivotSpeed.in(RotationsPerSecond))
+            .velocityFF(12.0 / (kNeoVortexFreeSpeed / 60.0)) // kV: 12 volts at max speed (converted to RPS)
             .maxMotion
-                .maxVelocity(kMaxPivotSpeed.in(RPM))
-                .maxAcceleration(kMaxPivotSpeed.in(RPM) * 0.25);
+                .maxVelocity(kMaxPivotSpeed.in(RPM) * 0.3)  // Limit to 30% of max speed for smoother control
+                .maxAcceleration(kMaxPivotSpeed.in(RPM) * 0.1);  // Limit acceleration for smoother control
         
         pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
@@ -159,7 +164,7 @@ public class Intake extends SubsystemBase {
     public Command intakeCommand() {
         return startEnd(
             () -> {
-                //set(Position.INTAKE);
+                set(Position.INTAKE);
                 set(Speed.FEED);
             },
             () -> set(Speed.STOP)
