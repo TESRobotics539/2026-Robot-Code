@@ -12,6 +12,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.kinematics.Odometry;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
@@ -19,6 +20,8 @@ import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Config;
@@ -44,9 +47,6 @@ import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
 
 public class Swerve extends SubsystemBase
 {
-  /**
-   * Swerve drive object.
-   */
   private final SwerveDrive swerveDrive;
   private final NetworkTable telemetryTable;
 
@@ -62,28 +62,23 @@ public class Swerve extends SubsystemBase
   private final SwerveAbsoluteEncoder absoluteEncoder_br;
   private final CANcoder cancoder_br;
 
+  private final Field2d field;
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
    *
    * @param directory Directory of swerve drive config files.
+   * @param field Field2d object for visualizing the robot's position on the field.
    */
-  public Swerve(File directory)
+  public Swerve(File directory, Field2d field)
   { 
-    boolean blueAlliance = true;
-    Pose2d startingPose = blueAlliance ? new Pose2d(new Translation2d(Meter.of(4),
-                                                                      Meter.of(0.5)),
-                                                    Rotation2d.fromDegrees(180))
-                                       : new Pose2d(new Translation2d(Meter.of(16),
-                                                                      Meter.of(4)),
-                                                    Rotation2d.fromDegrees(0));
-    
     // Configure the Telemetry before creating the SwerveDrive to avoid unnecessary objects being created.
     SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
     this.telemetryTable = NetworkTableInstance.getDefault().getTable("AbsoluteEncoders");
+    this.field = field;
 
     try
     {
-      swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed, startingPose);
+      swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed); //, startingPose);
     } 
     catch (Exception e)
     {
@@ -114,10 +109,12 @@ public class Swerve extends SubsystemBase
    *
    * @param driveCfg      SwerveDriveConfiguration for the swerve.
    * @param controllerCfg Swerve Controller.
+   * @param field Field2d object for visualizing the robot's position on the field.
    */
-  public Swerve(SwerveDriveConfiguration driveCfg, SwerveControllerConfiguration controllerCfg)
+  public Swerve(SwerveDriveConfiguration driveCfg, SwerveControllerConfiguration controllerCfg, Field2d field)
   {
     this.telemetryTable = NetworkTableInstance.getDefault().getTable("AbsoluteEncoders");
+    this.field = field;
 
     swerveDrive = new SwerveDrive(driveCfg,
                                   controllerCfg,
@@ -166,6 +163,10 @@ public class Swerve extends SubsystemBase
   @Override
   public void simulationPeriodic()
   {
+    Pose2d pose = swerveDrive.getPose();
+    field.setRobotPose(pose);
+
+    swerveDrive.updateOdometry(); 
   }
 
   /**

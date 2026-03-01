@@ -14,6 +14,7 @@ import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -51,9 +52,10 @@ public class RobotContainer
     private final Hood hood = new Hood();
     //private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
-    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"));
+    private final Field2d field = new Field2d();
+    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
 
-    final CommandXboxController driverXbox = new CommandXboxController(0);
+    final CommandXboxController  driverXbox = new CommandXboxController(0);
     
     // private final AutoRoutines autoRoutines = new AutoRoutines(
     //     drivebase,
@@ -99,15 +101,14 @@ public class RobotContainer
       configureBindings();
       DriverStation.silenceJoystickConnectionWarning(true);
 
-      limelight.setDefaultCommand(updateVisionCommand());
+      //limelight.setDefaultCommand(updateVisionCommand());
+
+      SmartDashboard.putData("Field", field);
 
       // TODO: Uncomment when subsystem commands are implemented
       //driverXbox.rightBumper().whileTrue(floor.feedCommand());
       //driverXbox.leftTrigger().whileTrue(feeder.reverseCommand());
       //driverXbox.leftBumper().whileTrue(Commands.parallel(Commands.sequence(Commands.waitSeconds(2.0), feeder.feedCommand()), shooter.spinUpCommand()));
-
-
-
 
 
       // ORIGINAL COMMANDS
@@ -116,11 +117,9 @@ public class RobotContainer
       //     .onTrue(hanger.homingCommand());
 
       // TODO: Uncomment when shoot commands are implemented
-      driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
+      driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());      
+      driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually());
       
-      driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually()); // TODO: Change this back to shoot manually
-      
-
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
       // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
@@ -160,9 +159,10 @@ public class RobotContainer
     //     driverXbox.rightBumper().onTrue(Commands.none());
     //   } else
     //   {
-        driverXbox.a().onTrue((Commands.runOnce(drivebase::zeroGyro)));
-        driverXbox.start().whileTrue(Commands.none());
-        driverXbox.back().whileTrue(Commands.none());
+
+        // driverXbox.a().onTrue((Commands.runOnce(drivebase::zeroGyro)));
+        // driverXbox.start().whileTrue(Commands.none());
+        // driverXbox.back().whileTrue(Commands.none());
       
         // driverXbox.leftBumper().whileTrue(Commands.runOnce(drivebase::lock, drivebase).repeatedly());
         // driverXbox.rightBumper().onTrue(Commands.none());
@@ -180,23 +180,33 @@ public class RobotContainer
       return autoChooser.getSelected();
     }
 
+    public void resetOdometry(Pose2d pose)
+    {
+      drivebase.resetOdometry(pose);
+    }
+
+    public void zeroGyroWithAlliance()
+    {
+      drivebase.zeroGyroWithAlliance();
+    }
+
     public void setMotorBrake(boolean brake)
     {
       drivebase.setMotorBrake(brake);
     }
 
-    private Command updateVisionCommand() {
-        return limelight.run(() -> {
-            final Pose2d currentRobotPose = drivebase.getPose();
-            final Optional<Limelight.Measurement> measurement = limelight.getMeasurement(currentRobotPose);
-            measurement.ifPresent(m -> {
-                drivebase.addVisionMeasurement(
-                    m.poseEstimate.pose, 
-                    m.poseEstimate.timestampSeconds,
-                    m.standardDeviations
-                );
-            });
-        })
-        .ignoringDisable(true);
-    }
+    // private Command updateVisionCommand() {
+    //     return limelight.run(() -> {
+    //         final Pose2d currentRobotPose = drivebase.getPose();
+    //         final Optional<Limelight.Measurement> measurement = limelight.getMeasurement(currentRobotPose);
+    //         measurement.ifPresent(m -> {
+    //             drivebase.addVisionMeasurement(
+    //                 m.poseEstimate.pose, 
+    //                 m.poseEstimate.timestampSeconds,
+    //                 m.standardDeviations
+    //             );
+    //         });
+    //     })
+    //     .ignoringDisable(true);
+    // }
 }

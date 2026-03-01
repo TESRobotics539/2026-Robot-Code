@@ -6,6 +6,10 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.Volts;
 
+import java.util.Optional;
+import java.util.OptionalInt;
+
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -46,4 +50,39 @@ public class Robot extends TimedRobot {
         // block in order for anything in the Command-based framework to work.
         CommandScheduler.getInstance().run();
     }
+
+    @Override
+    public void teleopInit()
+    {
+    // This makes sure that the autonomous stops running when
+    // teleop starts running. If you want the autonomous to
+    // continue until interrupted by another command, remove
+    // this line or comment it out.
+    // if (m_autonomousCommand != null)
+    // {
+    //     m_autonomousCommand.cancel();
+    // }
+    
+    // Set the robot's starting position for teleop
+    // Choose the starting location that matches where you placed the robot
+
+    OptionalInt dsLocation = DriverStation.getLocation();
+  
+    Landmarks.StartingLocation location;
+    if (dsLocation.isPresent()) {
+        location = switch (dsLocation.getAsInt()) {
+        case 1 -> Landmarks.StartingLocation.LEFT;
+        case 2 -> Landmarks.StartingLocation.CENTER;
+        case 3 -> Landmarks.StartingLocation.RIGHT;
+        default -> Landmarks.StartingLocation.CENTER;
+        };
+    } else {
+        location = Landmarks.StartingLocation.CENTER; // Default if not connected
+    }
+
+    m_robotContainer.zeroGyroWithAlliance();
+    m_robotContainer.resetOdometry(
+        Landmarks.getStartingPosition(location)
+    );
+  }
 }
