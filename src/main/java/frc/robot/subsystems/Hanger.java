@@ -74,7 +74,8 @@ public class Hanger extends SubsystemBase {
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
             .pid(0.1, 0, 0)
-            .velocityFF(1.0 / kNeoFreeSpeedRPS)
+            .velocityFF(0.000175)
+            //.velocityFF(1.0 / kNeoFreeSpeedRPS)
             .maxMotion
                 .maxVelocity(kNeoFreeSpeedRPS * 60) // RPM
                 .maxAcceleration(kNeoFreeSpeedRPS * 60) // RPM/s

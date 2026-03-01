@@ -9,9 +9,11 @@ import static edu.wpi.first.units.Units.Volts;
 
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkFlex;
+import com.ctre.phoenix6.hardware.CANcoder;
 import com.revrobotics.PersistMode;
 import com.revrobotics.ResetMode;
 import com.revrobotics.spark.FeedbackSensor;
+import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import com.revrobotics.spark.config.SparkFlexConfig;
@@ -26,30 +28,30 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Command.InterruptionBehavior;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.Constants.KrakenX60;
+import frc.robot.Constants;
 import frc.robot.Ports;
 
 public class Intake extends SubsystemBase {
     public enum Speed {
-        STOP(0),
-        FEED(0.25);  // TODO: was initially 0.8
+        FEED(2000),
+        STOP(0);
 
-        private final double percentOutput;
+        private final double rpm;
 
-        private Speed(double percentOutput) {
-            this.percentOutput = percentOutput;
+        private Speed(double rpm) {
+            this.rpm = rpm;
         }
 
-        public Voltage voltage() {
-            return Volts.of(percentOutput * 12.0);
+        public AngularVelocity angularVelocity() {
+            return RPM.of(rpm);
         }
     }
 
     public enum Position {
-        HOMED(110),
-        STOWED(100),
-        INTAKE(-4),
-        AGITATE(20);
+        HOMED(60),
+        STOWED(60),
+        INTAKE(50),
+        AGITATE(55);
 
         private final double degrees;
 
@@ -62,13 +64,17 @@ public class Intake extends SubsystemBase {
         }
     }
 
+    private static final double kNeoVortexFreeSpeed = 6784.0; // RPM
     private static final double kPivotReduction = 50.0;
-    private static final AngularVelocity kMaxPivotSpeed = KrakenX60.kFreeSpeed.div(kPivotReduction);
+    private static final AngularVelocity kMaxPivotSpeed = Constants.intakeMaxSpeed.div(kPivotReduction);
     private static final Angle kPositionTolerance = Degrees.of(5);
     private double targetPivotPosition = 0.0;
 
     private final SparkMax pivotMotor;
     private final SparkFlex rollerMotor;
+
+    
+    private final CANcoder roller_cancoder;
 
     private boolean isHomed = false;
 
@@ -78,20 +84,22 @@ public class Intake extends SubsystemBase {
         configurePivotMotor();
         configureRollerMotor();
         SmartDashboard.putData(this);
+
+        roller_cancoder = new CANcoder(3);
     }
 
     private void configurePivotMotor() {
         final SparkMaxConfig config = new SparkMaxConfig();
         
-        config.inverted(false)
+        config.inverted(true)
             .idleMode(IdleMode.kBrake);
         
-        config.smartCurrentLimit(70)
+        config.smartCurrentLimit(5) //was 70
             .secondaryCurrentLimit(120);
         
-        config.encoder
-            .positionConversionFactor(360.0 / kPivotReduction) // degrees
-            .velocityConversionFactor(1.0 / kPivotReduction);  // RPM
+        // config.encoder
+        //     .positionConversionFactor(360.0 / kPivotReduction) // degrees
+        //     .velocityConversionFactor(1.0 / kPivotReduction);  // RPM
         
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
@@ -107,13 +115,20 @@ public class Intake extends SubsystemBase {
     }
 
     private void configureRollerMotor() {
-        final SparkFlexConfig config = new SparkFlexConfig();
+        SparkFlexConfig config = new SparkFlexConfig();
         
-        config.inverted(true)
-            .idleMode(IdleMode.kBrake);
+        config.inverted(false);
+        config.closedLoopRampRate(0.5);
+        //config.idleMode(IdleMode.kCoast);
+        config.smartCurrentLimit(40); // Supply current limit
+        config.secondaryCurrentLimit(120); // Stator current limit
         
-        config.smartCurrentLimit(70)
-            .secondaryCurrentLimit(120);
+        // PID configuration
+        config.closedLoop
+            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+            .pid(0.0002, 0.0008, 0.0) // kP, kI, kD for velocity control in RPM
+            .velocityFF(12.0 / 6784) // kV: 12 volts when requesting max RPM
+            .iZone(0);
         
         rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
@@ -136,13 +151,16 @@ public class Intake extends SubsystemBase {
     }
 
     public void set(Speed speed) {
-        rollerMotor.setVoltage(speed.voltage().in(Volts));
+        rollerMotor.getClosedLoopController().setSetpoint(
+            speed.angularVelocity().in(RPM),
+            ControlType.kVelocity
+        );
     }
 
     public Command intakeCommand() {
         return startEnd(
             () -> {
-                set(Position.INTAKE);
+                //set(Position.INTAKE);
                 set(Speed.FEED);
             },
             () -> set(Speed.STOP)

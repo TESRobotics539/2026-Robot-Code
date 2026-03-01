@@ -14,7 +14,7 @@ import frc.robot.subsystems.Swerve;
 
 public final class SubsystemCommands {
     private final Swerve swerve;
-    //private final Intake intake;
+    private final Intake intake;
     private final Floor floor;
     private final Feeder feeder;
     private final Shooter shooter;
@@ -26,7 +26,7 @@ public final class SubsystemCommands {
 
     public SubsystemCommands(
         Swerve swerve,
-        //Intake intake,
+        Intake intake,
         Floor floor,
         Feeder feeder,
         Shooter shooter,
@@ -36,7 +36,7 @@ public final class SubsystemCommands {
         DoubleSupplier leftInput
     ) {
         this.swerve = swerve;
-        //this.intake = intake;
+        this.intake = intake;
         this.floor = floor;
         this.feeder = feeder;
         this.shooter = shooter;
@@ -49,7 +49,7 @@ public final class SubsystemCommands {
 
     public SubsystemCommands(
         Swerve swerve,
-        //Intake intake,
+        Intake intake,
         Floor floor,
         Feeder feeder,
         Shooter shooter,
@@ -58,7 +58,7 @@ public final class SubsystemCommands {
     ) {
         this(
             swerve,
-            //intake,
+            intake,
             floor,
             feeder,
             shooter,
@@ -93,8 +93,7 @@ public final class SubsystemCommands {
             Commands.parallel(
                 feeder.feedCommand(),
                 Commands.waitSeconds(0.125)
-                    .andThen(floor.feedCommand())//.alongWith(intake.agitateCommand()))
-            )
+                    .andThen(floor.feedCommand()).alongWith(intake.agitateCommand()))
         );
     }
 }

@@ -249,7 +249,7 @@ public class Swerve extends SubsystemBase
                             translationX.getAsDouble() * swerveDrive.getMaximumChassisVelocity(),
                             translationY.getAsDouble() * swerveDrive.getMaximumChassisVelocity()), 0.8),
                         Math.pow(angularRotationX.getAsDouble(), 3) * swerveDrive.getMaximumChassisAngularVelocity(),
-                        false, // TODO: Changed this to false, but it may need to be true depending on the use case. Field oriented is usually better for teleop, but robot oriented can be better for certain autonomous routines.
+                        true, 
                         false);
     });
   }

@@ -45,7 +45,7 @@ import swervelib.SwerveInputStream;
  */
 public class RobotContainer
 {
-    //private final Intake intake = new Intake();
+    private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
     private final Shooter shooter = new Shooter();
@@ -70,7 +70,7 @@ public class RobotContainer
 
     private final SubsystemCommands subsystemCommands = new SubsystemCommands(
         drivebase,
-        //intake,
+        intake,
         floor,
         feeder,
         shooter,
@@ -93,7 +93,7 @@ public class RobotContainer
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))                                                           
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(0.8)
-                                                              .allianceRelativeControl(true); // TODO: changed this
+                                                              .allianceRelativeControl(true);
 
     public RobotContainer()
     {
@@ -115,6 +115,10 @@ public class RobotContainer
         //dis is js fer testing dem ackcheuwators ;)
         driverXbox.leftTrigger().whileTrue(hood.positionCommand(1.5));
         driverXbox.leftBumper().whileTrue(hood.positionCommand(0.15));
+        driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
+        driverXbox.rightBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
+
+
 
       // ORIGINAL COMMANDS
       // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())
@@ -122,8 +126,8 @@ public class RobotContainer
       //     .onTrue(hanger.homingCommand());
 
       // TODO: Uncomment when shoot commands are implemented
-      driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());      
-      driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually());
+      //driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());      
+      //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually());
       
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());

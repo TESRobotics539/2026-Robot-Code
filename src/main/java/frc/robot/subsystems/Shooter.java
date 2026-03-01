@@ -23,7 +23,7 @@ import frc.robot.Ports;
 
 public class Shooter extends SubsystemBase {
     public enum Speed {
-        SHOOT(5000),
+        SHOOT(3500),
         DASHBOARD(0);
 
         private final double rpm;
@@ -75,9 +75,9 @@ public class Shooter extends SubsystemBase {
         
         config.inverted(inverted);
         config.closedLoopRampRate(0.5);
-       //config.idleMode(IdleMode.kCoast);
-        //config.smartCurrentLimit(70); // Supply current limit
-        //config.secondaryCurrentLimit(120); // Stator current limit
+        //config.idleMode(IdleMode.kCoast);
+        config.smartCurrentLimit(70); // Supply current limit
+        config.secondaryCurrentLimit(120); // Stator current limit
         
         // PID configuration
         config.closedLoop

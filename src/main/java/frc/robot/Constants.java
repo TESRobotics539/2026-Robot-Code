@@ -29,7 +29,5 @@ public final class Constants {
   //     public static final AngularVelocity kPIDRotationDeadband = kMaxRotationalRate.times(0.005);
   // }
 
-  public static class KrakenX60 {
-      public static final AngularVelocity kFreeSpeed = RPM.of(6000);
-  }
+  public static final AngularVelocity intakeMaxSpeed = RPM.of(1);
 }
