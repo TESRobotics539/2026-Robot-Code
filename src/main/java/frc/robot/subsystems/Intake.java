@@ -48,10 +48,10 @@ public class Intake extends SubsystemBase {
     }
 
     public enum Position {
-        HOMED(60),
-        STOWED(60),
-        INTAKE(50),
-        AGITATE(55);
+        HOMED(40),
+        STOWED(40),
+        INTAKE(30),
+        AGITATE(30);
 
         private final double degrees;
 
@@ -82,21 +82,11 @@ public class Intake extends SubsystemBase {
         configureRollerMotor();
         SmartDashboard.putData(this);
     }
-    
-    @Override
-    public void periodic()
-    {
-        SmartDashboard.putNumber("Intake Pivot Current (A)", pivotMotor.getOutputCurrent());
-        SmartDashboard.putNumber("Intake Roller Current (A)", rollerMotor.getOutputCurrent());
-        SmartDashboard.putNumber("Intake Pivot Position (deg)", pivotMotor.getEncoder().getPosition());
-        SmartDashboard.putNumber("Intake Roller Velocity (RPM)", rollerMotor.getEncoder().getVelocity());
-        SmartDashboard.putBoolean("Intake Homed", isHomed);
-    }
 
     private void configurePivotMotor() {
         final SparkMaxConfig config = new SparkMaxConfig();
         
-        config.inverted(false)
+        config.inverted(true)
             .idleMode(IdleMode.kBrake);
         
         config.smartCurrentLimit(20) //was 70
@@ -122,7 +112,7 @@ public class Intake extends SubsystemBase {
     private void configureRollerMotor() {
         SparkFlexConfig config = new SparkFlexConfig();
         
-        config.inverted(true);
+        config.inverted(false);
         //config.idleMode(IdleMode.kCoast);  //Rev Client Manages This
         config.smartCurrentLimit(80); // Supply current limit
         config.secondaryCurrentLimit(120); // Stator current limit
