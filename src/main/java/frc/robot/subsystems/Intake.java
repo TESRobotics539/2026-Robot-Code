@@ -1,15 +1,10 @@
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.RPM;
-import static edu.wpi.first.units.Units.RotationsPerSecond;
-import static edu.wpi.first.units.Units.Second;
-import static edu.wpi.first.units.Units.Volts;
 
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkFlex;
-import com.ctre.phoenix6.hardware.CANcoder;
 import com.revrobotics.PersistMode;
 import com.revrobotics.ResetMode;
 import com.revrobotics.spark.FeedbackSensor;
@@ -21,7 +16,6 @@ import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
-import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -48,10 +42,10 @@ public class Intake extends SubsystemBase {
     }
 
     public enum Position {
-        HOMED(40),
-        STOWED(40),
-        INTAKE(30),
-        AGITATE(30);
+        HOMED(50),
+        STOWED(50),
+        INTAKE(20),
+        AGITATE(20);
 
         private final double degrees;
 
@@ -80,24 +74,29 @@ public class Intake extends SubsystemBase {
         rollerMotor = new SparkFlex(Ports.kIntakeRollers, MotorType.kBrushless);
         configurePivotMotor();
         configureRollerMotor();
+
+        // Read initial position from absolute encoder
+        targetPivotPosition = pivotMotor.getAbsoluteEncoder().getPosition();
+
         SmartDashboard.putData(this);
     }
 
     private void configurePivotMotor() {
         final SparkMaxConfig config = new SparkMaxConfig();
         
-        config.inverted(true)
+        config.inverted(false)
             .idleMode(IdleMode.kBrake);
         
         config.smartCurrentLimit(20) //was 70
             .secondaryCurrentLimit(120);
         
-        config.encoder
+        config.absoluteEncoder
             .positionConversionFactor(360.0 / kPivotReduction) // degrees
-            .velocityConversionFactor(1.0 / kPivotReduction);  // RPM
+            .velocityConversionFactor(60.0 / kPivotReduction)  // RPM
+            .inverted(false); // Set based on your encoder mounting
         
         config.closedLoop
-            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+            .feedbackSensor(FeedbackSensor.kAbsoluteEncoder)
             .p(0.1)
             .i(0.0)
             .d(0.0)
@@ -128,7 +127,7 @@ public class Intake extends SubsystemBase {
     }
 
     private boolean isPositionWithinTolerance() {
-        final double currentPosition = pivotMotor.getEncoder().getPosition();
+        final double currentPosition = pivotMotor.getAbsoluteEncoder().getPosition();
         return Math.abs(currentPosition - targetPivotPosition) < kPositionTolerance.in(Degrees);
     }
 
@@ -198,10 +197,10 @@ public class Intake extends SubsystemBase {
     @Override
     public void initSendable(SendableBuilder builder) {
         builder.addStringProperty("Command", () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "null", null);
-        builder.addDoubleProperty("Angle (degrees)", () -> pivotMotor.getEncoder().getPosition(), null);
+        builder.addDoubleProperty("Angle (degrees)", () -> pivotMotor.getAbsoluteEncoder().getPosition(), null);
         builder.addDoubleProperty("Target Angle (degrees)", () -> targetPivotPosition, null);
         builder.addBooleanProperty("At Target", this::isPositionWithinTolerance, null);
-        builder.addBooleanProperty("Is Homed", () -> isHomed, null);
+        // Remove: builder.addBooleanProperty("Is Homed", () -> isHomed, null);
         builder.addDoubleProperty("Roller RPM", () -> rollerMotor.getEncoder().getVelocity(), null);
         builder.addDoubleProperty("Pivot Current (A)", () -> pivotMotor.getOutputCurrent(), null);
         builder.addDoubleProperty("Roller Current (A)", () -> rollerMotor.getOutputCurrent(), null);
