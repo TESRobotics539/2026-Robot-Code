@@ -23,7 +23,7 @@ import frc.robot.Ports;
 
 public class Shooter extends SubsystemBase {
     public enum Speed {
-        SHOOT(2000),
+        SHOOT(5000),
         DASHBOARD(0);
 
         private final double rpm;
@@ -63,7 +63,7 @@ public class Shooter extends SubsystemBase {
         middleController = middleMotor.getClosedLoopController();
         rightController = rightMotor.getClosedLoopController();
 
-        configureMotor(leftMotor, leftController, false); // Inverted in REV client
+        configureMotor(leftMotor, leftController, false); 
         configureMotor(middleMotor, middleController, false);
         configureMotor(rightMotor, rightController, true);
 
@@ -76,13 +76,13 @@ public class Shooter extends SubsystemBase {
         config.inverted(inverted);
         config.closedLoopRampRate(0.5);
         //config.idleMode(IdleMode.kCoast);
-        config.smartCurrentLimit(50); // Supply current limit
+        config.smartCurrentLimit(70); // Supply current limit
         config.secondaryCurrentLimit(120); // Stator current limit
         
         // PID configuration
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-            .pid(0.0, 0.0, 0.0) // kP, kI, kD for velocity control in RPM
+            .pid(0.0002, 0.0, 0.0) // kP, kI, kD for velocity control in RPM
             .velocityFF(12.0 / kNeoVortexFreeSpeed) // kV: 12 volts when requesting max RPM
             .iZone(0);
         

@@ -117,6 +117,7 @@ public class RobotContainer
         //driverXbox.leftBumper().whileTrue(hood.positionCommand(0.15));
 
         driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
+        driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
 
         driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
         driverXbox.rightBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
