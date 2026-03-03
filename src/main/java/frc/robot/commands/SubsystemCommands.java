@@ -89,11 +89,11 @@ public final class SubsystemCommands {
 
     private Command feed() {
         return Commands.sequence(
-            Commands.waitSeconds(0.25),
+            Commands.waitSeconds(1),
             Commands.parallel(
                 feeder.feedCommand(),
                 Commands.waitSeconds(0.125)
-                    .andThen(floor.feedCommand()).alongWith(intake.agitateCommand()))
+                    .andThen(floor.feedCommand()))//.alongWith(intake.agitateCommand()))
         );
     }
 }

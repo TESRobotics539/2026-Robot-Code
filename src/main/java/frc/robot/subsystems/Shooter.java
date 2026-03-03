@@ -23,7 +23,7 @@ import frc.robot.Ports;
 
 public class Shooter extends SubsystemBase {
     public enum Speed {
-        SHOOT(3500),
+        SHOOT(2000),
         DASHBOARD(0);
 
         private final double rpm;
@@ -76,13 +76,13 @@ public class Shooter extends SubsystemBase {
         config.inverted(inverted);
         config.closedLoopRampRate(0.5);
         //config.idleMode(IdleMode.kCoast);
-        config.smartCurrentLimit(70); // Supply current limit
+        config.smartCurrentLimit(50); // Supply current limit
         config.secondaryCurrentLimit(120); // Stator current limit
         
         // PID configuration
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-            .pid(0.0002, 0.0008, 0.0) // kP, kI, kD for velocity control in RPM
+            .pid(0.0, 0.0, 0.0) // kP, kI, kD for velocity control in RPM
             .velocityFF(12.0 / kNeoVortexFreeSpeed) // kV: 12 volts when requesting max RPM
             .iZone(0);
         
@@ -152,7 +152,7 @@ public class Shooter extends SubsystemBase {
     }
 
     public Command dashboardSpinUpCommand() {
-        return defer(() -> spinUpCommand(Speed.DASHBOARD)); 
+        return runOnce(() -> set(Speed.SHOOT)); 
     }
  
     // public boolean isVelocityWithinTolerance() {

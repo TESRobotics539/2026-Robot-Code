@@ -113,8 +113,11 @@ public class RobotContainer
 
 
         //dis is js fer testing dem ackcheuwators ;)
-        driverXbox.leftTrigger().whileTrue(hood.positionCommand(1.5));
-        driverXbox.leftBumper().whileTrue(hood.positionCommand(0.15));
+        //driverXbox.leftTrigger().whileTrue(hood.positionCommand(1.5));
+        //driverXbox.leftBumper().whileTrue(hood.positionCommand(0.15));
+
+        driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
+
         driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
         driverXbox.rightBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 

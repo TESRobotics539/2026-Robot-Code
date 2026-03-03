@@ -44,8 +44,8 @@ public class Intake extends SubsystemBase {
     public enum Position {
         HOMED(50),
         STOWED(50),
-        INTAKE(20),
-        AGITATE(20);
+        INTAKE(35),
+        AGITATE(40);
 
         private final double degrees;
 
@@ -59,7 +59,7 @@ public class Intake extends SubsystemBase {
     }
 
     private static final double kNeoVortexFreeSpeed = 6784.0; // RPM
-    private static final double kPivotReduction = 50.0;
+    private static final double kPivotReduction = 65.625;
     private static final AngularVelocity kMaxPivotSpeed = Constants.intakeMaxSpeed.div(kPivotReduction);
     private static final Angle kPositionTolerance = Degrees.of(5);
     private double targetPivotPosition = 0.0;
@@ -84,34 +84,41 @@ public class Intake extends SubsystemBase {
     private void configurePivotMotor() {
         final SparkMaxConfig config = new SparkMaxConfig();
         
-        config.inverted(false)
+        config.inverted(true)
             .idleMode(IdleMode.kBrake);
         
-        config.smartCurrentLimit(20) //was 70
+        config.smartCurrentLimit(10) //was 70
             .secondaryCurrentLimit(120);
         
         config.absoluteEncoder
-            .positionConversionFactor(360.0 / kPivotReduction) // degrees
+            .positionConversionFactor(360.0) // degrees
             .velocityConversionFactor(60.0 / kPivotReduction)  // RPM
             .inverted(false); // Set based on your encoder mounting
         
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kAbsoluteEncoder)
-            .p(0.1)
+            .p(0.013)
             .i(0.0)
             .d(0.0)
-            .velocityFF(12.0 / (kNeoVortexFreeSpeed / 60.0)) // kV: 12 volts at max speed (converted to RPS)
+            //.velocityFF(12.0 / (kNeoVortexFreeSpeed / 60.0)) // kV: 12 volts at max speed (converted to RPS)
             .maxMotion
-                .maxVelocity(kMaxPivotSpeed.in(RPM) * 0.3)  // Limit to 30% of max speed for smoother control
-                .maxAcceleration(kMaxPivotSpeed.in(RPM) * 0.1);  // Limit acceleration for smoother control
-        
+                .maxVelocity(4000)//kMaxPivotSpeed.in(RPM) * 0.01)  // Limit to 30% of max speed for smoother control
+                .maxAcceleration(15000)//kMaxPivotSpeed.in(RPM) * 0.001);  // Limit acceleration for smoother control
+                .allowedClosedLoopError(5);
+
+        config.softLimit
+            .forwardSoftLimit(120)
+            .forwardSoftLimitEnabled(true)
+            .reverseSoftLimit(0)
+            .reverseSoftLimitEnabled(true);
+
         pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
     private void configureRollerMotor() {
         SparkFlexConfig config = new SparkFlexConfig();
         
-        config.inverted(false);
+        config.inverted(true);
         //config.idleMode(IdleMode.kCoast);  //Rev Client Manages This
         config.smartCurrentLimit(80); // Supply current limit
         config.secondaryCurrentLimit(120); // Stator current limit
