@@ -20,6 +20,7 @@ import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -573,4 +574,13 @@ public class Swerve extends SubsystemBase
   public void addVisionMeasurement(Pose2d visionPose, double timestamp) {
       swerveDrive.addVisionMeasurement(visionPose, timestamp);
   }
+
+public double getDistanceToHub() {
+  Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
+
+  Translation2d hubTranslation = alliance == Alliance.Red ?
+        new Translation2d(4.597,  4.035) : new Translation2d(11.938, 4.035);
+  Translation2d robotTranslation = swerveDrive.getPose().getTranslation();
+  return robotTranslation.getDistance(hubTranslation);
+}
 }
