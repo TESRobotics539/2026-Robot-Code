@@ -14,6 +14,7 @@ import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -32,6 +33,7 @@ import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Limelight;
 import frc.robot.subsystems.Shooter;
 import frc.robot.subsystems.Swerve;
+import frc.robot.subsystems.Hanger.Position;
 
 import java.io.File;
 import java.util.Optional;
@@ -50,7 +52,7 @@ public class RobotContainer
     private final Feeder feeder = new Feeder();
     private final Shooter shooter = new Shooter();
     private final Hood hood = new Hood();
-    //private final Hanger hanger = new Hanger();
+    private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
     private final Field2d field = new Field2d();
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
@@ -113,8 +115,10 @@ public class RobotContainer
 
 
         //dis is js fer testing dem ackcheuwators ;)
-        //driverXbox.leftTrigger().whileTrue(hood.positionCommand(1.5));
-        //driverXbox.leftBumper().whileTrue(hood.positionCommand(0.15));
+        //driverXbox.x().whileTrue(hood.positionCommand(1.5));
+        //driverXbox.a().whileTrue(hood.positionCommand(0.15));
+
+        //And dis thingy down here is foar testing da chew arm thingys that go up'n down (currently not here)
 
         driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
@@ -138,8 +142,8 @@ public class RobotContainer
       // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 
       // TODO: Uncomment when hanger commands are implemented
-      // driverXbox.povUp().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
-      // driverXbox.povDown().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
+       driverXbox.y().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
+       driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
 
       //Set the default auto (do nothing) 
       // autoChooser.setDefaultOption("Do Nothing", Commands.runOnce(drivebase::zeroGyroWithAlliance)
