@@ -38,16 +38,13 @@ public class Shooter extends SubsystemBase {
     }
 
     private static final double kNeoVortexFreeSpeed = 6784.0; // RPM
-    private static final AngularVelocity kVelocityTolerance = RPM.of(100);
 
     private final SparkFlex leftMotor, middleMotor, rightMotor;
     private final RelativeEncoder leftEncoder, middleEncoder, rightEncoder;
-    private final List<RelativeEncoder> encoders;
     private final SparkClosedLoopController leftController, middleController, rightController;
 
     private double targetRPM = 0.0;
     private double dashboardTargetRPM = 0.0;
-    private boolean isVelocityMode = false;
 
     public Shooter() {
         leftMotor = new SparkFlex(Ports.kShooterLeft, MotorType.kBrushless);
@@ -57,7 +54,6 @@ public class Shooter extends SubsystemBase {
         leftEncoder = leftMotor.getEncoder();
         middleEncoder = middleMotor.getEncoder();
         rightEncoder = rightMotor.getEncoder();
-        encoders = List.of(leftEncoder, middleEncoder, rightEncoder);
 
         leftController = leftMotor.getClosedLoopController();
         middleController = middleMotor.getClosedLoopController();
@@ -98,7 +94,7 @@ public class Shooter extends SubsystemBase {
     // }
 
     public void setPercentOutput(double percentOutput) {
-        isVelocityMode = false;
+        //isVelocityMode = false;
         double voltage = percentOutput * 12.0;
         leftMotor.setVoltage(voltage);
         middleMotor.setVoltage(voltage);
