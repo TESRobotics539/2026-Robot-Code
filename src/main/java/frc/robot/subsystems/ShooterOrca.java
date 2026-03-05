@@ -111,6 +111,21 @@ public class ShooterOrca extends SubsystemBase {
       public static final String kSecondaryCurrent = "Secondary Current";
     }
 
+    public enum Speed {
+        SHOOT(5000),
+        DASHBOARD(0);
+
+        private final double rpm;
+
+        private Speed(double rpm) {
+            this.rpm = rpm;
+        }
+
+        public AngularVelocity angularVelocity() {
+            return RPM.of(rpm);
+        }
+    }
+
   Swerve m_swerveSubsystem;
 
   double shooterVelocityTarget = 0;  // Where we want to be (set by commands)
@@ -296,8 +311,8 @@ public class ShooterOrca extends SubsystemBase {
             //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }
 
-    public Command spinUpCommand(double speed) {
-        return startEnd(() -> setShooterTarget(speed), () -> stop());
+    public Command spinUpCommand(Speed speed) {
+        return startEnd(() -> setShooterTarget(speed.rpm), () -> stop());
         //return runOnce(() -> setRPM(rpm));
             //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }

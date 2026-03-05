@@ -29,6 +29,7 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Config;
 import frc.robot.Constants;
 import java.io.File;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
@@ -575,12 +576,12 @@ public class Swerve extends SubsystemBase
       swerveDrive.addVisionMeasurement(visionPose, timestamp);
   }
 
-public double getDistanceToHub() {
-  Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
+  public double getDistanceToHub() {
+    Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
 
-  Translation2d hubTranslation = alliance == Alliance.Red ?
-        new Translation2d(4.597,  4.035) : new Translation2d(11.938, 4.035);
-  Translation2d robotTranslation = swerveDrive.getPose().getTranslation();
-  return robotTranslation.getDistance(hubTranslation);
-}
+    Translation2d hubTranslation = alliance == Alliance.Red ?
+          new Translation2d(4.597,  4.035) : new Translation2d(11.938, 4.035);
+    Translation2d robotTranslation = swerveDrive.getPose().getTranslation();
+    return robotTranslation.getDistance(hubTranslation);
+  }
 }
