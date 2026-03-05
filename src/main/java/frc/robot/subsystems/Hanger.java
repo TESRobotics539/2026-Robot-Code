@@ -68,8 +68,8 @@ public class Hanger extends SubsystemBase {
         SparkMaxConfig config = new SparkMaxConfig();
         config.inverted(true)
             .idleMode(IdleMode.kBrake)
-            .smartCurrentLimit(25)  //Was 20
-            .secondaryCurrentLimit(70);
+            .smartCurrentLimit(70)  //Was 20
+            .secondaryCurrentLimit(120);
         
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)

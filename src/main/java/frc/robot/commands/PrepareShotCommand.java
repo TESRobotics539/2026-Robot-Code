@@ -5,6 +5,8 @@ import static edu.wpi.first.units.Units.Meters;
 
 import java.util.function.Supplier;
 
+import com.ctre.phoenix6.Orchestra;
+
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.interpolation.InterpolatingTreeMap;
@@ -16,6 +18,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Landmarks;
 import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.Shooter;
+import frc.robot.subsystems.ShooterOrca;
 
 public class PrepareShotCommand extends Command {
     private static final InterpolatingTreeMap<Distance, Shot> distanceToShotMap = new InterpolatingTreeMap<>(
@@ -37,11 +40,11 @@ public class PrepareShotCommand extends Command {
         distanceToShotMap.put(Inches.of(165.5), new Shot(3650, 0.48));
     }
 
-    private final Shooter shooter;
+    private final ShooterOrca shooter;
     //private final Hood hood;
     private final Supplier<Pose2d> robotPoseSupplier;
 
-    public PrepareShotCommand(Shooter shooter, Hood hood, Supplier<Pose2d> robotPoseSupplier) {
+    public PrepareShotCommand(ShooterOrca shooter, Hood hood, Supplier<Pose2d> robotPoseSupplier) {
         this.shooter = shooter;
         //this.hood = hood;
         this.robotPoseSupplier = robotPoseSupplier;
@@ -66,7 +69,7 @@ public class PrepareShotCommand extends Command {
     public void execute() {
         final Distance distanceToHub = getDistanceToHub();
         final Shot shot = distanceToShotMap.get(distanceToHub);
-        shooter.set(shot.shooterRPM);
+        shooter.setShooterTarget(shot.shooterRPM);
         //hood.setPosition(shot.hoodPosition);
         SmartDashboard.putNumber("Distance to Hub (inches)", distanceToHub.in(Inches));
     }

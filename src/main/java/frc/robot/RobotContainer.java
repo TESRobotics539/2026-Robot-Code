@@ -31,7 +31,9 @@ import frc.robot.subsystems.Hanger;
 import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Limelight;
+import frc.robot.subsystems.Pivot;
 import frc.robot.subsystems.Shooter;
+import frc.robot.subsystems.ShooterOrca;
 import frc.robot.subsystems.Swerve;
 import frc.robot.subsystems.Hanger.Position;
 
@@ -47,15 +49,17 @@ import swervelib.SwerveInputStream;
  */
 public class RobotContainer
 {
-    private final Intake intake = new Intake();
+    //private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
-    private final Shooter shooter = new Shooter();
     private final Hood hood = new Hood();
     private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
     private final Field2d field = new Field2d();
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
+    private final ShooterOrca shooter = new ShooterOrca(drivebase);
+
+    private final Pivot pivot = new Pivot();
 
     final CommandXboxController  driverXbox = new CommandXboxController(0);
     
@@ -72,7 +76,7 @@ public class RobotContainer
 
     private final SubsystemCommands subsystemCommands = new SubsystemCommands(
         drivebase,
-        intake,
+        //intake,
         floor,
         feeder,
         shooter,
@@ -91,7 +95,8 @@ public class RobotContainer
     SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
                                                                   () -> driverXbox.getLeftY() * -1,
                                                                   () -> driverXbox.getLeftX() * -1)
-                                                              .withControllerRotationAxis(driverXbox::getRightX)
+                                                              .withControllerRotationAxis(() -> driverXbox.getRightX() * -1)
+                                                                  //.withControllerRotationAxis(driverXbox.getRightX() * -1)
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))                                                           
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(0.8)
@@ -120,11 +125,15 @@ public class RobotContainer
 
         //And dis thingy down here is foar testing da chew arm thingys that go up'n down (currently not here)
 
-        driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
+        // driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
 
-        driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
-        driverXbox.rightBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
+        // driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
+        driverXbox.leftTrigger().onTrue(Commands.runOnce(() -> pivot.setPercentOutput(0.3)))
+                                .onFalse(Commands.runOnce(() -> pivot.setPercentOutput(0.0)));
+        driverXbox.rightTrigger().onTrue(Commands.runOnce(() -> pivot.setTarget(0.2)))
+                                .onFalse(Commands.runOnce(() -> pivot.setTarget(0)));
+        //driverXbox.rightBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 
 
 
@@ -143,7 +152,8 @@ public class RobotContainer
 
       // TODO: Uncomment when hanger commands are implemented
        driverXbox.y().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
-       driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
+       driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
+       driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
 
       //Set the default auto (do nothing) 
       // autoChooser.setDefaultOption("Do Nothing", Commands.runOnce(drivebase::zeroGyroWithAlliance)

@@ -6,14 +6,18 @@ import static edu.wpi.first.units.Units.RPM;
 import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.PersistMode;
+import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
+import com.revrobotics.spark.ClosedLoopSlot;
 import com.revrobotics.spark.FeedbackSensor;
+import com.revrobotics.spark.SparkClosedLoopController;
 import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import com.revrobotics.spark.config.SparkFlexConfig;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.util.sendable.SendableBuilder;
@@ -44,7 +48,7 @@ public class Intake extends SubsystemBase {
     public enum Position {
         HOMED(50),
         STOWED(50),
-        INTAKE(35),
+        INTAKE(60),
         AGITATE(40);
 
         private final double degrees;
@@ -65,52 +69,63 @@ public class Intake extends SubsystemBase {
     private double targetPivotPosition = 0.0;
 
     private final SparkMax pivotMotor;
+    private final SparkClosedLoopController pivotController;
     private final SparkFlex rollerMotor;
+
+    private final RelativeEncoder encoder;
 
     private boolean isHomed = false;
 
     public Intake() {
         pivotMotor = new SparkMax(Ports.kIntakePivot, MotorType.kBrushless);
+        pivotController = pivotMotor.getClosedLoopController();
         rollerMotor = new SparkFlex(Ports.kIntakeRollers, MotorType.kBrushless);
         configurePivotMotor();
         configureRollerMotor();
 
+        encoder = pivotMotor.getEncoder();
+
         // Read initial position from absolute encoder
-        targetPivotPosition = pivotMotor.getAbsoluteEncoder().getPosition();
+        targetPivotPosition = encoder.getPosition();
 
         SmartDashboard.putData(this);
+    }
+
+    @Override
+    public void periodic() {
+        pivotController.setSetpoint(
+            targetPivotPosition,
+            SparkMax.ControlType.kPosition
+            // ClosedLoopSlot.kSlot0, 
+            // getFeedForward()
+        );
     }
 
     private void configurePivotMotor() {
         final SparkMaxConfig config = new SparkMaxConfig();
         
         config.inverted(true)
-            .idleMode(IdleMode.kBrake);
+            .idleMode(IdleMode.kBrake)
+            .voltageCompensation(12);
         
-        config.smartCurrentLimit(10) //was 70
+        config.smartCurrentLimit(80) //was 70
             .secondaryCurrentLimit(120);
         
-        config.absoluteEncoder
-            .positionConversionFactor(360.0) // degrees
-            .velocityConversionFactor(60.0 / kPivotReduction)  // RPM
-            .inverted(false); // Set based on your encoder mounting
+        config.encoder
+            .positionConversionFactor(1) // degrees
+            .velocityConversionFactor(1);  // RPM
+            //.inverted(false); // Set based on your encoder mounting
         
         config.closedLoop
-            .feedbackSensor(FeedbackSensor.kAbsoluteEncoder)
-            .p(0.013)
-            .i(0.0)
-            .d(0.0)
+            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+            .pid(2.5, 0, 5);
             //.velocityFF(12.0 / (kNeoVortexFreeSpeed / 60.0)) // kV: 12 volts at max speed (converted to RPS)
-            .maxMotion
-                .maxVelocity(4000)//kMaxPivotSpeed.in(RPM) * 0.01)  // Limit to 30% of max speed for smoother control
-                .maxAcceleration(15000)//kMaxPivotSpeed.in(RPM) * 0.001);  // Limit acceleration for smoother control
-                .allowedClosedLoopError(5);
 
-        config.softLimit
-            .forwardSoftLimit(120)
-            .forwardSoftLimitEnabled(true)
-            .reverseSoftLimit(0)
-            .reverseSoftLimitEnabled(true);
+        // config.softLimit
+        //     .forwardSoftLimit(120)
+        //     .forwardSoftLimitEnabled(true)
+        //     .reverseSoftLimit(0)
+        //     .reverseSoftLimitEnabled(true);
 
         pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
@@ -119,52 +134,62 @@ public class Intake extends SubsystemBase {
         SparkFlexConfig config = new SparkFlexConfig();
         
         config.inverted(true);
-        //config.idleMode(IdleMode.kCoast);  //Rev Client Manages This
+        config.idleMode(IdleMode.kCoast); 
         config.smartCurrentLimit(80); // Supply current limit
         config.secondaryCurrentLimit(120); // Stator current limit
         
         // PID configuration
-        config.closedLoop
-            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-            .pid(0.0001, 0, 0) // kP, kI, kD for velocity control in RPM
-            .velocityFF(12.0 / 6784) // kV: 12 volts when requesting max RPM
-            .iZone(0);
+        // config.closedLoop
+        //     .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+        //     .pid(0.0003, 0, 0) // kP, kI, kD for velocity control in RPM
+        //     .velocityFF(12.0 / 6784) // kV: 12 volts when requesting max RPM
+        //     .iZone(0);
         
         rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
     private boolean isPositionWithinTolerance() {
-        final double currentPosition = pivotMotor.getAbsoluteEncoder().getPosition();
+        final double currentPosition = encoder.getPosition();
         return Math.abs(currentPosition - targetPivotPosition) < kPositionTolerance.in(Degrees);
     }
 
-    private void setPivotPercentOutput(double percentOutput) {
+    private double getFeedForward()
+    {
+        return 0.5 * Math.cos(Units.degreesToRadians(targetPivotPosition));
+    }
+
+    public void setPivotPercentOutput(double percentOutput) {
         pivotMotor.set(percentOutput);
     }
 
     public void set(Position position) {
         targetPivotPosition = position.angle().in(Degrees);
-        pivotMotor.getClosedLoopController().setSetpoint(
-            targetPivotPosition,
-            SparkMax.ControlType.kMAXMotionPositionControl
-        );
+    }
+    
+    public void set(double position) {
+        targetPivotPosition = position;
     }
 
-    public void set(Speed speed) {
-        rollerMotor.getClosedLoopController().setSetpoint(
-            speed.angularVelocity().in(RPM),
-            ControlType.kVelocity
-        );
+    public void set(Speed speed) 
+    {
+        rollerMotor.set(speed.rpm / kNeoVortexFreeSpeed);
+    }
+
+    public void stop()
+    {
+        rollerMotor.set(0);
     }
 
     public Command intakeCommand() {
-        return startEnd(
-            () -> {
-                set(Position.INTAKE);
-                set(Speed.FEED);
-            },
-            () -> set(Speed.STOP)
-        );
+        return runOnce(() -> set(0.2));
+        // return startEnd(
+        //     () -> {
+        //         //setPivotPercentOutput(0.3);
+        //         set(Position.INTAKE);
+        //         //set(Speed.FEED);
+        //     },
+        //     () -> stop()
+        // );
     }
 
     public Command agitateCommand() {
@@ -191,7 +216,7 @@ public class Intake extends SubsystemBase {
                     .withTimeout(3.0), // ADD TIMEOUT
                 runOnce(() -> {
                     setPivotPercentOutput(0); // STOP MOTOR
-                    pivotMotor.getEncoder().setPosition(Position.HOMED.angle().in(Degrees));
+                    //encoder.setPosition(Position.HOMED.angle().in(Degrees));
                     isHomed = true;
                 }),
                 Commands.waitSeconds(0.1), // Let things settle
@@ -204,7 +229,7 @@ public class Intake extends SubsystemBase {
     @Override
     public void initSendable(SendableBuilder builder) {
         builder.addStringProperty("Command", () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "null", null);
-        builder.addDoubleProperty("Angle (degrees)", () -> pivotMotor.getAbsoluteEncoder().getPosition(), null);
+        builder.addDoubleProperty("Angle (degrees)", () -> encoder.getPosition(), null);
         builder.addDoubleProperty("Target Angle (degrees)", () -> targetPivotPosition, null);
         builder.addBooleanProperty("At Target", this::isPositionWithinTolerance, null);
         // Remove: builder.addBooleanProperty("Is Homed", () -> isHomed, null);

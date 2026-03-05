@@ -10,14 +10,17 @@ import frc.robot.subsystems.Hanger;
 import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Shooter;
+import frc.robot.subsystems.ShooterOrca;
 import frc.robot.subsystems.Swerve;
+
+//import frc.robot.subsystems.ServoHub;;
 
 public final class SubsystemCommands {
     private final Swerve swerve;
-    private final Intake intake;
+    //private final Intake intake;
     private final Floor floor;
     private final Feeder feeder;
-    private final Shooter shooter;
+    private final ShooterOrca shooter;
     private final Hood hood;
     //private final Hanger hanger;
 
@@ -26,17 +29,17 @@ public final class SubsystemCommands {
 
     public SubsystemCommands(
         Swerve swerve,
-        Intake intake,
+        //Intake intake,
         Floor floor,
         Feeder feeder,
-        Shooter shooter,
+        ShooterOrca shooter,
         Hood hood,
         //Hanger hanger,
         DoubleSupplier forwardInput,
         DoubleSupplier leftInput
     ) {
         this.swerve = swerve;
-        this.intake = intake;
+        //this.intake = intake;
         this.floor = floor;
         this.feeder = feeder;
         this.shooter = shooter;
@@ -49,16 +52,16 @@ public final class SubsystemCommands {
 
     public SubsystemCommands(
         Swerve swerve,
-        Intake intake,
+        //Intake intake,
         Floor floor,
         Feeder feeder,
-        Shooter shooter,
+        ShooterOrca shooter,
         Hood hood
         //Hanger hanger
     ) {
         this(
             swerve,
-            intake,
+            //intake,
             floor,
             feeder,
             shooter,

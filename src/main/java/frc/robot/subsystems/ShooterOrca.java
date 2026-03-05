@@ -45,6 +45,20 @@ import frc.robot.subsystems.Swerve;
 
 
 public class ShooterOrca extends SubsystemBase {
+    public enum Speed {
+        SHOOT(5000),
+        DASHBOARD(0);
+
+        private final double rpm;
+
+        private Speed(double rpm) {
+            this.rpm = rpm;
+        }
+
+        public AngularVelocity angularVelocity() {
+            return RPM.of(rpm);
+        }
+    }
 
     public static final class ShooterConstants {
         // Shooter speeds, RPM
@@ -296,8 +310,8 @@ public class ShooterOrca extends SubsystemBase {
             //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }
 
-    public Command spinUpCommand(double speed) {
-        return startEnd(() -> setShooterTarget(speed), () -> stop());
+    public Command spinUpCommand(Speed speed) {
+        return startEnd(() -> setShooterTarget(speed.rpm), () -> stop());
         //return runOnce(() -> setRPM(rpm));
             //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }
