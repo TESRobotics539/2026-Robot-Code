@@ -54,12 +54,14 @@ public class RobotContainer
     private final Feeder feeder = new Feeder();
     private final Hood hood = new Hood();
     private final Hanger hanger = new Hanger();
-    private final Limelight limelight = new Limelight("limelight-front");
     private final Field2d field = new Field2d();
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
     private final ShooterOrca shooter = new ShooterOrca(drivebase);
 
     private final Pivot pivot = new Pivot();
+
+    private final Limelight limelightFront = new Limelight("limelight-front");
+    private final Limelight limelightRear = new Limelight("limelight-rear");
 
     final CommandXboxController  driverXbox = new CommandXboxController(0);
     
@@ -108,7 +110,7 @@ public class RobotContainer
       configureBindings();
       DriverStation.silenceJoystickConnectionWarning(true);
 
-      //limelight.setDefaultCommand(updateVisionCommand());
+    //   limelight.setDefaultCommand(updateVisionCommand());
 
       SmartDashboard.putData("Field", field);
 
@@ -203,17 +205,28 @@ public class RobotContainer
     }
 
     // private Command updateVisionCommand() {
-    //     return limelight.run(() -> {
-    //         final Pose2d currentRobotPose = drivebase.getPose();
-    //         final Optional<Limelight.Measurement> measurement = limelight.getMeasurement(currentRobotPose);
-    //         measurement.ifPresent(m -> {
-    //             drivebase.addVisionMeasurement(
-    //                 m.poseEstimate.pose, 
-    //                 m.poseEstimate.timestampSeconds,
-    //                 m.standardDeviations
-    //             );
-    //         });
+    //     return Commands.runOnce(() -> {
+    //         // If a pose2d is not returned cancel
+    //         Pose2d newPose = findBestPosition();
+
+    //         // Find current time
+
+    //         // Find std devs
+
+    //         // Add vision measurement
+    //         drivebase.addVisionMeasurement(, );
     //     })
     //     .ignoringDisable(true);
+    // }
+
+    // private Optional<Pose2d> findBestPosition() {
+
+    //     // If MT1 is good 
+    //         // return mt1.pose
+
+    //     // Find which limelight has better MT2
+    //         // return mt2.pose
+
+    //     return
     // }
 }

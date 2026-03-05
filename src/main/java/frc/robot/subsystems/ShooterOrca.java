@@ -125,6 +125,21 @@ public class ShooterOrca extends SubsystemBase {
       public static final String kSecondaryCurrent = "Secondary Current";
     }
 
+    public enum Speed {
+        SHOOT(5000),
+        DASHBOARD(0);
+
+        private final double rpm;
+
+        private Speed(double rpm) {
+            this.rpm = rpm;
+        }
+
+        public AngularVelocity angularVelocity() {
+            return RPM.of(rpm);
+        }
+    }
+
   Swerve m_swerveSubsystem;
 
   double shooterVelocityTarget = 0;  // Where we want to be (set by commands)
