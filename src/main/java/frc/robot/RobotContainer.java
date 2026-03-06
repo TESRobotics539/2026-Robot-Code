@@ -128,8 +128,7 @@ public class RobotContainer
         // driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
         driverXbox.leftTrigger().onTrue(pivot.runOnce(() -> pivot.setPercentOutput(0.3)))
                                 .onFalse(pivot.runOnce(() -> pivot.setPercentOutput(0.0)));
-        driverXbox.rightTrigger().onTrue(pivot.runOnce(() -> pivot.setTarget(0.2)))
-                                 .onFalse(pivot.runOnce(() -> pivot.setTarget(0)));
+        driverXbox.rightTrigger().whileTrue(subsystemCommands.shootMap());
         //driverXbox.rightBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 
       // ORIGINAL COMMANDS

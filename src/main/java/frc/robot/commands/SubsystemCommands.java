@@ -86,6 +86,13 @@ public final class SubsystemCommands {
             .handleInterrupt(() -> shooter.stop());
     }
 
+    public Command shootMap() {
+        return Commands.parallel(
+            shooter.spinUpMapCommand(),
+            Commands.waitSeconds(2).andThen(feed())
+        );
+    }
+
     private Command feed() {
         return Commands.sequence(
             Commands.waitSeconds(2),

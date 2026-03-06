@@ -27,7 +27,7 @@ public class Limelight extends SubsystemBase {
         this.telemetryTable = NetworkTableInstance.getDefault().getTable("SmartDashboard/" + name);
         this.posePublisher = telemetryTable.getStructTopic("Estimated Robot Pose", Pose2d.struct).publish();
 
-        LimelightHelpers.SetIMUMode(name, 0);
+        LimelightHelpers.SetIMUMode(name, 4);
     }
 
     public Optional<Measurement> getMeasurement(Pose2d currentRobotPose) {

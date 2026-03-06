@@ -150,6 +150,7 @@ public class ShooterOrca extends SubsystemBase {
   private final NetworkTableEntry primaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kPrimaryCurrent);
   private final NetworkTableEntry secondaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kSecondaryCurrent);
   private final NetworkTableEntry readyEntryShooter = shooterTable.getEntry("Ready");
+  private final NetworkTableEntry distanceToHubEntry = shooterTable.getEntry("Distance to Hub (m)");
 
 
 
@@ -278,6 +279,7 @@ public class ShooterOrca extends SubsystemBase {
     primaryCurrentEntryShooter.setDouble(getShooterPrimaryCurrent());
     secondaryCurrentEntryShooter.setDouble(getShooterSecondaryCurrent());
     readyEntryShooter.setBoolean(isShooterReady());
+    distanceToHubEntry.setDouble(m_swerveSubsystem.getDistanceToHub());
   }
 
   /** This method will be called once per scheduler run */
@@ -313,6 +315,14 @@ public class ShooterOrca extends SubsystemBase {
     }
 
     public Command dashboardSpinUpCommand() {
-        return runOnce(() -> setShooterTarget(5000)); 
+        return runOnce(() -> setShooterTarget(5000));
+    }
+
+    /**
+     * Spins up the flywheel using the distance-to-RPM map, updated every cycle
+     * from the robot pose distance to the hub.
+     */
+    public Command spinUpMapCommand() {
+        return runEnd(() -> setShooterMap(), () -> stop());
     }
 }
