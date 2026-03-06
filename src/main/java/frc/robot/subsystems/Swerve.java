@@ -120,6 +120,8 @@ public class Swerve extends SubsystemBase
   @Override
   public void periodic()
   {
+    field.setRobotPose(swerveDrive.getPose());
+
     telemetryTable.getEntry("Module FL Absolute Angle").setNumber(absoluteEncoder_fl.getAbsolutePosition());
     telemetryTable.getEntry("Module FL Relative Angle").setNumber(swerveDrive.getModules()[0].getState().angle.getDegrees());
     telemetryTable.getEntry("Module FL Drift").setNumber(absoluteEncoder_fl.getAbsolutePosition() - swerveDrive.getModules()[0].getState().angle.getDegrees());

@@ -14,7 +14,7 @@ import frc.robot.subsystems.Swerve;
 import frc.util.GeometryUtil;
 
 public class AimAndDriveCommand extends Command {
-    private static final Angle kAimTolerance = Degrees.of(5);
+    private static final Angle kAimTolerance = Degrees.of(3);
 
     private final Swerve swerve;
     private final DoubleSupplier forwardInput;

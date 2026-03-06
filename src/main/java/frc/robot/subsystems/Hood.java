@@ -16,7 +16,6 @@ import java.util.function.Supplier;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
@@ -37,7 +36,7 @@ public class Hood extends SubsystemBase {
     // Pulse width bounds in microseconds — preserves the previous setBoundsMicroseconds(2000,1800,1500,1200,1000) values
     private static final int kMinPulseUs    = 1000;
     private static final int kCenterPulseUs = 1500;
-    private static final int kMaxPulseUs    = 2200;
+    private static final int kMaxPulseUs    = 2000;
 
     private static final Distance kServoLength = Millimeters.of(100);
     private static final LinearVelocity kMaxServoSpeed = Millimeters.of(20).per(Second);
@@ -87,17 +86,19 @@ public class Hood extends SubsystemBase {
         targetPosition = clampedPosition;
     }
 
-    private static final double kTrackingMaxDistanceInches = 144.0;
-    private static final double kTrackingMinPosition = 0.25;
-    private static final double kTrackingMaxPosition = 0.95;
+    private static final double kTrackingMinDistanceMeters = 1.0;
+    private static final double kTrackingMaxDistanceMeters = 5.0;
+    private static final double kTrackingMinPosition = 0.05;
+    private static final double kTrackingMaxPosition = 0.85;
 
     /** Continuously adjusts hood position based on distance to the hub. */
     public Command trackHubCommand(Supplier<Pose2d> poseSupplier) {
         return run(() -> {
             Translation2d hubPos = Landmarks.hubPosition();
-            double distanceInches = Units.metersToInches(
-                poseSupplier.get().getTranslation().getDistance(hubPos));
-            double t = MathUtil.clamp(distanceInches / kTrackingMaxDistanceInches, 0.0, 1.0);
+            double distanceMeters = poseSupplier.get().getTranslation().getDistance(hubPos);
+            double t = MathUtil.clamp(
+                (distanceMeters - kTrackingMinDistanceMeters) / (kTrackingMaxDistanceMeters - kTrackingMinDistanceMeters),
+                0.0, 1.0);
             setPosition(MathUtil.interpolate(kTrackingMinPosition, kTrackingMaxPosition, t));
         });
     }

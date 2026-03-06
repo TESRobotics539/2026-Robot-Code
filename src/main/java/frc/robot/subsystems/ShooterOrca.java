@@ -19,7 +19,6 @@ import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
 
 import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -64,7 +63,7 @@ public class ShooterOrca extends SubsystemBase {
         public static final double kVelocityMax = 3500;
 
         public static final double kP = 0.003;
-        public static final double kI = 0.;
+        public static final double kI = 0.000;
         public static final double kD = 0.25;
         public static final double kG = 0.;
         public static final double kS = 0.15;
@@ -170,21 +169,11 @@ public class ShooterOrca extends SubsystemBase {
   }
 
   private void addMapValues() {
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters(  8)), Double.valueOf(1615));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters( 20)), Double.valueOf(1685));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters( 32)), Double.valueOf(1755));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters( 44)), Double.valueOf(1825));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters( 56)), Double.valueOf(1895));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters( 68)), Double.valueOf(1965));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters( 80)), Double.valueOf(2035));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters( 92)), Double.valueOf(2105));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters(104)), Double.valueOf(2175));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters(116)), Double.valueOf(2300));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters(128)), Double.valueOf(2350));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters(140)), Double.valueOf(2400));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters(152)), Double.valueOf(2450));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters(164)), Double.valueOf(2525));
-    shooterSpeedMap.put(Double.valueOf(Units.inchesToMeters(176)), Double.valueOf(2595));
+    shooterSpeedMap.put(1.0, 2600.0);
+    shooterSpeedMap.put(2.0, 2765.0); // Untested
+    shooterSpeedMap.put(3.0, 2950.0);
+    shooterSpeedMap.put(4.5, 3150.0); // Untested
+    shooterSpeedMap.put(6.5, 4000.0);
   }
 
   public double calculateShooterFeedForward() {
@@ -243,7 +232,7 @@ public class ShooterOrca extends SubsystemBase {
   public void setShooterMap() {
     double distanceToHub = m_swerveSubsystem.getDistanceToHub();
     // set shooter based on distance
-    shooterVelocityTarget = shooterSpeedMap.get(distanceToHub);
+    shooterVelocityTarget = shooterSpeedMap.get(distanceToHub) * 1.0;
   }
 
   /** @return Velocity in RPM */
