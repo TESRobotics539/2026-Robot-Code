@@ -5,48 +5,106 @@ import static edu.wpi.first.units.Units.Second;
 import static edu.wpi.first.units.Units.Seconds;
 import static edu.wpi.first.units.Units.Value;
 
+import com.revrobotics.ResetMode;
+import com.revrobotics.servohub.ServoHub;
+import com.revrobotics.servohub.ServoChannel;
+import com.revrobotics.servohub.ServoChannel.ChannelId;
+import com.revrobotics.servohub.config.ServoHubConfig;
+
+import java.util.function.Supplier;
+
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.util.sendable.SendableBuilder;
-import edu.wpi.first.wpilibj.Servo;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Landmarks;
 import frc.robot.Ports;
 
 public class Hood extends SubsystemBase {
+    // ServoHub channel assignments — update to match physical wiring
+    private static final ChannelId kLeftChannel  = ChannelId.kChannelId0;
+    private static final ChannelId kRightChannel = ChannelId.kChannelId5;
+
+    // Pulse width bounds in microseconds — preserves the previous setBoundsMicroseconds(2000,1800,1500,1200,1000) values
+    private static final int kMinPulseUs    = 1000;
+    private static final int kCenterPulseUs = 1500;
+    private static final int kMaxPulseUs    = 2200;
+
     private static final Distance kServoLength = Millimeters.of(100);
     private static final LinearVelocity kMaxServoSpeed = Millimeters.of(20).per(Second);
     private static final double kMinPosition = 0.01;
-    private static final double kMaxPosition = 0.95; //was 0.77
+    private static final double kMaxPosition = 0.95;
     private static final double kPositionTolerance = 0.01;
 
-    private final Servo leftServo;
-    private final Servo rightServo;
+    private final ServoHub servoHub;
+    private final ServoChannel leftChannel;
+    private final ServoChannel rightChannel;
 
     private double currentPosition = 0.5;
-    private double targetPosition = 0.5;
+    private double targetPosition  = 0.5;
     private Time lastUpdateTime = Seconds.of(0);
 
     public Hood() {
-        leftServo = new Servo(Ports.kHoodLeftServo);
-        rightServo = new Servo(Ports.kHoodRightServo);
-        leftServo.setBoundsMicroseconds(2000, 1800, 1500, 1200, 1000);
-        rightServo.setBoundsMicroseconds(2000, 1800, 1500, 1200, 1000);
+        servoHub = new ServoHub(Ports.kServoHub);
+
+        // Configure pulse range to match the servo's mechanical travel
+        ServoHubConfig config = new ServoHubConfig();
+        config.channel0.pulseRange(kMinPulseUs, kCenterPulseUs, kMaxPulseUs);
+        config.channel5.pulseRange(kMinPulseUs, kCenterPulseUs, kMaxPulseUs);
+        servoHub.configure(config, ResetMode.kNoResetSafeParameters);
+
+        leftChannel  = servoHub.getServoChannel(kLeftChannel);
+        rightChannel = servoHub.getServoChannel(kRightChannel);
+
+        // Enable both channels so the servo hub will drive them
+        leftChannel.setPowered(true);
+        leftChannel.setEnabled(true);
+        rightChannel.setPowered(true);
+        rightChannel.setEnabled(true);
+
         setPosition(currentPosition);
         SmartDashboard.putData(this);
+    }
+
+    private int positionToPulseWidth(double position) {
+        return kMinPulseUs + (int)(position * (kMaxPulseUs - kMinPulseUs));
     }
 
     /** Expects a position between 0.0 and 1.0 */
     public void setPosition(double position) {
         final double clampedPosition = MathUtil.clamp(position, kMinPosition, kMaxPosition);
-        leftServo.set(clampedPosition);
-        rightServo.set(clampedPosition);
+        leftChannel.setPulseWidth(positionToPulseWidth(clampedPosition));
+        rightChannel.setPulseWidth(positionToPulseWidth(clampedPosition));
         targetPosition = clampedPosition;
+    }
+
+    private static final double kTrackingMaxDistanceInches = 144.0;
+    private static final double kTrackingMinPosition = 0.25;
+    private static final double kTrackingMaxPosition = 0.95;
+
+    /** Continuously adjusts hood position based on distance to the hub. */
+    public Command trackHubCommand(Supplier<Pose2d> poseSupplier) {
+        return run(() -> {
+            Translation2d hubPos = Landmarks.hubPosition();
+            double distanceInches = Units.metersToInches(
+                poseSupplier.get().getTranslation().getDistance(hubPos));
+            double t = MathUtil.clamp(distanceInches / kTrackingMaxDistanceInches, 0.0, 1.0);
+            setPosition(MathUtil.interpolate(kTrackingMinPosition, kTrackingMaxPosition, t));
+        });
+    }
+
+    /** Holds a fixed position indefinitely until interrupted. */
+    public Command holdPositionCommand(double position) {
+        return run(() -> setPosition(position));
     }
 
     /** Expects a position between 0.0 and 1.0 */

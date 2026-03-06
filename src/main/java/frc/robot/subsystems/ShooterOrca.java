@@ -6,7 +6,6 @@ package frc.robot.subsystems;
 
 import static edu.wpi.first.units.Units.RPM;
 
-import com.revrobotics.AbsoluteEncoder;
 import com.revrobotics.PersistMode;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
@@ -16,7 +15,6 @@ import com.revrobotics.spark.SparkClosedLoopController;
 import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
 
@@ -25,13 +23,11 @@ import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.units.AngularVelocityUnit;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 import frc.robot.Ports;
-import frc.robot.subsystems.Swerve;
 
 
 /*
@@ -116,7 +112,7 @@ public class ShooterOrca extends SubsystemBase {
         }
     }
 
-    public static final class Shooter {
+    public static final class TelemetryKeys {
       public static final String kTable = "Shooter";
       public static final String kVelocityRPM = "Velocity RPM";
       public static final String kTargetRPM = "Target RPM";
@@ -125,55 +121,39 @@ public class ShooterOrca extends SubsystemBase {
       public static final String kSecondaryCurrent = "Secondary Current";
     }
 
-    public enum Speed {
-        SHOOT(5000),
-        DASHBOARD(0);
+  private Swerve m_swerveSubsystem;
 
-        private final double rpm;
+  private double shooterVelocityTarget = 0;  // Where we want to be (set by commands)
+  private double shooterVelocity = 0;        // Current ramped setpoint (fed to PID each cycle)
+  private boolean toggleDirection = false;
+  private double hoodTarget; // Position of the Hood in Rotations
+  private boolean hoodMovingForward = true; // true is positive
 
-        private Speed(double rpm) {
-            this.rpm = rpm;
-        }
+  // CAN IDs 55 - 57
+  private final SparkFlex shooterPrimaryMotor = new SparkFlex(Ports.kShooterLeft, MotorType.kBrushless);
+  private final SparkFlex shooterSecondaryMotor = new SparkFlex(Ports.kShooterMiddle, MotorType.kBrushless);
+  private final SparkFlex shooterTertiaryMotor = new SparkFlex(Ports.kShooterRight, MotorType.kBrushless);
 
-        public AngularVelocity angularVelocity() {
-            return RPM.of(rpm);
-        }
-    }
+  private final RelativeEncoder shooterEncoder = shooterPrimaryMotor.getEncoder();
 
-  Swerve m_swerveSubsystem;
+  private final SparkClosedLoopController shooterPrimaryPIDController = shooterPrimaryMotor.getClosedLoopController();
+  private final SparkClosedLoopController shooterSecondaryPIDController = shooterSecondaryMotor.getClosedLoopController();
+  private final SparkClosedLoopController shooterTertiaryPIDController = shooterTertiaryMotor.getClosedLoopController();
 
-  double shooterVelocityTarget = 0;  // Where we want to be (set by commands)
-  double shooterVelocity = 0;        // Current ramped setpoint (fed to PID each cycle)
-  boolean toggleDirection = false;
-  double hoodTarget; // Position of the Hood in Rotations
-  boolean hoodMovingForward = true; // true is positive
-  
-  // 55 - 57
-  final SparkFlex shooterPrimaryMotor = new SparkFlex(Ports.kShooterLeft, MotorType.kBrushless);
-  final SparkFlex shooterSecondaryMotor = new SparkFlex(Ports.kShooterMiddle, MotorType.kBrushless);
-  final SparkFlex shooterTertiaryMotor = new SparkFlex(Ports.kShooterRight, MotorType.kBrushless);
-
-  final RelativeEncoder shooterEncoder = shooterPrimaryMotor.getEncoder();
-
-  final SparkClosedLoopController shooterPrimaryPIDController = shooterPrimaryMotor.getClosedLoopController();
-  final SparkClosedLoopController shooterSecondaryPIDController = shooterSecondaryMotor.getClosedLoopController();
-  final SparkClosedLoopController shooterTertiaryPIDController = shooterTertiaryMotor.getClosedLoopController();
-
-  final NetworkTableInstance networkTable = NetworkTableInstance.getDefault();
-  final NetworkTable shooterTable = networkTable.getTable(Shooter.kTable);
+  private final NetworkTableInstance networkTable = NetworkTableInstance.getDefault();
+  private final NetworkTable shooterTable = networkTable.getTable(TelemetryKeys.kTable);
 
   // Cached NetworkTable entries — avoids hash lookups every cycle (50Hz)
-  private final NetworkTableEntry velocityEntryShooter = shooterTable.getEntry(Shooter.kVelocityRPM);
-  private final NetworkTableEntry targetEntryShooter = shooterTable.getEntry(Shooter.kTargetRPM);
-  private final NetworkTableEntry rampedSetpointEntryShooter = shooterTable.getEntry(Shooter.kRampedSetpoint);
-  private final NetworkTableEntry primaryCurrentEntryShooter = shooterTable.getEntry(Shooter.kPrimaryCurrent);
-  private final NetworkTableEntry secondaryCurrentEntryShooter = shooterTable.getEntry(Shooter.kSecondaryCurrent);
+  private final NetworkTableEntry velocityEntryShooter = shooterTable.getEntry(TelemetryKeys.kVelocityRPM);
+  private final NetworkTableEntry targetEntryShooter = shooterTable.getEntry(TelemetryKeys.kTargetRPM);
+  private final NetworkTableEntry rampedSetpointEntryShooter = shooterTable.getEntry(TelemetryKeys.kRampedSetpoint);
+  private final NetworkTableEntry primaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kPrimaryCurrent);
+  private final NetworkTableEntry secondaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kSecondaryCurrent);
   private final NetworkTableEntry readyEntryShooter = shooterTable.getEntry("Ready");
 
 
 
-  private InterpolatingDoubleTreeMap shooterSpeedMap = new InterpolatingDoubleTreeMap();
-  private InterpolatingDoubleTreeMap hoodAngleMap = new InterpolatingDoubleTreeMap();
+  private final InterpolatingDoubleTreeMap shooterSpeedMap = new InterpolatingDoubleTreeMap();
 
 
   /** Creates a new ShooterSubsystem. */
@@ -183,6 +163,7 @@ public class ShooterOrca extends SubsystemBase {
 
     shooterPrimaryMotor.configure(ShooterConfigs.primaryShooterConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     shooterSecondaryMotor.configure(ShooterConfigs.secondaryShooterConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    shooterTertiaryMotor.configure(ShooterConfigs.tertiaryShooterConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
     addMapValues();
   }

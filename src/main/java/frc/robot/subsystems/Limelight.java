@@ -55,16 +55,18 @@ public class Limelight extends SubsystemBase {
 
         posePublisher.set(poseEstimate_MegaTag2.pose);
 
-        return Optional.of(new Measurement(poseEstimate_MegaTag2, standardDeviations));
+        return Optional.of(new Measurement(poseEstimate_MegaTag2, standardDeviations, poseEstimate_MegaTag2.avgTagArea));
     }
 
     public static class Measurement {
         public final PoseEstimate poseEstimate;
         public final Matrix<N3, N1> standardDeviations;
+        public final double avgTagArea;
 
-        public Measurement(PoseEstimate poseEstimate, Matrix<N3, N1> standardDeviations) {
+        public Measurement(PoseEstimate poseEstimate, Matrix<N3, N1> standardDeviations, double avgTagArea) {
             this.poseEstimate = poseEstimate;
             this.standardDeviations = standardDeviations;
+            this.avgTagArea = avgTagArea;
         }
     }
 

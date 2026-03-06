@@ -1,12 +1,9 @@
 package frc.robot;
 
 import static edu.wpi.first.units.Units.RPM;
-import static edu.wpi.first.units.Units.RotationsPerSecond;
-import static edu.wpi.first.units.Units.MetersPerSecond;
 
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.AngularVelocity;
-import edu.wpi.first.units.measure.LinearVelocity;
 
 /**
  * The Constants class provides a convenient place for teams to hold robot-wide numerical or boolean
@@ -24,10 +21,5 @@ public final class Constants {
 
   public static final double maxSpeed = Units.feetToMeters(8); //was 16 before
   
-  // public static class Driving {
-  //     public static final AngularVelocity kMaxRotationalRate = RotationsPerSecond.of(1);
-  //     public static final AngularVelocity kPIDRotationDeadband = kMaxRotationalRate.times(0.005);
-  // }
-
-  public static final AngularVelocity intakeMaxSpeed = RPM.of(1);
+  public static final AngularVelocity intakeMaxSpeed = RPM.of(6784); // NEO Vortex free speed
 }

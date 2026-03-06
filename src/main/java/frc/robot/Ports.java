@@ -12,12 +12,14 @@ public final class Ports {
     public static final int kShooterMiddle = 56;
     public static final int kShooterRight = 55;
     
-    public static final int kHanger = 41;
-
-    // PWM Ports
-    public static final int kHoodLeftServo = 1;
-    public static final int kHoodRightServo = 0;
 
     //Servo Hub
+    public static final int kHanger = 41;
+    public static final int kPivot = 59;
+
+    // REV Servo Hub (CAN)
     public static final int kServoHub = 45;
+
+    // PWM Ports
+    public static final int kBlinkinLed = 9;
 }

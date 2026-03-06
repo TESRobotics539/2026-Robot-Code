@@ -109,7 +109,7 @@ public class Hanger extends SubsystemBase {
     public Command homingCommand() {
         return Commands.sequence(
             runOnce(() -> setPercentOutput(-0.05)),
-            Commands.waitUntil(() -> motor.getOutputCurrent() > 0.4),
+            Commands.waitUntil(() -> motor.getOutputCurrent() > 7.0),
             runOnce(() -> {
                 encoder.setPosition(Position.HOMED.motorAngle().in(Rotations));
                 isHomed = true;

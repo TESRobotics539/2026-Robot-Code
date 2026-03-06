@@ -102,18 +102,9 @@ public class Shooter extends SubsystemBase {
     }
     
     public void set(double rpm) {
-        leftMotor.getClosedLoopController().setSetpoint(
-            RPM.of(rpm).in(RPM),
-            ControlType.kVelocity
-        );
-        middleMotor.getClosedLoopController().setSetpoint(
-            RPM.of(rpm).in(RPM),
-            ControlType.kVelocity
-        );
-        rightMotor.getClosedLoopController().setSetpoint(
-            RPM.of(rpm).in(RPM),
-            ControlType.kVelocity
-        );
+        leftMotor.getClosedLoopController().setSetpoint(rpm, ControlType.kVelocity);
+        middleMotor.getClosedLoopController().setSetpoint(rpm, ControlType.kVelocity);
+        rightMotor.getClosedLoopController().setSetpoint(rpm, ControlType.kVelocity);
     }
 
     public void set(Speed speed) {

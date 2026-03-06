@@ -4,17 +4,11 @@
 
 package frc.robot;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.controller.ProfiledPIDController;
+import java.util.Optional;
+
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.trajectory.TrapezoidProfile.Constraints;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -22,23 +16,19 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.SubsystemCommands;
+import frc.robot.subsystems.BlinkinLed;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
 import frc.robot.subsystems.Hanger;
 import frc.robot.subsystems.Hood;
-import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Limelight;
 import frc.robot.subsystems.Pivot;
-import frc.robot.subsystems.Shooter;
 import frc.robot.subsystems.ShooterOrca;
 import frc.robot.subsystems.Swerve;
-import frc.robot.subsystems.Hanger.Position;
 
 import java.io.File;
-import java.util.Optional;
 
 import swervelib.SwerveInputStream;
 
@@ -49,19 +39,20 @@ import swervelib.SwerveInputStream;
  */
 public class RobotContainer
 {
+    private final BlinkinLed blinkinLed = new BlinkinLed();
+
     //private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
     private final Hood hood = new Hood();
     private final Hanger hanger = new Hanger();
+    private final Limelight limelight = new Limelight("limelight-front");
+    private final Limelight limelightRear = new Limelight("limelight-rear");
     private final Field2d field = new Field2d();
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
     private final ShooterOrca shooter = new ShooterOrca(drivebase);
 
     private final Pivot pivot = new Pivot();
-
-    private final Limelight limelightFront = new Limelight("limelight-front");
-    private final Limelight limelightRear = new Limelight("limelight-rear");
 
     final CommandXboxController  driverXbox = new CommandXboxController(0);
     
@@ -98,7 +89,6 @@ public class RobotContainer
                                                                   () -> driverXbox.getLeftY() * -1,
                                                                   () -> driverXbox.getLeftX() * -1)
                                                               .withControllerRotationAxis(() -> driverXbox.getRightX() * -1)
-                                                                  //.withControllerRotationAxis(driverXbox.getRightX() * -1)
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))                                                           
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(0.8)
@@ -110,8 +100,12 @@ public class RobotContainer
       configureBindings();
       DriverStation.silenceJoystickConnectionWarning(true);
 
-    //   limelight.setDefaultCommand(updateVisionCommand());
+      limelight.setDefaultCommand(updateVisionCommand());
 
+
+      blinkinLed.setDefaultCommand(Commands.run(blinkinLed::setDefaultPattern, blinkinLed));
+
+      
       SmartDashboard.putData("Field", field);
 
       // TODO: Uncomment when subsystem commands are implemented
@@ -121,23 +115,22 @@ public class RobotContainer
 
 
 
-        //dis is js fer testing dem ackcheuwators ;)
         //driverXbox.x().whileTrue(hood.positionCommand(1.5));
         //driverXbox.a().whileTrue(hood.positionCommand(0.15));
 
-        //And dis thingy down here is foar testing da chew arm thingys that go up'n down (currently not here)
+        // Hood tracking: continuously adjust position based on distance to hub
+        hood.setDefaultCommand(hood.trackHubCommand(drivebase::getPose));
+        driverXbox.povDown().toggleOnTrue(hood.holdPositionCommand(0.1));
 
         // driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
 
         // driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
-        driverXbox.leftTrigger().onTrue(Commands.runOnce(() -> pivot.setPercentOutput(0.3)))
-                                .onFalse(Commands.runOnce(() -> pivot.setPercentOutput(0.0)));
-        driverXbox.rightTrigger().onTrue(Commands.runOnce(() -> pivot.setTarget(0.2)))
-                                .onFalse(Commands.runOnce(() -> pivot.setTarget(0)));
+        driverXbox.leftTrigger().onTrue(pivot.runOnce(() -> pivot.setPercentOutput(0.3)))
+                                .onFalse(pivot.runOnce(() -> pivot.setPercentOutput(0.0)));
+        driverXbox.rightTrigger().onTrue(pivot.runOnce(() -> pivot.setTarget(0.2)))
+                                 .onFalse(pivot.runOnce(() -> pivot.setTarget(0)));
         //driverXbox.rightBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
-
-
 
       // ORIGINAL COMMANDS
       // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())
@@ -145,35 +138,26 @@ public class RobotContainer
       //     .onTrue(hanger.homingCommand());
 
       // TODO: Uncomment when shoot commands are implemented
-      //driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());      
+      //driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
       //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually());
-      
+
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
       // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 
-      // TODO: Uncomment when hanger commands are implemented
-       driverXbox.y().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
-       driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
-       driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
-
-      //Set the default auto (do nothing) 
-      // autoChooser.setDefaultOption("Do Nothing", Commands.runOnce(drivebase::zeroGyroWithAlliance)
-      //                                                 .andThen(Commands.none()));
-
-      // //Add a simple auto option to have the robot drive forward for 1 second then stop
-      // autoChooser.addOption("Drive Forward", Commands.runOnce(drivebase::zeroGyroWithAlliance).withTimeout(.2)
-      //                                             .andThen(drivebase.driveForward().withTimeout(1)));
-      // //Put the autoChooser on the SmartDashboard
-      // SmartDashboard.putData("Auto Chooser", autoChooser);
-
-      // if (autoChooser.getSelected() == null ) {
-      //   RobotModeTriggers.autonomous().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
-      // }
+      driverXbox.y().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
+      driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
+      driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
     }
 
     private void configureBindings()
     {
+      // Zero gyro to field-forward every time teleop starts
+      RobotModeTriggers.teleop().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
+
+      // Manual mid-match gyro reset — press the Back (View) button on the Xbox controller
+      driverXbox.back().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
+
       Command driveFieldOrientedAnglularVelocity = drivebase.driveFieldOriented(driveAngularVelocity);
       drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
     }
@@ -185,8 +169,9 @@ public class RobotContainer
      */
     public Command getAutonomousCommand()
     {
-      // Pass in the selected auto from the SmartDashboard as our desired autnomous commmand 
-      return autoChooser.getSelected();
+      // Pass in the selected auto from the SmartDashboard as our desired autonomous command
+      Command selected = autoChooser.getSelected();
+      return selected != null ? selected : Commands.none();
     }
 
     public void resetOdometry(Pose2d pose)
@@ -204,29 +189,26 @@ public class RobotContainer
       drivebase.setMotorBrake(brake);
     }
 
-    // private Command updateVisionCommand() {
-    //     return Commands.runOnce(() -> {
-    //         // If a pose2d is not returned cancel
-    //         Pose2d newPose = findBestPosition();
+    private Command updateVisionCommand() {
+        return Commands.run(() -> {
+            final Pose2d currentRobotPose = drivebase.getPose();
+            final Optional<Limelight.Measurement> front = limelight.getMeasurement(currentRobotPose);
+            final Optional<Limelight.Measurement> rear = limelightRear.getMeasurement(currentRobotPose);
 
-    //         // Find current time
+            final Optional<Limelight.Measurement> best;
+            if (front.isPresent() && rear.isPresent()) {
+                best = front.get().avgTagArea >= rear.get().avgTagArea ? front : rear;
+            } else if (front.isPresent()) {
+                best = front;
+            } else {
+                best = rear;
+            }
 
-    //         // Find std devs
-
-    //         // Add vision measurement
-    //         drivebase.addVisionMeasurement(, );
-    //     })
-    //     .ignoringDisable(true);
-    // }
-
-    // private Optional<Pose2d> findBestPosition() {
-
-    //     // If MT1 is good 
-    //         // return mt1.pose
-
-    //     // Find which limelight has better MT2
-    //         // return mt2.pose
-
-    //     return
-    // }
+            best.ifPresent(m -> drivebase.addVisionMeasurement(
+                m.poseEstimate.pose,
+                m.poseEstimate.timestampSeconds,
+                m.standardDeviations
+            ));
+        }, limelight, limelightRear).ignoringDisable(true);
+    }
 }

@@ -66,7 +66,10 @@ public class Intake extends SubsystemBase {
     private static final double kPivotReduction = 65.625;
     private static final AngularVelocity kMaxPivotSpeed = Constants.intakeMaxSpeed.div(kPivotReduction);
     private static final Angle kPositionTolerance = Degrees.of(5);
+    // Raw motor-rotation target used until positionConversionFactor is set to degrees/rotation
+    private static final double kIntakePositionRaw = 0.2;
     private double targetPivotPosition = 0.0;
+    private boolean usePercentOutput = false;
 
     private final SparkMax pivotMotor;
     private final SparkClosedLoopController pivotController;
@@ -93,12 +96,14 @@ public class Intake extends SubsystemBase {
 
     @Override
     public void periodic() {
-        pivotController.setSetpoint(
-            targetPivotPosition,
-            SparkMax.ControlType.kPosition
-            // ClosedLoopSlot.kSlot0, 
-            // getFeedForward()
-        );
+        if (!usePercentOutput) {
+            pivotController.setSetpoint(
+                targetPivotPosition,
+                SparkMax.ControlType.kPosition
+                // ClosedLoopSlot.kSlot0,
+                // getFeedForward()
+            );
+        }
     }
 
     private void configurePivotMotor() {
@@ -159,14 +164,17 @@ public class Intake extends SubsystemBase {
     }
 
     public void setPivotPercentOutput(double percentOutput) {
+        usePercentOutput = true;
         pivotMotor.set(percentOutput);
     }
 
     public void set(Position position) {
+        usePercentOutput = false;
         targetPivotPosition = position.angle().in(Degrees);
     }
-    
+
     public void set(double position) {
+        usePercentOutput = false;
         targetPivotPosition = position;
     }
 
@@ -181,7 +189,7 @@ public class Intake extends SubsystemBase {
     }
 
     public Command intakeCommand() {
-        return runOnce(() -> set(0.2));
+        return runOnce(() -> set(kIntakePositionRaw));
         // return startEnd(
         //     () -> {
         //         //setPivotPercentOutput(0.3);
