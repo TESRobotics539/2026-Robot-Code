@@ -134,7 +134,18 @@ public class RobotContainer
         driverXbox.leftTrigger()
             .onTrue(intake.intakePressCommand())
             .onFalse(intake.cancelPressCommand());
-        driverXbox.rightBumper().whileTrue(floor.feedCommand());
+        driverXbox.rightBumper().whileTrue(
+            Commands.parallel(
+                shooter.spinUpMapCommand(),
+                intake.agitateCommand(),
+                Commands.waitUntil(shooter::isShooterReady)
+                    .withTimeout(0.75)
+                    .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
+                    .andThen(Commands.parallel(
+                        feeder.feedCommand(),
+                        Commands.waitSeconds(0.125).andThen(floor.feedCommand())
+                    ))
+            ));
         driverXbox.rightTrigger().whileTrue(
             Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()));
 
@@ -153,11 +164,10 @@ public class RobotContainer
 
       driverXbox.x().onTrue(hanger.runOnce(() -> hanger.setPercentOutput(-0.3)))
                     .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-      driverXbox.povLeft().onTrue(
-          hanger.runOnce(() -> hanger.setPercentOutput(-0.3))
-              .andThen(Commands.waitSeconds(0.2))
-              .andThen(hanger.runOnce(() -> hanger.setPercentOutput(0)))
-      );
+      driverXbox.povLeft().whileTrue(hanger.run(() -> hanger.setPercentOutput(-0.8)))
+                          .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+      driverXbox.povRight().whileTrue(hanger.run(() -> hanger.setPercentOutput(0.8)))
+                           .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
       driverXbox.a().toggleOnTrue(hanger.toggleCommand());
 
       driverXbox.y().onTrue(hanger.positionCommand(Hanger.Position.HANGING));

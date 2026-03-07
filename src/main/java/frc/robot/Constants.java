@@ -19,7 +19,9 @@ public final class Constants {
     public static final double DEADBAND = 0.05;
   }
 
-  public static final double maxSpeed = Units.feetToMeters(8); //was 16 before
+  public static final double maxSpeed = Units.feetToMeters(12); //was 16 before (was 8 before before)
+
+  public static final double shootWaitSeconds = 1.5; // delay after shooter ready before feeding
   
   public static final AngularVelocity intakeMaxSpeed = RPM.of(6784); // NEO Vortex free speed
 }

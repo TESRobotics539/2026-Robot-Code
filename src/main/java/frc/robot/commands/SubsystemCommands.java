@@ -2,6 +2,8 @@ package frc.robot.commands;
 
 import java.util.function.DoubleSupplier;
 
+import frc.robot.Constants;
+
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Feeder;
@@ -87,15 +89,13 @@ public final class SubsystemCommands {
     }
 
     public Command shootMap() {
-        AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve,
-            () -> forwardInput.getAsDouble() * 0.33,
-            () -> leftInput.getAsDouble() * 0.33);
+        AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
         return Commands.parallel(
             shooter.spinUpMapCommand(),
             aimCommand,
             Commands.waitUntil(() -> shooter.isShooterReady() && aimCommand.isAimed())
                 .withTimeout(0.75)
-                .andThen(Commands.waitSeconds(0.5))
+                .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
                 .andThen(feed())
         );
     }
