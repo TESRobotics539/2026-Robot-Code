@@ -18,6 +18,11 @@ import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.config.PIDConstants;
+import com.pathplanner.lib.config.RobotConfig;
+import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
@@ -91,6 +96,8 @@ public class Swerve extends SubsystemBase
     absoluteEncoder_fr = new CANCoderSwerve(12);
     absoluteEncoder_bl = new CANCoderSwerve(6);
     absoluteEncoder_br = new CANCoderSwerve(3);
+
+    setupAutoBuilder();
   }
 
   /**
@@ -115,6 +122,29 @@ public class Swerve extends SubsystemBase
     absoluteEncoder_fr = new CANCoderSwerve(12);
     absoluteEncoder_bl = new CANCoderSwerve(6);
     absoluteEncoder_br = new CANCoderSwerve(3);
+
+    setupAutoBuilder();
+  }
+
+  private void setupAutoBuilder() {
+    try {
+      RobotConfig config = RobotConfig.fromGUISettings();
+      AutoBuilder.configure(
+          this::getPose,
+          this::resetOdometry,
+          this::getRobotVelocity,
+          (speeds, feedforwards) -> drive(speeds),
+          new PPHolonomicDriveController(
+              new PIDConstants(5.0, 0.0, 0.0), // translation
+              new PIDConstants(5.0, 0.0, 0.0)  // rotation
+          ),
+          config,
+          () -> DriverStation.getAlliance().map(a -> a == Alliance.Red).orElse(false),
+          this
+      );
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to load PathPlanner RobotConfig", e);
+    }
   }
 
   @Override

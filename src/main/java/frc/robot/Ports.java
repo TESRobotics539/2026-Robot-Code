@@ -2,7 +2,7 @@ package frc.robot;
 
 public final class Ports {
     // Motor IDs
-    public static final int kIntakePivot = 30; // TODO: 59;
+    public static final int kIntakePivot = 59;
     public static final int kIntakeRollers = 58;
     
     public static final int kFloor = 54;

@@ -47,11 +47,12 @@ public class Pivot extends SubsystemBase {
             .idleMode(IdleMode.kBrake)
             .voltageCompensation(12);
 
-        config.smartCurrentLimit(40, 30);
+        config.smartCurrentLimit(15);
 
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kAbsoluteEncoder)
-            .pid(2.5, 0, 5);
+            .pid(2.5, 0, 5)
+            .outputRange(-0.15, 0.4);
 
         pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }

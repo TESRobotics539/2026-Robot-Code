@@ -1,0 +1,62 @@
+{
+  "version": "2025.0",
+  "command": {
+    "type": "sequential",
+    "data": {
+      "commands": [
+        {
+          "type": "path",
+          "data": {
+            "pathName": "Center Auto 1"
+          }
+        },
+        {
+          "type": "race",
+          "data": {
+            "commands": [
+              {
+                "type": "named",
+                "data": {
+                  "name": "Shoot Command"
+                }
+              },
+              {
+                "type": "wait",
+                "data": {
+                  "waitTime": 5.0
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "path",
+          "data": {
+            "pathName": "Center Auto 2"
+          }
+        },
+        {
+          "type": "named",
+          "data": {
+            "name": "Climber Toggle Command"
+          }
+        },
+        {
+          "type": "path",
+          "data": {
+            "pathName": "Center Auto 3"
+          }
+        },
+        {
+          "type": "named",
+          "data": {
+            "name": "Climber Toggle Command"
+          }
+        }
+      ]
+    }
+  },
+  "resetOdom": true,
+  "folder": null,
+  "choreoAuto": false
+}

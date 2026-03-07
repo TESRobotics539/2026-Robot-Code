@@ -87,7 +87,9 @@ public final class SubsystemCommands {
     }
 
     public Command shootMap() {
-        AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
+        AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve,
+            () -> forwardInput.getAsDouble() * 0.33,
+            () -> leftInput.getAsDouble() * 0.33);
         return Commands.parallel(
             shooter.spinUpMapCommand(),
             aimCommand,

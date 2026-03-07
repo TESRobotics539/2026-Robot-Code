@@ -1,11 +1,7 @@
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Inches;
 import static edu.wpi.first.units.Units.Rotations;
-import static edu.wpi.first.units.Units.RotationsPerSecond;
-import static edu.wpi.first.units.Units.Second;
-import static edu.wpi.first.units.Units.Volts;
 
 import com.revrobotics.PersistMode;
 import com.revrobotics.RelativeEncoder;
@@ -51,15 +47,18 @@ public class Hanger extends SubsystemBase {
         }
     }
 
-    private static final double kNeoFreeSpeedRPS = 5676.0 / 60.0; // NEO free speed in rotations per second
-    private static final Per<DistanceUnit, AngleUnit> kHangerExtensionPerMotorAngle = Inches.of(6).div(Rotations.of(142));
+private static final Per<DistanceUnit, AngleUnit> kHangerExtensionPerMotorAngle = Inches.of(6).div(Rotations.of(142));
     private static final Distance kExtensionTolerance = Inches.of(1);
 
     private final SparkMax motor;
     private final SparkClosedLoopController pidController;
     private final RelativeEncoder encoder;
 
+    // Distance traveled in each direction for the toggle command (tune as needed)
+    private static final double kToggleDistanceRotations = 200.0;
+
     private boolean isHomed = false;
+    private boolean toggleIsUp = false;
     private double targetPositionRotations = 0;
 
     public Hanger() {
@@ -74,16 +73,13 @@ public class Hanger extends SubsystemBase {
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
             .pid(0.1, 0, 0)
-            .velocityFF(0.000175)
-            //.velocityFF(1.0 / kNeoFreeSpeedRPS)
-            .maxMotion
-                .maxVelocity(kNeoFreeSpeedRPS * 60) // RPM
-                .maxAcceleration(kNeoFreeSpeedRPS * 60) // RPM/s
-                .allowedClosedLoopError(0.1); // Rotations
+            .velocityFF(0.000175);
         
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
         
         encoder = motor.getEncoder();
+        encoder.setPosition(0);
+
         pidController = motor.getClosedLoopController();
         
         SmartDashboard.putData(this);
@@ -93,7 +89,7 @@ public class Hanger extends SubsystemBase {
         targetPositionRotations = position.motorAngle().in(Rotations);
         pidController.setSetpoint(
             targetPositionRotations,
-            ControlType.kMAXMotionPositionControl
+            ControlType.kPosition
         );
     }
 
@@ -104,6 +100,23 @@ public class Hanger extends SubsystemBase {
     public Command positionCommand(Position position) {
         return runOnce(() -> set(position))
             .andThen(Commands.waitUntil(this::isExtensionWithinTolerance));
+    }
+
+    /**
+     * Toggles the hanger up or down by {@link #kToggleDistanceRotations}.
+     * On the way up, the relative encoder is zeroed first so each cycle starts from a clean reference.
+     */
+    public Command toggleCommand() {
+        return runOnce(() -> {
+            if (!toggleIsUp) {
+                targetPositionRotations = kToggleDistanceRotations;
+                toggleIsUp = true;
+            } else {
+                targetPositionRotations = 0; //-kToggleDistanceRotations;
+                toggleIsUp = false;
+            }
+            pidController.setSetpoint(targetPositionRotations, ControlType.kPosition);
+        });
     }
 
     public Command homingCommand() {

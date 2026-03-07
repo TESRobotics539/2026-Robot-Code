@@ -6,6 +6,8 @@ package frc.robot;
 
 import java.util.Optional;
 
+import com.pathplanner.lib.auto.NamedCommands;
+import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
@@ -19,12 +21,12 @@ import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.SubsystemCommands;
 import frc.robot.subsystems.BlinkinLed;
+import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
 import frc.robot.subsystems.Hanger;
 import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.Limelight;
-import frc.robot.subsystems.Pivot;
 import frc.robot.subsystems.ShooterOrca;
 import frc.robot.subsystems.Swerve;
 
@@ -41,7 +43,7 @@ public class RobotContainer
 {
     private final BlinkinLed blinkinLed = new BlinkinLed();
 
-    //private final Intake intake = new Intake();
+    private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
     private final Hood hood = new Hood();
@@ -52,7 +54,7 @@ public class RobotContainer
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
     private final ShooterOrca shooter = new ShooterOrca(drivebase);
 
-    private final Pivot pivot = new Pivot();
+    // private final Pivot pivot = new Pivot();
 
     final CommandXboxController  driverXbox = new CommandXboxController(0);
     
@@ -80,7 +82,7 @@ public class RobotContainer
     );
     
     // Establish a Sendable Chooser that will be able to be sent to the SmartDashboard, allowing selection of desired auto
-    private final SendableChooser<Command> autoChooser = new SendableChooser<>();
+    private final SendableChooser<Command> autoChooser;
 
     /**
      * Converts driver input into a field-relative ChassisSpeeds that is controlled by angular velocity.
@@ -91,11 +93,14 @@ public class RobotContainer
                                                               .withControllerRotationAxis(() -> driverXbox.getRightX() * -1)
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))                                                           
                                                               .deadband(OperatorConstants.DEADBAND)
-                                                              .scaleTranslation(0.8)
+                                                              .scaleTranslation(1.0)
                                                               .allianceRelativeControl(true);
 
     public RobotContainer()
     {
+      configureNamedCommands();
+      autoChooser = AutoBuilder.buildAutoChooser();
+
       // Configure the trigger bindings
       configureBindings();
       DriverStation.silenceJoystickConnectionWarning(true);
@@ -105,7 +110,8 @@ public class RobotContainer
 
       blinkinLed.setDefaultCommand(Commands.run(blinkinLed::setDefaultPattern, blinkinLed));
 
-      
+
+      SmartDashboard.putData("Auto Chooser", autoChooser);
       SmartDashboard.putData("Field", field);
 
       // TODO: Uncomment when subsystem commands are implemented
@@ -125,11 +131,12 @@ public class RobotContainer
         // driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
 
-        // driverXbox.rightTrigger().whileTrue(intake.intakeCommand());
-        driverXbox.leftTrigger().onTrue(pivot.runOnce(() -> pivot.setPercentOutput(0.3)))
-                                .onFalse(pivot.runOnce(() -> pivot.setPercentOutput(0.0)));
-        driverXbox.rightTrigger().whileTrue(subsystemCommands.shootMap());
-        //driverXbox.rightBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
+        driverXbox.leftTrigger()
+            .onTrue(intake.intakePressCommand())
+            .onFalse(intake.cancelPressCommand());
+        driverXbox.rightBumper().whileTrue(floor.feedCommand());
+        driverXbox.rightTrigger().whileTrue(
+            Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()));
 
       // ORIGINAL COMMANDS
       // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())
@@ -143,6 +150,15 @@ public class RobotContainer
       // TODO: Uncomment when intake commands are implemented
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
       // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
+
+      driverXbox.x().onTrue(hanger.runOnce(() -> hanger.setPercentOutput(-0.3)))
+                    .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+      driverXbox.povLeft().onTrue(
+          hanger.runOnce(() -> hanger.setPercentOutput(-0.3))
+              .andThen(Commands.waitSeconds(0.2))
+              .andThen(hanger.runOnce(() -> hanger.setPercentOutput(0)))
+      );
+      driverXbox.a().toggleOnTrue(hanger.toggleCommand());
 
       driverXbox.y().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
       driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
@@ -159,6 +175,15 @@ public class RobotContainer
 
       Command driveFieldOrientedAnglularVelocity = drivebase.driveFieldOriented(driveAngularVelocity);
       drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
+    }
+
+    private void configureNamedCommands() {
+      NamedCommands.registerCommand("Shoot Command", subsystemCommands.shootMap().withTimeout(5.0));
+      NamedCommands.registerCommand("Climber Toggle Command", hanger.toggleCommand());
+      
+      // For climber down the toggle command might suffice
+      // TODO: If it doesn't make a specific command for staying off of the ground
+      NamedCommands.registerCommand("Climber Down and Hold", hanger.toggleCommand());
     }
 
     /**
