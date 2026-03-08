@@ -26,6 +26,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Landmarks;
+import frc.robot.Constants;
 import frc.robot.Ports;
 
 public class Hood extends SubsystemBase {
@@ -34,14 +35,14 @@ public class Hood extends SubsystemBase {
     private static final ChannelId kRightChannel = ChannelId.kChannelId5;
 
     // Pulse width bounds in microseconds — preserves the previous setBoundsMicroseconds(2000,1800,1500,1200,1000) values
-    private static final int kMinPulseUs    = 1000;
-    private static final int kCenterPulseUs = 1500;
-    private static final int kMaxPulseUs    = 2000;
+    private static final int kMinPulseUs    = 1075;
+    private static final int kCenterPulseUs = 1575;
+    private static final int kMaxPulseUs    = 2075;
 
     private static final Distance kServoLength = Millimeters.of(100);
     private static final LinearVelocity kMaxServoSpeed = Millimeters.of(20).per(Second);
-    private static final double kMinPosition = 0.06;
-    private static final double kMaxPosition = 0.95;
+    private static final double kMinPosition = Constants.HoodConstants.kMinPosition;
+    private static final double kMaxPosition = Constants.HoodConstants.kMaxPosition;
     private static final double kPositionTolerance = 0.01;
 
     private final ServoHub servoHub;
@@ -86,10 +87,10 @@ public class Hood extends SubsystemBase {
         targetPosition = clampedPosition;
     }
 
-    private static final double kTrackingMinDistanceMeters = 1.0;
-    private static final double kTrackingMaxDistanceMeters = 5.0;
-    private static final double kTrackingMinPosition = 0.05;
-    private static final double kTrackingMaxPosition = 0.85;
+    private static final double kTrackingMinDistanceMeters = Constants.HoodConstants.kTrackingMinDistanceMeters;
+    private static final double kTrackingMaxDistanceMeters = Constants.HoodConstants.kTrackingMaxDistanceMeters;
+    private static final double kTrackingMinPosition = Constants.HoodConstants.kTrackingMinPosition;
+    private static final double kTrackingMaxPosition = Constants.HoodConstants.kTrackingMaxPosition;
 
     /** Continuously adjusts hood position based on distance to the hub. */
     public Command trackHubCommand(Supplier<Pose2d> poseSupplier) {

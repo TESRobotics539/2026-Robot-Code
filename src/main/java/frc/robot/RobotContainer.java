@@ -131,6 +131,11 @@ public class RobotContainer
         // driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
 
+        // Auto-deploy intake 1s after teleop enables (pivot only, no rollers)
+        RobotModeTriggers.teleop()
+            .onTrue(Commands.waitSeconds(1.0)
+                .andThen(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED))));
+
         driverXbox.leftTrigger()
             .onTrue(intake.intakePressCommand())
             .onFalse(intake.cancelPressCommand());
@@ -139,15 +144,16 @@ public class RobotContainer
                 shooter.spinUpMapCommand(),
                 intake.agitateCommand(),
                 Commands.waitUntil(shooter::isShooterReady)
-                    .withTimeout(0.75)
+                    .withTimeout(Constants.shootReadyTimeoutSeconds)
                     .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
-                        Commands.waitSeconds(0.125).andThen(floor.feedCommand())
+                        Commands.waitSeconds(Constants.floorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ));
         driverXbox.rightTrigger().whileTrue(
-            Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()));
+            Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()))
+            .onFalse(shooter.spinUpMapCommand().withTimeout(1.5));
 
       // ORIGINAL COMMANDS
       // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())
@@ -162,17 +168,18 @@ public class RobotContainer
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
       // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 
-      driverXbox.x().onTrue(hanger.runOnce(() -> hanger.setPercentOutput(-0.3)))
-                    .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-      driverXbox.povLeft().whileTrue(hanger.run(() -> hanger.setPercentOutput(-0.8)))
+      driverXbox.povLeft().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
                           .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-      driverXbox.povRight().whileTrue(hanger.run(() -> hanger.setPercentOutput(0.8)))
+      driverXbox.povRight().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
                            .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-      driverXbox.a().toggleOnTrue(hanger.toggleCommand());
+      driverXbox.a().onTrue(
+          hanger.runOnce(() -> hanger.setPercentOutput(0.5))
+              .andThen(Commands.waitSeconds(0.33))
+              .andThen(hanger.runOnce(() -> hanger.setPercentOutput(0))));
 
-      driverXbox.y().onTrue(hanger.positionCommand(Hanger.Position.HANGING));
-      driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
-      driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
+      driverXbox.y().onTrue(hanger.autoClimbCommand());
+      // driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
+      // driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
     }
 
     private void configureBindings()
@@ -189,11 +196,9 @@ public class RobotContainer
 
     private void configureNamedCommands() {
       NamedCommands.registerCommand("Shoot Command", subsystemCommands.shootMap().withTimeout(5.0));
+      NamedCommands.registerCommand("Auto Shoot", subsystemCommands.autoShoot());
       NamedCommands.registerCommand("Climber Toggle Command", hanger.toggleCommand());
-      
-      // For climber down the toggle command might suffice
-      // TODO: If it doesn't make a specific command for staying off of the ground
-      NamedCommands.registerCommand("Climber Down and Hold", hanger.toggleCommand());
+      NamedCommands.registerCommand("Climber Down and Hold", hanger.autoClimbCommand());
     }
 
     /**

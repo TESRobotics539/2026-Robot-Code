@@ -26,6 +26,7 @@ import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
+import frc.robot.Constants;
 import frc.robot.Ports;
 
 
@@ -89,15 +90,15 @@ public class ShooterOrca extends SubsystemBase {
             primaryShooterConfig
                 .inverted(false)
                 .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(60, 40);
+                .smartCurrentLimit(Constants.ShooterConstants.kSmartCurrentLimit, Constants.ShooterConstants.kFreeCurrentLimit);
             secondaryShooterConfig
                 .inverted(false)
                 .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(60, 40);
+                .smartCurrentLimit(Constants.ShooterConstants.kSmartCurrentLimit, Constants.ShooterConstants.kFreeCurrentLimit);
             tertiaryShooterConfig
                 .inverted(true)
                 .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(60, 40);
+                .smartCurrentLimit(Constants.ShooterConstants.kSmartCurrentLimit, Constants.ShooterConstants.kFreeCurrentLimit);
             primaryShooterConfig.closedLoop
                 .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
                 .pid(ShooterConstants.kP, ShooterConstants.kI, ShooterConstants.kD);
@@ -169,11 +170,11 @@ public class ShooterOrca extends SubsystemBase {
   }
 
   private void addMapValues() {
-    shooterSpeedMap.put(1.0, 2600.0);
-    shooterSpeedMap.put(2.0, 2765.0); // Untested
-    shooterSpeedMap.put(3.0, 2950.0);
-    shooterSpeedMap.put(4.5, 3150.0); // Untested
-    shooterSpeedMap.put(6.5, 4000.0);
+    shooterSpeedMap.put(1.0, 2700.0);
+    shooterSpeedMap.put(2.0, 2865.0); // Untested
+    shooterSpeedMap.put(3.0, 3050.0);
+    shooterSpeedMap.put(4.5, 3250.0); // Untested
+    shooterSpeedMap.put(6.5, 4100.0);
   }
 
   public double calculateShooterFeedForward() {

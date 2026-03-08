@@ -19,13 +19,14 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants;
 import frc.robot.Ports;
 
 public class Intake extends SubsystemBase {
 
     public enum Position {
-        STOWED(0.8),
-        DEPLOYED(0.57); // TODO: tune absolute encoder value
+        STOWED(Constants.IntakeConstants.kStowedPosition),
+        DEPLOYED(Constants.IntakeConstants.kDeployedPosition); // TODO: tune absolute encoder value
 
         public final double value;
 
@@ -34,8 +35,8 @@ public class Intake extends SubsystemBase {
         }
     }
 
-    private static final double kMinPosition = 0.53;
-    private static final double kMaxPosition = 0.9;
+    private static final double kMinPosition = Constants.IntakeConstants.kMinPosition;
+    private static final double kMaxPosition = Constants.IntakeConstants.kMaxPosition;
 
     private final SparkMax pivotMotor;
     private final SparkClosedLoopController pivotController;
@@ -130,19 +131,19 @@ public class Intake extends SubsystemBase {
      */
     public Command intakePressCommand() {
         return run(() -> {})
-            .withTimeout(0.5)
+            .withTimeout(Constants.IntakeConstants.kLongPressThresholdSeconds)
             .finallyDo(interrupted -> {
                 if (interrupted) {
                     // Short press
                     if (!isDeployed()) {
                         setPivotPosition(Position.DEPLOYED);
-                        setRollerSpeed(1.0);
+                        setRollerSpeed(Constants.IntakeConstants.kRollerSpeed);
                         rollerRunning = true;
                     } else if (rollerRunning) {
                         stopRoller();
                         rollerRunning = false;
                     } else {
-                        setRollerSpeed(1.0);
+                        setRollerSpeed(Constants.IntakeConstants.kRollerSpeed);
                         rollerRunning = true;
                     }
                 } else {
@@ -166,10 +167,10 @@ public class Intake extends SubsystemBase {
      */
     public Command agitateCommand() {
         return Commands.sequence(
-            runOnce(() -> setPivotPercentOutput(0.25)),
-            Commands.waitSeconds(0.33),
-            runOnce(() -> setPivotPercentOutput(-0.05)),
-            Commands.waitSeconds(0.2)
+            runOnce(() -> setPivotPercentOutput(Constants.IntakeConstants.kAgitateUpPower)),
+            Commands.waitSeconds(Constants.IntakeConstants.kAgitateUpSeconds),
+            runOnce(() -> setPivotPercentOutput(Constants.IntakeConstants.kAgitateDownPower)),
+            Commands.waitSeconds(Constants.IntakeConstants.kAgitateDownSeconds)
         ).repeatedly()
         .finallyDo(() -> usePercentOutput = false);
     }

@@ -89,22 +89,37 @@ public final class SubsystemCommands {
     }
 
     public Command shootMap() {
+        return aimAndFire(feed());
+    }
+
+    public Command autoShoot() {
+        return aimAndFire(longFeed());
+    }
+
+    private Command aimAndFire(Command feedCommand) {
         AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
         return Commands.parallel(
             shooter.spinUpMapCommand(),
             aimCommand,
             Commands.waitUntil(() -> shooter.isShooterReady() && aimCommand.isAimed())
-                .withTimeout(0.75)
+                .withTimeout(Constants.shootReadyTimeoutSeconds)
                 .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
-                .andThen(feed())
+                .andThen(feedCommand)
         );
     }
 
     private Command feed() {
         return Commands.parallel(
             feeder.feedCommand(),
-            Commands.waitSeconds(0.125)
+            Commands.waitSeconds(Constants.floorFeedDelaySeconds)
                 .andThen(floor.feedCommand())//.alongWith(intake.agitateCommand()))
         );
+    }
+
+    private Command longFeed() {
+        return Commands.parallel(
+            feeder.feedCommand(),
+            floor.feedCommand()
+        ).withTimeout(7.0);
     }
 }

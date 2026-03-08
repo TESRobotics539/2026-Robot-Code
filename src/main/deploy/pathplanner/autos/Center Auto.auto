@@ -17,13 +17,13 @@
               {
                 "type": "named",
                 "data": {
-                  "name": "Shoot Command"
+                  "name": "Auto Shoot"
                 }
               },
               {
                 "type": "wait",
                 "data": {
-                  "waitTime": 5.0
+                  "waitTime": 8.0
                 }
               }
             ]
@@ -36,12 +36,6 @@
           }
         },
         {
-          "type": "named",
-          "data": {
-            "name": "Climber Toggle Command"
-          }
-        },
-        {
           "type": "path",
           "data": {
             "pathName": "Center Auto 3"
@@ -50,7 +44,7 @@
         {
           "type": "named",
           "data": {
-            "name": "Climber Toggle Command"
+            "name": "Climber Down and Hold"
           }
         }
       ]
