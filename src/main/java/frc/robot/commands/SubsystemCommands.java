@@ -93,7 +93,7 @@ public final class SubsystemCommands {
     }
 
     public Command autoShoot() {
-        return aimAndFire(longFeed());
+        return aimAndFire(longFeed()).withTimeout(7.0);
     }
 
     private Command aimAndFire(Command feedCommand) {
@@ -103,7 +103,6 @@ public final class SubsystemCommands {
             aimCommand,
             Commands.waitUntil(() -> shooter.isShooterReady() && aimCommand.isAimed())
                 .withTimeout(Constants.shootReadyTimeoutSeconds)
-                .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
                 .andThen(feedCommand)
         );
     }

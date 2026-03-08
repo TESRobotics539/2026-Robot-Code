@@ -23,6 +23,7 @@ import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.util.sendable.SendableBuilder;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Command.InterruptionBehavior;
@@ -59,6 +60,11 @@ public class Hanger extends SubsystemBase {
 
     private boolean isHomed = false;
     private boolean toggleIsUp = false;
+
+    // Tracks auto climb timing for teleop reversal
+    private double climbStartTimestamp = -1;
+    private double climbDuration = -1;
+    private boolean autoClimbCompleted = false;
 
     public Hanger() {
         motor = new SparkMax(Ports.kHanger, MotorType.kBrushless);
@@ -107,12 +113,41 @@ public class Hanger extends SubsystemBase {
 
     public Command autoClimbCommand() {
         return Commands.sequence(
+            runOnce(() -> {
+                climbCurrentDebouncer.calculate(false); // reset debouncer state
+                climbStartTimestamp = Timer.getFPGATimestamp();
+                autoClimbCompleted = false;
+            }),
             run(() -> setPercentOutput(Constants.HangerConstants.kAutoClimbFullPower))
                 .until(() -> climbCurrentDebouncer.calculate(motor.getOutputCurrent() > Constants.HangerConstants.kAutoClimbCurrentThreshold)),
-            runOnce(() -> setPercentOutput(Constants.HangerConstants.kAutoClimbReleasePower)),
+            runOnce(() -> {
+                climbDuration = Timer.getFPGATimestamp() - climbStartTimestamp;
+                autoClimbCompleted = true;
+                setPercentOutput(Constants.HangerConstants.kAutoClimbReleasePower);
+            }),
             Commands.waitSeconds(Constants.HangerConstants.kAutoClimbReleaseSeconds),
             runOnce(() -> setPercentOutput(0))
         );
+    }
+
+    public boolean isAutoClimbCompleted() {
+        return autoClimbCompleted;
+    }
+
+    /**
+     * If the auto climb command completed during autonomous (current spike detected),
+     * runs the climber in reverse for the same duration it took to reach the spike.
+     * Clears the flag so it only runs once at the start of teleop.
+     */
+    public Command reverseClimbIfNeededCommand() {
+        return Commands.defer(() -> {
+            if (!autoClimbCompleted || climbDuration <= 0) return Commands.none();
+            double duration = climbDuration;
+            autoClimbCompleted = false;
+            return run(() -> setPercentOutput(-Constants.HangerConstants.kAutoClimbFullPower))
+                .withTimeout(duration)
+                .andThen(runOnce(() -> setPercentOutput(0)));
+        }, java.util.Set.of(this));
     }
 
     public Command homingCommand() {

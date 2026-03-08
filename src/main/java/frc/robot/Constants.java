@@ -22,7 +22,7 @@ public final class Constants {
 
   // ── Drivetrain ────────────────────────────────────────────────────────────
   /** Maximum drivetrain translation speed (meters per second). */
-  public static final double maxSpeed = Units.feetToMeters(12);
+  public static final double maxSpeed = Units.feetToMeters(14);
 
   // ── Shoot timing ─────────────────────────────────────────────────────────
   /** Seconds to wait after shooter reaches speed before feeding the note. */
@@ -85,14 +85,6 @@ public final class Constants {
     public static final double kAutoClimbReleasePower = 0.5;
     /** Duration of the release pulse after the auto climb stalls (seconds). */
     public static final double kAutoClimbReleaseSeconds = 0.3;
-  }
-
-  // ── Shooter ───────────────────────────────────────────────────────────────
-  public static class ShooterConstants {
-    /** Smart current limit (amps) applied to each flywheel motor at stall. */
-    public static final int kSmartCurrentLimit = 60;
-    /** Free-speed current limit (amps) applied to each flywheel motor. */
-    public static final int kFreeCurrentLimit = 40;
   }
 
   // ── Hood ──────────────────────────────────────────────────────────────────

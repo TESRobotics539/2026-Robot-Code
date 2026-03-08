@@ -26,7 +26,6 @@ import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
-import frc.robot.Constants;
 import frc.robot.Ports;
 
 
@@ -57,16 +56,10 @@ public class ShooterOrca extends SubsystemBase {
     }
 
     public static final class ShooterConstants {
-        // Shooter speeds, RPM
-        public static final double kVelocityLow = 500;
-        public static final double kVelocityMedium = 1500;
-        public static final double kVelocityHigh = 2500;
-        public static final double kVelocityMax = 3500;
-
+        // PID gains
         public static final double kP = 0.003;
         public static final double kI = 0.000;
         public static final double kD = 0.25;
-        public static final double kG = 0.;
         public static final double kS = 0.15;
         public static final double kV = .0033;
 
@@ -78,6 +71,10 @@ public class ShooterOrca extends SubsystemBase {
 
         // Flywheel is "ready" when within this tolerance of target RPM
         public static final double kReadyToleranceRPM = 200;
+
+        // Motor current limits (amps)
+        public static final int kSmartCurrentLimit = 60;
+        public static final int kFreeCurrentLimit = 40;
     }
 
     public static final class ShooterConfigs {
@@ -90,15 +87,15 @@ public class ShooterOrca extends SubsystemBase {
             primaryShooterConfig
                 .inverted(false)
                 .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(Constants.ShooterConstants.kSmartCurrentLimit, Constants.ShooterConstants.kFreeCurrentLimit);
+                .smartCurrentLimit(ShooterConstants.kSmartCurrentLimit, ShooterConstants.kFreeCurrentLimit);
             secondaryShooterConfig
                 .inverted(false)
                 .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(Constants.ShooterConstants.kSmartCurrentLimit, Constants.ShooterConstants.kFreeCurrentLimit);
+                .smartCurrentLimit(ShooterConstants.kSmartCurrentLimit, ShooterConstants.kFreeCurrentLimit);
             tertiaryShooterConfig
                 .inverted(true)
                 .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(Constants.ShooterConstants.kSmartCurrentLimit, Constants.ShooterConstants.kFreeCurrentLimit);
+                .smartCurrentLimit(ShooterConstants.kSmartCurrentLimit, ShooterConstants.kFreeCurrentLimit);
             primaryShooterConfig.closedLoop
                 .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
                 .pid(ShooterConstants.kP, ShooterConstants.kI, ShooterConstants.kD);
@@ -125,9 +122,6 @@ public class ShooterOrca extends SubsystemBase {
 
   private double shooterVelocityTarget = 0;  // Where we want to be (set by commands)
   private double shooterVelocity = 0;        // Current ramped setpoint (fed to PID each cycle)
-  private boolean toggleDirection = false;
-  private double hoodTarget; // Position of the Hood in Rotations
-  private boolean hoodMovingForward = true; // true is positive
 
   // CAN IDs 55 - 57
   private final SparkFlex shooterPrimaryMotor = new SparkFlex(Ports.kShooterLeft, MotorType.kBrushless);
@@ -314,5 +308,10 @@ public class ShooterOrca extends SubsystemBase {
      */
     public Command spinUpMapCommand() {
         return runEnd(() -> setShooterMap(), () -> stop());
+    }
+
+    /** Holds the current flywheel target speed for the given duration, then stops. */
+    public Command holdSpeedCommand(double seconds) {
+        return run(() -> {}).withTimeout(seconds).andThen(runOnce(() -> stop()));
     }
 }

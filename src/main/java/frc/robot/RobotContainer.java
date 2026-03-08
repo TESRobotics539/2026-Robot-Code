@@ -5,6 +5,7 @@
 package frc.robot;
 
 import java.util.Optional;
+import java.util.Set;
 
 import com.pathplanner.lib.auto.NamedCommands;
 import com.pathplanner.lib.auto.AutoBuilder;
@@ -19,6 +20,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import frc.robot.Constants.OperatorConstants;
+import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
 import frc.robot.subsystems.BlinkinLed;
 import frc.robot.subsystems.Intake;
@@ -128,13 +130,29 @@ public class RobotContainer
         hood.setDefaultCommand(hood.trackHubCommand(drivebase::getPose));
         driverXbox.povDown().toggleOnTrue(hood.holdPositionCommand(0.1));
 
+        // Ensure intake pivot is in brake mode at the start of autonomous
+        RobotModeTriggers.autonomous().onTrue(intake.runOnce(intake::enforceBrakeMode));
+
         // driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
 
-        // Auto-deploy intake 1s after teleop enables (pivot only, no rollers)
-        RobotModeTriggers.teleop()
-            .onTrue(Commands.waitSeconds(1.0)
-                .andThen(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED))));
+        // At teleop start: if auto climb completed during autonomous, run the declimb sequence
+        // first, then wait until the robot has driven 2 meters, then deploy the intake.
+        // Otherwise, deploy the intake normally after 1 second.
+        RobotModeTriggers.teleop().onTrue(
+            Commands.defer(() -> {
+                if (hanger.isAutoClimbCompleted()) {
+                    Pose2d startPose = drivebase.getPose();
+                    return hanger.reverseClimbIfNeededCommand()
+                        .andThen(Commands.waitUntil(() ->
+                            drivebase.getPose().getTranslation()
+                                .getDistance(startPose.getTranslation()) >= 2.0))
+                        .andThen(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)));
+                } else {
+                    return Commands.waitSeconds(1.0)
+                        .andThen(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)));
+                }
+            }, Set.of(hanger, intake)));
 
         driverXbox.leftTrigger()
             .onTrue(intake.intakePressCommand())
@@ -151,9 +169,9 @@ public class RobotContainer
                         Commands.waitSeconds(Constants.floorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ));
-        driverXbox.rightTrigger().whileTrue(
+        driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
             Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()))
-            .onFalse(shooter.spinUpMapCommand().withTimeout(1.5));
+            .onFalse(shooter.holdSpeedCommand(1.5));
 
       // ORIGINAL COMMANDS
       // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())

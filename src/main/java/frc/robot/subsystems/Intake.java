@@ -98,9 +98,25 @@ public class Intake extends SubsystemBase {
         }
     }
 
+    private void setPivotIdleMode(IdleMode mode) {
+        SparkMaxConfig config = new SparkMaxConfig();
+        config.idleMode(mode);
+        pivotMotor.configure(config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
+    }
+
     public void setPivotPosition(Position position) {
         usePercentOutput = false;
         targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
+        if (position == Position.DEPLOYED) {
+            setPivotIdleMode(IdleMode.kCoast);
+        } else if (position == Position.STOWED) {
+            setPivotIdleMode(IdleMode.kBrake);
+        }
+    }
+
+    /** Forces brake mode regardless of current position — call at autonomous start. */
+    public void enforceBrakeMode() {
+        setPivotIdleMode(IdleMode.kBrake);
     }
 
     public void setPivotPercentOutput(double percentOutput) {
