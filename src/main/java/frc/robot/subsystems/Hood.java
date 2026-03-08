@@ -53,6 +53,21 @@ public class Hood extends SubsystemBase {
     private double targetPosition  = 0.5;
     private Time lastUpdateTime = Seconds.of(0);
 
+    // Tracking smoothing state
+    private static final double kTrackingUpdateIntervalSeconds  = 0.34;
+    // If the servo direction flips this many consecutive times, suppress updates
+    // until the computed position stops moving significantly
+    private static final int    kOscillationFlipThreshold       = 4;
+    private static final double kStabilizationThreshold         = 0.03;
+
+    private double  trackingDistanceAccumulator  = 0.0;
+    private int     trackingDistanceSampleCount  = 0;
+    private double  trackingLastUpdateTimestamp  = 0.0;
+    private double  trackingLastPosition         = -1.0; // last position sent to servo
+    private int     trackingLastDirection        = 0;    // +1 up, -1 down, 0 none
+    private int     trackingConsecutiveFlips     = 0;
+    private boolean trackingWaitingForStable     = false;
+
     public Hood() {
         servoHub = new ServoHub(Ports.kServoHub);
 
@@ -92,16 +107,76 @@ public class Hood extends SubsystemBase {
     private static final double kTrackingMinPosition = Constants.HoodConstants.kTrackingMinPosition;
     private static final double kTrackingMaxPosition = Constants.HoodConstants.kTrackingMaxPosition;
 
-    /** Continuously adjusts hood position based on distance to the hub. */
+    /** Continuously adjusts hood position based on distance to the hub.
+     *  Samples distance every cycle, but only updates the servo position every 200ms
+     *  using the average distance over that window to smooth out noise. */
     public Command trackHubCommand(Supplier<Pose2d> poseSupplier) {
-        return run(() -> {
+        return runOnce(() -> {
+            // Reset all state when the command (re)starts
+            trackingDistanceAccumulator = 0.0;
+            trackingDistanceSampleCount = 0;
+            trackingLastUpdateTimestamp = Timer.getFPGATimestamp();
+            trackingLastPosition        = -1.0;
+            trackingLastDirection       = 0;
+            trackingConsecutiveFlips    = 0;
+            trackingWaitingForStable    = false;
+        }).andThen(run(() -> {
             Translation2d hubPos = Landmarks.hubPosition();
             double distanceMeters = poseSupplier.get().getTranslation().getDistance(hubPos);
+
+            trackingDistanceAccumulator += distanceMeters;
+            trackingDistanceSampleCount++;
+
+            double now = Timer.getFPGATimestamp();
+            if (now - trackingLastUpdateTimestamp < kTrackingUpdateIntervalSeconds
+                    || trackingDistanceSampleCount == 0) {
+                return;
+            }
+
+            double avgDistance = trackingDistanceAccumulator / trackingDistanceSampleCount;
             double t = MathUtil.clamp(
-                (distanceMeters - kTrackingMinDistanceMeters) / (kTrackingMaxDistanceMeters - kTrackingMinDistanceMeters),
+                (avgDistance - kTrackingMinDistanceMeters) / (kTrackingMaxDistanceMeters - kTrackingMinDistanceMeters),
                 0.0, 1.0);
-            setPosition(MathUtil.interpolate(kTrackingMinPosition, kTrackingMaxPosition, t));
-        });
+            double newPosition = MathUtil.interpolate(kTrackingMinPosition, kTrackingMaxPosition, t);
+
+            // Reset accumulator and timer regardless of whether we update the servo
+            trackingDistanceAccumulator = 0.0;
+            trackingDistanceSampleCount = 0;
+            trackingLastUpdateTimestamp = now;
+
+            // Oscillation detection — track direction of each computed window
+            if (trackingLastPosition >= 0) {
+                int newDirection = Double.compare(newPosition, trackingLastPosition);
+                if (newDirection != 0) {
+                    if (trackingLastDirection != 0 && newDirection != trackingLastDirection) {
+                        trackingConsecutiveFlips++;
+                        if (trackingConsecutiveFlips >= kOscillationFlipThreshold) {
+                            trackingWaitingForStable = true;
+                        }
+                    } else {
+                        // Consistent direction — oscillation has resolved
+                        trackingConsecutiveFlips = 0;
+                        trackingWaitingForStable = false;
+                    }
+                    trackingLastDirection = newDirection;
+                }
+            }
+
+            // If oscillating, only update once the position has settled
+            if (trackingWaitingForStable) {
+                if (trackingLastPosition >= 0
+                        && Math.abs(newPosition - trackingLastPosition) < kStabilizationThreshold) {
+                    trackingConsecutiveFlips = 0;
+                    trackingWaitingForStable = false;
+                } else {
+                    trackingLastPosition = newPosition;
+                    return; // suppress servo update
+                }
+            }
+
+            trackingLastPosition = newPosition;
+            setPosition(newPosition);
+        }));
     }
 
     /** Holds a fixed position indefinitely until interrupted. */

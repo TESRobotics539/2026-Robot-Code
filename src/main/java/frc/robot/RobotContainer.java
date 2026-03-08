@@ -171,7 +171,7 @@ public class RobotContainer
             ));
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
             Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()))
-            .onFalse(shooter.holdSpeedCommand(1.5));
+            .onFalse(subsystemCommands.holdAimAndSpeedCommand(1.5));
 
       // ORIGINAL COMMANDS
       // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())

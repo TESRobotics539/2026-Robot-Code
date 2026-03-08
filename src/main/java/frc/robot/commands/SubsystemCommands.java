@@ -92,6 +92,14 @@ public final class SubsystemCommands {
         return aimAndFire(feed());
     }
 
+    /** Holds flywheel speed and continues aiming at the hub for the given duration, then stops both. */
+    public Command holdAimAndSpeedCommand(double seconds) {
+        return Commands.parallel(
+            shooter.holdSpeedCommand(seconds),
+            new AimAndDriveCommand(swerve, forwardInput, leftInput)
+        ).withTimeout(seconds);
+    }
+
     public Command autoShoot() {
         return aimAndFire(longFeed()).withTimeout(7.0);
     }
