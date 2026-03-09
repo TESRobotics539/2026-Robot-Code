@@ -46,10 +46,13 @@ public class Intake extends SubsystemBase {
     private final RelativeEncoder encoder;
 
     private final SparkFlex rollerMotor;
+    private final SparkClosedLoopController rollerController;
 
     private double targetPivotPosition = 0.0;
     private boolean usePercentOutput = false;
     private boolean rollerRunning = false;
+    private int rollerSpikeCount = 0;
+    private boolean lastRollerAboveThreshold = false;
     private boolean matchStowLocked = false;
     private boolean deployedPositionCalibrated = false;
     private boolean initialDeployEnabled = false;   // true only when the match-start deploy fires
@@ -65,6 +68,7 @@ public class Intake extends SubsystemBase {
         configurePivotMotor();
 
         rollerMotor = new SparkFlex(Ports.kIntakeRollers, MotorType.kBrushless);
+        rollerController = rollerMotor.getClosedLoopController();
         configureRollerMotor();
 
         SmartDashboard.putData(this);
@@ -88,6 +92,8 @@ public class Intake extends SubsystemBase {
         pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
+    private static final double kRollerFreeSpeedRPM = 6784.0;
+
     private void configureRollerMotor() {
         SparkFlexConfig config = new SparkFlexConfig();
 
@@ -95,6 +101,11 @@ public class Intake extends SubsystemBase {
         config.idleMode(IdleMode.kCoast);
         config.smartCurrentLimit(80);
         config.secondaryCurrentLimit(120);
+
+        config.closedLoop
+            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+            .pid(0.0002, 0.0, 0.0)
+            .velocityFF(12.0 / kRollerFreeSpeedRPM);
 
         rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
@@ -120,6 +131,14 @@ public class Intake extends SubsystemBase {
         if (!usePercentOutput && targetPivotPosition != 0.0) {
             pivotController.setSetpoint(targetPivotPosition, ControlType.kPosition);
         }
+
+        // Detect rising edges of roller current to count fuel pickups
+        boolean aboveThreshold = rollerRunning &&
+            rollerMotor.getOutputCurrent() > Constants.IntakeConstants.kRollerLoadCurrentThreshold;
+        if (aboveThreshold && !lastRollerAboveThreshold) {
+            rollerSpikeCount++;
+        }
+        lastRollerAboveThreshold = aboveThreshold;
     }
 
     private void setPivotIdleMode(IdleMode mode) {
@@ -177,12 +196,23 @@ public class Intake extends SubsystemBase {
         pivotMotor.set(percentOutput);
     }
 
-    public void setRollerSpeed(double percentOutput) {
-        rollerMotor.set(percentOutput);
+    public void setRollerSpeed(double rpm) {
+        rollerController.setSetpoint(rpm, ControlType.kVelocity);
     }
 
     public void stopRoller() {
         rollerMotor.set(0);
+    }
+
+    /** Returns true once the roller has seen enough current spikes to confirm fuel pickup. */
+    public boolean hasPickedUpFuel() {
+        return rollerSpikeCount >= Constants.IntakeConstants.kRollerFuelSpikeCount;
+    }
+
+    /** Resets the fuel pickup spike counter. Call at autonomous start. */
+    public void resetFuelDetection() {
+        rollerSpikeCount = 0;
+        lastRollerAboveThreshold = false;
     }
 
     private boolean isDeployed() {
@@ -206,13 +236,13 @@ public class Intake extends SubsystemBase {
                     // Short press
                     if (!isDeployed()) {
                         setPivotPosition(Position.DEPLOYED);
-                        setRollerSpeed(Constants.IntakeConstants.kRollerSpeed);
+                        setRollerSpeed(Constants.IntakeConstants.kRollerRPM);
                         rollerRunning = true;
                     } else if (rollerRunning) {
                         stopRoller();
                         rollerRunning = false;
                     } else {
-                        setRollerSpeed(Constants.IntakeConstants.kRollerSpeed);
+                        setRollerSpeed(Constants.IntakeConstants.kRollerRPM);
                         rollerRunning = true;
                     }
                 } else {

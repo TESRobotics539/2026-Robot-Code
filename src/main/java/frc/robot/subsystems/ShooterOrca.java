@@ -18,8 +18,11 @@ import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
 
+import java.util.function.BooleanSupplier;
+
 import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
 import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.units.measure.AngularVelocity;
@@ -347,9 +350,13 @@ public class ShooterOrca extends SubsystemBase {
      * <p>Intended to run as the shooter's default command so it is automatically
      * interrupted by any real shoot command and resumes afterward.
      */
-    public Command preSpinCommand() {
+    public Command preSpinCommand(BooleanSupplier fuelReady) {
         return run(() -> {
-            if (GameData.isHubActiveExpanded(5.0)
+            if (DriverStation.isAutonomous()) {
+                // Auton: spin at full map speed immediately, no conditions
+                setShooterMap();
+            } else if (fuelReady.getAsBoolean()
+                    && GameData.isHubActiveExpanded(5.0)
                     && Landmarks.isInScoringZone(m_swerveSubsystem.getPose())) {
                 double distanceToHub = m_swerveSubsystem.getDistanceToHub();
                 double mapRPM = shooterSpeedMap.get(distanceToHub);
@@ -358,6 +365,14 @@ public class ShooterOrca extends SubsystemBase {
                 shooterVelocityTarget = 0;
             }
         }).withName("PreSpin");
+    }
+
+    /**
+     * Continuously holds the flywheel target at 0, spinning it down and suppressing
+     * pre-spin for as long as this command runs. Intended for endgame when climbing.
+     */
+    public Command spinDownCommand() {
+        return run(() -> setShooterTarget(0)).withName("SpinDown");
     }
 
     public Command spinUpCommand() {

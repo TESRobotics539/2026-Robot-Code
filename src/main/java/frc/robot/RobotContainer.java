@@ -56,7 +56,7 @@ public class RobotContainer
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
     {
-        shooter.setDefaultCommand(shooter.preSpinCommand());
+        shooter.setDefaultCommand(shooter.preSpinCommand(intake::hasPickedUpFuel));
     }
 
     // private final Pivot pivot = new Pivot();
@@ -190,7 +190,9 @@ public class RobotContainer
             ));
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
             Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()))
-            .onFalse(subsystemCommands.holdAimAndSpeedCommand(1.5));
+            .onFalse(Commands.parallel(
+                subsystemCommands.holdAimAndSpeedCommand(1.5),
+                intake.runOnce(intake::resetFuelDetection)));
 
       // ORIGINAL COMMANDS
       // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())
@@ -215,6 +217,9 @@ public class RobotContainer
               .andThen(hanger.runOnce(() -> hanger.setPercentOutput(0))));
 
       driverXbox.y().onTrue(hanger.autoClimbCommand());
+      driverXbox.y()
+          .and(() -> DriverStation.isTeleop() && DriverStation.getMatchTime() <= 30)
+          .onTrue(shooter.spinDownCommand());
       // driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
       // driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
     }
@@ -223,6 +228,8 @@ public class RobotContainer
     {
       // Zero gyro to field-forward every time teleop starts
       RobotModeTriggers.teleop().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
+      // Reset fuel detection so prespin only activates once the driver picks up fuel
+      RobotModeTriggers.teleop().onTrue(intake.runOnce(intake::resetFuelDetection));
 
       // Manual mid-match gyro reset — press the Back (View) button on the Xbox controller
       driverXbox.back().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
@@ -233,7 +240,7 @@ public class RobotContainer
 
     private void configureNamedCommands() {
       NamedCommands.registerCommand("Shoot Command", subsystemCommands.shootMap().withTimeout(5.0));
-      NamedCommands.registerCommand("Auto Shoot", subsystemCommands.autoShoot());
+      NamedCommands.registerCommand("Auto Shoot", subsystemCommands.autoShoot().andThen(shooter.spinDownCommand()));
       NamedCommands.registerCommand("Climber Toggle Command", hanger.toggleCommand());
       NamedCommands.registerCommand("Climber Down and Hold", hanger.autoClimbCommand());
     }

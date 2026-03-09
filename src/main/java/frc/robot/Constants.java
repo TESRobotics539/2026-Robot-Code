@@ -29,8 +29,12 @@ public final class Constants {
 
     /** Trigger hold duration that separates a short press from a long press (seconds). */
     public static final double kLongPressThresholdSeconds = 0.5;
-    /** Roller percent output when running. */
-    public static final double kRollerSpeed = 1.0;
+    /** Roller target speed when running (RPM). */
+    public static final double kRollerRPM = 6500.0;
+    /** Roller current (amps) threshold that indicates a fuel pickup spike. */
+    public static final double kRollerLoadCurrentThreshold = 25.0;
+    /** Number of current spikes required before flywheel pre-spin is enabled in teleop. */
+    public static final int kRollerFuelSpikeCount = 4;
     /** Pivot motor current (amps) that indicates the intake has reached the deployed hard stop. */
     public static final double kPivotDeployedCurrentThreshold = 30.0;
     /** Minimum encoder travel (rotations) before the deployed hard-stop current spike is checked. */
