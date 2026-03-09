@@ -76,7 +76,7 @@ public class Swerve extends SubsystemBase
 
     try
     {
-      swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed);
+      swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.DrivetrainConstants.kMaxSpeed);
     } 
     catch (Exception e)
     {
@@ -114,7 +114,7 @@ public class Swerve extends SubsystemBase
 
     swerveDrive = new SwerveDrive(driveCfg,
                                   controllerCfg,
-                                  Constants.maxSpeed,
+                                  Constants.DrivetrainConstants.kMaxSpeed,
                                   new Pose2d(new Translation2d(Meter.of(2), Meter.of(0)),
                                              Rotation2d.fromDegrees(0)));
 
@@ -470,7 +470,7 @@ public class Swerve extends SubsystemBase
                                                         headingX,
                                                         headingY,
                                                         getHeading().getRadians(),
-                                                        Constants.maxSpeed);
+                                                        Constants.DrivetrainConstants.kMaxSpeed);
   }
 
   /**
@@ -490,7 +490,7 @@ public class Swerve extends SubsystemBase
                                                         scaledInputs.getY(),
                                                         angle.getRadians(),
                                                         getHeading().getRadians(),
-                                                        Constants.maxSpeed);
+                                                        Constants.DrivetrainConstants.kMaxSpeed);
   }
 
   /**

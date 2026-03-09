@@ -23,19 +23,24 @@ import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.util.sendable.SendableBuilder;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
+import frc.robot.Constants;
+import frc.robot.GameData;
+import frc.robot.Landmarks;
 import frc.robot.Ports;
 
 
 /*
- * 
+ *
  * This subsystem is for all Shooter operations
  * Including:
  *    logging shooter data
  *    Managing the speeds of the flywheels
- * 
+ *
  */
 
 
@@ -56,6 +61,9 @@ public class ShooterOrca extends SubsystemBase {
     }
 
     public static final class ShooterConstants {
+        // Motor free speed (RPM) — used for physics-based FF calculation
+        public static final double kNeoVortexFreeSpeed = 6784.0;
+
         // PID gains
         public static final double kP = 0.003;
         public static final double kI = 0.000;
@@ -69,233 +77,295 @@ public class ShooterOrca extends SubsystemBase {
         public static final double kRampUpRate = 200.0;
         public static final double kRampDownRate = 400.0;
 
-        // Flywheel is "ready" when within this tolerance of target RPM
-        public static final double kReadyToleranceRPM = 200;
+        // Rolling average window for encoder noise filtering (samples at 50Hz)
+        public static final int kVelocityAvgSamples = 8; // 8 × 20ms = 160ms
+
+        // Flywheel is "ready" when the 160ms average is within this tolerance of target RPM
+        public static final double kReadyToleranceRPM = 100;
 
         // Motor current limits (amps)
         public static final int kSmartCurrentLimit = 60;
         public static final int kFreeCurrentLimit = 40;
-    }
-
-    public static final class ShooterConfigs {
-        // tertiary - right is the only inverted motor
-        public static final SparkFlexConfig primaryShooterConfig = new SparkFlexConfig();
-        public static final SparkFlexConfig secondaryShooterConfig = new SparkFlexConfig();
-        public static final SparkFlexConfig tertiaryShooterConfig = new SparkFlexConfig();
-
-               static {
-            primaryShooterConfig
-                .inverted(false)
-                .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(ShooterConstants.kSmartCurrentLimit, ShooterConstants.kFreeCurrentLimit);
-            secondaryShooterConfig
-                .inverted(false)
-                .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(ShooterConstants.kSmartCurrentLimit, ShooterConstants.kFreeCurrentLimit);
-            tertiaryShooterConfig
-                .inverted(true)
-                .idleMode(IdleMode.kCoast)
-                .smartCurrentLimit(ShooterConstants.kSmartCurrentLimit, ShooterConstants.kFreeCurrentLimit);
-            primaryShooterConfig.closedLoop
-                .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-                .pid(ShooterConstants.kP, ShooterConstants.kI, ShooterConstants.kD);
-            secondaryShooterConfig.closedLoop
-                .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-                .pid(ShooterConstants.kP, ShooterConstants.kI, ShooterConstants.kD);
-            tertiaryShooterConfig.closedLoop
-                .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-                .pid(ShooterConstants.kP, ShooterConstants.kI, ShooterConstants.kD);
-            
-        }
+        public static final int kStatorCurrentLimit = 120;
     }
 
     public static final class TelemetryKeys {
-      public static final String kTable = "Shooter";
-      public static final String kVelocityRPM = "Velocity RPM";
-      public static final String kTargetRPM = "Target RPM";
-      public static final String kRampedSetpoint = "Ramped Setpoint RPM";
-      public static final String kPrimaryCurrent = "Primary Current";
-      public static final String kSecondaryCurrent = "Secondary Current";
+        public static final String kTable = "Shooter";
+        public static final String kVelocityRPM = "Velocity RPM";
+        public static final String kTargetRPM = "Target RPM";
+        public static final String kRampedSetpoint = "Ramped Setpoint RPM";
+        public static final String kPrimaryCurrent = "Primary Current";
+        public static final String kSecondaryCurrent = "Secondary Current";
     }
 
-  private Swerve m_swerveSubsystem;
+    private Swerve m_swerveSubsystem;
 
-  private double shooterVelocityTarget = 0;  // Where we want to be (set by commands)
-  private double shooterVelocity = 0;        // Current ramped setpoint (fed to PID each cycle)
+    private double shooterVelocityTarget = 0;  // Where we want to be (set by commands)
+    private double shooterVelocity = 0;        // Current ramped setpoint (fed to PID each cycle)
+    private boolean shooterReadyLatch = false; // Stays true once ready; cleared on new target
 
-  // CAN IDs 55 - 57
-  private final SparkFlex shooterPrimaryMotor = new SparkFlex(Ports.kShooterLeft, MotorType.kBrushless);
-  private final SparkFlex shooterSecondaryMotor = new SparkFlex(Ports.kShooterMiddle, MotorType.kBrushless);
-  private final SparkFlex shooterTertiaryMotor = new SparkFlex(Ports.kShooterRight, MotorType.kBrushless);
+    // Circular buffer for 160ms rolling average of primary encoder velocity
+    private final double[] velocityBuffer = new double[ShooterConstants.kVelocityAvgSamples];
+    private int velocityBufferIndex = 0;
+    private double velocityBufferSum = 0.0;
 
-  private final RelativeEncoder shooterEncoder = shooterPrimaryMotor.getEncoder();
+    // CAN IDs 55 - 57
+    private final SparkFlex shooterPrimaryMotor = new SparkFlex(Ports.kShooterLeft, MotorType.kBrushless);
+    private final SparkFlex shooterSecondaryMotor = new SparkFlex(Ports.kShooterMiddle, MotorType.kBrushless);
+    private final SparkFlex shooterTertiaryMotor = new SparkFlex(Ports.kShooterRight, MotorType.kBrushless);
 
-  private final SparkClosedLoopController shooterPrimaryPIDController = shooterPrimaryMotor.getClosedLoopController();
-  private final SparkClosedLoopController shooterSecondaryPIDController = shooterSecondaryMotor.getClosedLoopController();
-  private final SparkClosedLoopController shooterTertiaryPIDController = shooterTertiaryMotor.getClosedLoopController();
+    private final RelativeEncoder primaryEncoder = shooterPrimaryMotor.getEncoder();
+    private final RelativeEncoder secondaryEncoder = shooterSecondaryMotor.getEncoder();
+    private final RelativeEncoder tertiaryEncoder = shooterTertiaryMotor.getEncoder();
 
-  private final NetworkTableInstance networkTable = NetworkTableInstance.getDefault();
-  private final NetworkTable shooterTable = networkTable.getTable(TelemetryKeys.kTable);
+    private final SparkClosedLoopController shooterPrimaryPIDController = shooterPrimaryMotor.getClosedLoopController();
+    private final SparkClosedLoopController shooterSecondaryPIDController = shooterSecondaryMotor.getClosedLoopController();
+    private final SparkClosedLoopController shooterTertiaryPIDController = shooterTertiaryMotor.getClosedLoopController();
 
-  // Cached NetworkTable entries — avoids hash lookups every cycle (50Hz)
-  private final NetworkTableEntry velocityEntryShooter = shooterTable.getEntry(TelemetryKeys.kVelocityRPM);
-  private final NetworkTableEntry targetEntryShooter = shooterTable.getEntry(TelemetryKeys.kTargetRPM);
-  private final NetworkTableEntry rampedSetpointEntryShooter = shooterTable.getEntry(TelemetryKeys.kRampedSetpoint);
-  private final NetworkTableEntry primaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kPrimaryCurrent);
-  private final NetworkTableEntry secondaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kSecondaryCurrent);
-  private final NetworkTableEntry readyEntryShooter = shooterTable.getEntry("Ready");
-  private final NetworkTableEntry distanceToHubEntry = shooterTable.getEntry("Distance to Hub (m)");
+    private final NetworkTableInstance networkTable = NetworkTableInstance.getDefault();
+    private final NetworkTable shooterTable = networkTable.getTable(TelemetryKeys.kTable);
+
+    // Cached NetworkTable entries — avoids hash lookups every cycle (50Hz)
+    private final NetworkTableEntry velocityEntryShooter = shooterTable.getEntry(TelemetryKeys.kVelocityRPM);
+    private final NetworkTableEntry targetEntryShooter = shooterTable.getEntry(TelemetryKeys.kTargetRPM);
+    private final NetworkTableEntry rampedSetpointEntryShooter = shooterTable.getEntry(TelemetryKeys.kRampedSetpoint);
+    private final NetworkTableEntry primaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kPrimaryCurrent);
+    private final NetworkTableEntry secondaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kSecondaryCurrent);
+    private final NetworkTableEntry readyEntryShooter = shooterTable.getEntry("Ready");
+    private final NetworkTableEntry avgVelocityEntryShooter = shooterTable.getEntry("Avg Velocity RPM");
+    private final NetworkTableEntry distanceToHubEntry = shooterTable.getEntry("Distance to Hub (m)");
+
+    private final InterpolatingDoubleTreeMap shooterSpeedMap = new InterpolatingDoubleTreeMap();
 
 
+    /** Creates a new ShooterSubsystem. */
+    public ShooterOrca(Swerve swerveSubsystem) {
+        m_swerveSubsystem = swerveSubsystem;
 
-  private final InterpolatingDoubleTreeMap shooterSpeedMap = new InterpolatingDoubleTreeMap();
+        configureMotor(shooterPrimaryMotor, false);
+        configureMotor(shooterSecondaryMotor, false);
+        configureMotor(shooterTertiaryMotor, true);
 
+        addMapValues();
 
-  /** Creates a new ShooterSubsystem. */
-  public ShooterOrca(Swerve swerveSubsystem) {
-
-    m_swerveSubsystem = swerveSubsystem;
-
-    shooterPrimaryMotor.configure(ShooterConfigs.primaryShooterConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    shooterSecondaryMotor.configure(ShooterConfigs.secondaryShooterConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    shooterTertiaryMotor.configure(ShooterConfigs.tertiaryShooterConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-
-    addMapValues();
-  }
-
-  private void addMapValues() {
-    shooterSpeedMap.put(1.0, 2700.0);
-    shooterSpeedMap.put(2.0, 2865.0); // Untested
-    shooterSpeedMap.put(3.0, 3050.0);
-    shooterSpeedMap.put(4.5, 3250.0); // Untested
-    shooterSpeedMap.put(6.5, 4100.0);
-  }
-
-  public double calculateShooterFeedForward() {
-    // FF pivot = Ksta + Kvel * TarVel + Kgrav * cos(angle) + Kaccel * RobAccel * sin(angle)
-    double ff = ShooterConstants.kS + shooterVelocity * ShooterConstants.kV;
-    return ff;
-  }
-
-  /**
-   * Sets the shooters velocity
-   * 
-   * use "setShooterVelocityTarget" to change shooterVelocity variable in this subsystem
-   */
-  private void setShooterPIDVelocity() {
-    // Calculate FF once and reuse — it uses the ramped setpoint (not the final target)
-    // so the FF matches what the PID is currently tracking.
-    double ff = calculateShooterFeedForward();
-
-    if (Math.abs(shooterVelocity) > 200) {
-      shooterPrimaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
-      shooterSecondaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
-      shooterTertiaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
-    } else {
-      shooterPrimaryMotor.set(0);
-      shooterSecondaryMotor.set(0);
-      shooterTertiaryMotor.set(0);
+        SmartDashboard.putData(this);
     }
-  }
 
-  public void setShooterTarget(double target) {
-    shooterVelocityTarget = target;
-  }
-
-  /** @return The final target velocity (before ramping) */
-  public double getShooterTarget() {
-    return shooterVelocityTarget;
-  }
-
-  /** @return The current ramped setpoint being fed to PID */
-  public double getRampedSetpoint() {
-    return shooterVelocity;
-  }
-
-  /** @return Primary motor for simulation access */
-  public SparkFlex getShooterPrimaryMotor() {
-    return shooterPrimaryMotor;
-  }
-
-  /** @return true if the shooter ramp has finished and flywheel is within tolerance of target RPM */
-  public boolean isShooterReady() {
-    return shooterVelocityTarget > 0
-        && shooterVelocity >= shooterVelocityTarget
-        && Math.abs(getShooterVelocity() - shooterVelocityTarget) < ShooterConstants.kReadyToleranceRPM;
-  }
-
-  public void setShooterMap() {
-    double distanceToHub = m_swerveSubsystem.getDistanceToHub();
-    // set shooter based on distance
-    shooterVelocityTarget = shooterSpeedMap.get(distanceToHub) * 1.0;
-  }
-
-  /** @return Velocity in RPM */
-  public double getShooterVelocity() {
-    return shooterEncoder.getVelocity();
-  }
-
-  /** @return Current in Amps */
-  public double getShooterPrimaryCurrent() {
-    return shooterPrimaryMotor.getOutputCurrent();
-  }
-
-  /** @return Current in Amps */
-  public double getShooterSecondaryCurrent() {
-    return shooterSecondaryMotor.getOutputCurrent();
-  }
-
-  /** Ramp the setpoint toward the target each cycle. */
-  private void rampSetpoint() {
-    if (shooterVelocity < shooterVelocityTarget) {
-      shooterVelocity = Math.min(shooterVelocity + ShooterConstants.kRampUpRate, shooterVelocityTarget);
-    } else if (shooterVelocity > shooterVelocityTarget) {
-      shooterVelocity = Math.max(shooterVelocity - ShooterConstants.kRampDownRate, shooterVelocityTarget);
+    private void configureMotor(SparkFlex motor, boolean inverted) {
+        SparkFlexConfig config = new SparkFlexConfig();
+        config.inverted(inverted)
+              .idleMode(IdleMode.kCoast)
+              .smartCurrentLimit(ShooterConstants.kSmartCurrentLimit, ShooterConstants.kFreeCurrentLimit)
+              .secondaryCurrentLimit(ShooterConstants.kStatorCurrentLimit);
+        config.closedLoop
+            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+            .pid(ShooterConstants.kP, ShooterConstants.kI, ShooterConstants.kD)
+            .velocityFF(12.0 / ShooterConstants.kNeoVortexFreeSpeed);
+        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
-  }
 
+    private void addMapValues() {
+        shooterSpeedMap.put(1.0, 2700.0);
+        shooterSpeedMap.put(2.0, 2865.0); // Untested
+        shooterSpeedMap.put(3.0, 3050.0);
+        shooterSpeedMap.put(4.5, 3250.0); // Untested
+        shooterSpeedMap.put(6.5, 4100.0);
+    }
 
-  /** Publish continuous values to network table */
-  public void updateNetworkTable() {
-    velocityEntryShooter.setDouble(getShooterVelocity());
-    targetEntryShooter.setDouble(getShooterTarget());
-    rampedSetpointEntryShooter.setDouble(getRampedSetpoint());
-    primaryCurrentEntryShooter.setDouble(getShooterPrimaryCurrent());
-    secondaryCurrentEntryShooter.setDouble(getShooterSecondaryCurrent());
-    readyEntryShooter.setBoolean(isShooterReady());
-    distanceToHubEntry.setDouble(m_swerveSubsystem.getDistanceToHub());
-  }
+    public double calculateShooterFeedForward() {
+        // FF = Ksta + Kvel * TarVel
+        double ff = ShooterConstants.kS + shooterVelocity * ShooterConstants.kV;
+        return ff;
+    }
 
-  /** This method will be called once per scheduler run */
-  @Override
-  public void periodic() {
-    rampSetpoint();
+    /**
+     * Sets the shooters velocity
+     *
+     * use "setShooterVelocityTarget" to change shooterVelocity variable in this subsystem
+     */
+    private void setShooterPIDVelocity() {
+        // Calculate FF once and reuse — it uses the ramped setpoint (not the final target)
+        // so the FF matches what the PID is currently tracking.
+        double ff = calculateShooterFeedForward();
 
-    updateNetworkTable();
+        if (Math.abs(shooterVelocity) > 200) {
+            shooterPrimaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
+            shooterSecondaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
+            shooterTertiaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
+        } else {
+            shooterPrimaryMotor.set(0);
+            shooterSecondaryMotor.set(0);
+            shooterTertiaryMotor.set(0);
+        }
+    }
 
-    setShooterPIDVelocity();
-  }
+    public void setPercentOutput(double percentOutput) {
+        double voltage = percentOutput * 12.0;
+        shooterPrimaryMotor.setVoltage(voltage);
+        shooterSecondaryMotor.setVoltage(voltage);
+        shooterTertiaryMotor.setVoltage(voltage);
+    }
 
-  /** This method will be called once per scheduler run during simulation */
-  @Override
-  public void simulationPeriodic() {}
+    public void setShooterTarget(double target) {
+        if (target != shooterVelocityTarget) {
+            shooterReadyLatch = false;
+        }
+        shooterVelocityTarget = target;
+    }
 
+    /** @return The final target velocity (before ramping) */
+    public double getShooterTarget() {
+        return shooterVelocityTarget;
+    }
 
+    /** @return The current ramped setpoint being fed to PID */
+    public double getRampedSetpoint() {
+        return shooterVelocity;
+    }
+
+    /** @return Primary motor for simulation access */
+    public SparkFlex getShooterPrimaryMotor() {
+        return shooterPrimaryMotor;
+    }
+
+    /**
+     * Returns true once the flywheel has reached target speed and latches — the ready
+     * state is held through the RPM dip caused by fuel contacting the flywheel.
+     * The latch resets when {@link #setShooterTarget} is called with a new value.
+     */
+    public boolean isShooterReady() {
+        if (shooterVelocityTarget <= 0) {
+            shooterReadyLatch = false;
+            return false;
+        }
+        if (!shooterReadyLatch) {
+            shooterReadyLatch = shooterVelocity >= shooterVelocityTarget
+                && Math.abs(getAverageVelocity() - shooterVelocityTarget) < ShooterConstants.kReadyToleranceRPM;
+        }
+        return shooterReadyLatch;
+    }
+
+    public void setShooterMap() {
+        double distanceToHub = m_swerveSubsystem.getDistanceToHub();
+        shooterVelocityTarget = shooterSpeedMap.get(distanceToHub) * 1.0;
+    }
+
+    /** @return Primary encoder velocity in RPM (instantaneous) */
+    public double getShooterVelocity() {
+        return primaryEncoder.getVelocity();
+    }
+
+    /** @return 160ms rolling average of primary encoder velocity in RPM */
+    public double getAverageVelocity() {
+        return velocityBufferSum / ShooterConstants.kVelocityAvgSamples;
+    }
+
+    /** Update the circular buffer with the latest encoder reading. Called once per periodic(). */
+    private void updateVelocityBuffer() {
+        double newest = primaryEncoder.getVelocity();
+        velocityBufferSum -= velocityBuffer[velocityBufferIndex];
+        velocityBuffer[velocityBufferIndex] = newest;
+        velocityBufferSum += newest;
+        velocityBufferIndex = (velocityBufferIndex + 1) % ShooterConstants.kVelocityAvgSamples;
+    }
+
+    /** @return Current in Amps */
+    public double getShooterPrimaryCurrent() {
+        return shooterPrimaryMotor.getOutputCurrent();
+    }
+
+    /** @return Current in Amps */
+    public double getShooterSecondaryCurrent() {
+        return shooterSecondaryMotor.getOutputCurrent();
+    }
+
+    /** Ramp the setpoint toward the target each cycle. */
+    private void rampSetpoint() {
+        if (shooterVelocity < shooterVelocityTarget) {
+            shooterVelocity = Math.min(shooterVelocity + ShooterConstants.kRampUpRate, shooterVelocityTarget);
+        } else if (shooterVelocity > shooterVelocityTarget) {
+            shooterVelocity = Math.max(shooterVelocity - ShooterConstants.kRampDownRate, shooterVelocityTarget);
+        }
+    }
+
+    /** Publish continuous values to network table */
+    public void updateNetworkTable() {
+        velocityEntryShooter.setDouble(getShooterVelocity());
+        targetEntryShooter.setDouble(getShooterTarget());
+        rampedSetpointEntryShooter.setDouble(getRampedSetpoint());
+        primaryCurrentEntryShooter.setDouble(getShooterPrimaryCurrent());
+        secondaryCurrentEntryShooter.setDouble(getShooterSecondaryCurrent());
+        readyEntryShooter.setBoolean(isShooterReady());
+        avgVelocityEntryShooter.setDouble(getAverageVelocity());
+        distanceToHubEntry.setDouble(m_swerveSubsystem.getDistanceToHub());
+    }
+
+    @Override
+    public void initSendable(SendableBuilder builder) {
+        super.initSendable(builder);
+        builder.addDoubleProperty("Left RPM",   () -> primaryEncoder.getVelocity(),   null);
+        builder.addDoubleProperty("Middle RPM", () -> secondaryEncoder.getVelocity(), null);
+        builder.addDoubleProperty("Right RPM",  () -> tertiaryEncoder.getVelocity(),  null);
+        builder.addDoubleProperty("Left Current",   () -> shooterPrimaryMotor.getOutputCurrent(),   null);
+        builder.addDoubleProperty("Middle Current", () -> shooterSecondaryMotor.getOutputCurrent(), null);
+        builder.addDoubleProperty("Right Current",  () -> shooterTertiaryMotor.getOutputCurrent(),  null);
+        builder.addDoubleProperty("Target RPM",   () -> shooterVelocityTarget, null);
+        builder.addDoubleProperty("Ramped RPM",   () -> shooterVelocity,       null);
+        builder.addDoubleProperty("Avg RPM",      () -> getAverageVelocity(),  null);
+        builder.addBooleanProperty("Ready",       () -> isShooterReady(),      null);
+        builder.addStringProperty("Command",
+            () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "none", null);
+    }
+
+    /** This method will be called once per scheduler run */
+    @Override
+    public void periodic() {
+        updateVelocityBuffer();
+        rampSetpoint();
+        updateNetworkTable();
+        setShooterPIDVelocity();
+    }
+
+    /** This method will be called once per scheduler run during simulation */
+    @Override
+    public void simulationPeriodic() {}
 
     public void stop() {
         setShooterTarget(0);
     }
 
+    /**
+     * Pre-spins the flywheel to {@link ShooterConstants#kPreSpinFraction} of the
+     * distance-based map RPM when both conditions are met:
+     * <ol>
+     *   <li>The hub is active (same 5-second expanded window used for shooting).</li>
+     *   <li>The robot is in its own alliance zone or the neutral zone — not in the
+     *       opponent's half of the field.</li>
+     * </ol>
+     * Drops to 0 whenever either condition is false.
+     *
+     * <p>Intended to run as the shooter's default command so it is automatically
+     * interrupted by any real shoot command and resumes afterward.
+     */
+    public Command preSpinCommand() {
+        return run(() -> {
+            if (GameData.isHubActiveExpanded(5.0)
+                    && Landmarks.isInScoringZone(m_swerveSubsystem.getPose())) {
+                double distanceToHub = m_swerveSubsystem.getDistanceToHub();
+                double mapRPM = shooterSpeedMap.get(distanceToHub);
+                shooterVelocityTarget = mapRPM * Constants.ShooterConstants.kPreSpinFraction;
+            } else {
+                shooterVelocityTarget = 0;
+            }
+        }).withName("PreSpin");
+    }
+
     public Command spinUpCommand() {
         return startEnd(() -> setShooterTarget(5000), () -> stop());
-        //return runOnce(() -> setRPM(rpm));
-            //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }
 
     public Command spinUpCommand(Speed speed) {
         return startEnd(() -> setShooterTarget(speed.rpm), () -> stop());
-        //return runOnce(() -> setRPM(rpm));
-            //.andThen(Commands.waitUntil(this::isVelocityWithinTolerance));
     }
 
     public Command dashboardSpinUpCommand() {

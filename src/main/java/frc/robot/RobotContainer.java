@@ -54,6 +54,11 @@ public class RobotContainer
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
     private final ShooterOrca shooter = new ShooterOrca(drivebase);
 
+    // Pre-spin during hub-active windows; interrupted automatically by any shoot command
+    {
+        shooter.setDefaultCommand(shooter.preSpinCommand());
+    }
+
     // private final Pivot pivot = new Pivot();
 
     final CommandXboxController  driverXbox = new CommandXboxController(0);
@@ -165,22 +170,22 @@ public class RobotContainer
                 shooter.spinUpMapCommand(),
                 intake.agitateCommand(),
                 Commands.waitUntil(shooter::isShooterReady)
-                    .withTimeout(Constants.shootReadyTimeoutSeconds)
-                    .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
+                    .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
+                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
-                        Commands.waitSeconds(Constants.floorFeedDelaySeconds).andThen(floor.feedCommand())
+                        Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ));
         driverXbox.x().whileTrue(
             Commands.parallel(
-                shooter.startEnd(() -> shooter.setShooterTarget(Constants.DumpShotConstants.kFlywheelRPM), () -> shooter.stop()),
+                shooter.startEnd(() -> shooter.setShooterTarget(Constants.ShooterConstants.kDumpShotFlywheelRPM), () -> shooter.stop()),
                 Commands.waitUntil(shooter::isShooterReady)
-                    .withTimeout(Constants.shootReadyTimeoutSeconds)
-                    .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
+                    .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
+                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
-                        Commands.waitSeconds(Constants.floorFeedDelaySeconds).andThen(floor.feedCommand())
+                        Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ));
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(

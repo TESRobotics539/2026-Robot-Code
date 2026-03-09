@@ -169,7 +169,7 @@ public class Intake extends SubsystemBase {
         double currentPos = absEncoder.getPosition();
         targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, currentPos));
         usePercentOutput = false;
-        matchStowLocked = Constants.kStowIntakeForMatch;
+        matchStowLocked = Constants.IntakeConstants.kStowIntakeForMatch;
     }
 
     public void setPivotPercentOutput(double percentOutput) {
@@ -230,7 +230,7 @@ public class Intake extends SubsystemBase {
     }
 
     /**
-     * Repeatedly pulses the intake pivot to agitate notes during shooting.
+     * Repeatedly pulses the intake pivot to agitate fuel during shooting.
      * Pattern: 25% up for 0.33s, then 5% down for 0.2s, repeat.
      * Restores position control when interrupted.
      */

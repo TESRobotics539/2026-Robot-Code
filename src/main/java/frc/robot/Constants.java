@@ -1,9 +1,6 @@
 package frc.robot;
 
-import static edu.wpi.first.units.Units.RPM;
-
 import edu.wpi.first.math.util.Units;
-import edu.wpi.first.units.measure.AngularVelocity;
 
 /**
  * The Constants class provides a convenient place for teams to hold robot-wide numerical or boolean
@@ -16,30 +13,19 @@ import edu.wpi.first.units.measure.AngularVelocity;
 public final class Constants {
 
   public static class OperatorConstants {
-    public static final int kDriverControllerPort = 0;
     public static final double DEADBAND = 0.05;
   }
 
   // ── Drivetrain ────────────────────────────────────────────────────────────
-  /** Maximum drivetrain translation speed (meters per second). */
-  public static final double maxSpeed = Units.feetToMeters(17);
-
-  // ── Shoot timing ─────────────────────────────────────────────────────────
-  /** Seconds to wait after shooter reaches speed before feeding the note. */
-  public static final double shootWaitSeconds = 1.1;
-  /** Maximum seconds to wait for the shooter to reach speed before giving up and feeding anyway. */
-  public static final double shootReadyTimeoutSeconds = 1.33;
-  /** Delay before floor motor starts feeding, so the feeder gets the note first. */
-  public static final double floorFeedDelaySeconds = 0.25;
-
-  // ── Match Behavior ────────────────────────────────────────────────────────
-  /** If true, the intake is locked stowed from the start of autonomous through the end of the match. */
-  public static final boolean kStowIntakeForMatch = false;
+  public static class DrivetrainConstants {
+    /** Maximum drivetrain translation speed (meters per second). */
+    public static final double kMaxSpeed = Units.feetToMeters(17);
+  }
 
   // ── Intake ────────────────────────────────────────────────────────────────
   public static class IntakeConstants {
-    /** NEO Vortex free speed (used for velocity scaling). */
-    public static final AngularVelocity kMaxSpeed = RPM.of(6784);
+    /** If true, the intake is locked stowed from the start of autonomous through the end of the match. */
+    public static final boolean kStowIntakeForMatch = false;
 
     /** Trigger hold duration that separates a short press from a long press (seconds). */
     public static final double kLongPressThresholdSeconds = 0.5;
@@ -69,12 +55,24 @@ public final class Constants {
     public static final double kMaxPosition       = 0.9;
   }
 
+  // ── Shooter ───────────────────────────────────────────────────────────────
+  public static class ShooterConstants {
+    /** Seconds to wait after shooter reaches speed (and aim is confirmed) before feeding the fuel. */
+    public static final double kShootWaitSeconds = 0.5;
+    /** Maximum seconds to wait for the shooter to reach speed before giving up and feeding anyway. */
+    public static final double kShootReadyTimeoutSeconds = 1.33;
+    /** Delay before floor motor starts feeding, so the feeder gets the fuel first. */
+    public static final double kFloorFeedDelaySeconds = 0.25;
+
+    /** Fraction of the distance-based map RPM to hold during pre-spin (0.0–1.0). */
+    public static final double kPreSpinFraction = 0.60;
+
+    /** Flywheel speed for the close-range dump shot (RPM). */
+    public static final double kDumpShotFlywheelRPM = 1850;
+  }
+
   // ── Hanger ────────────────────────────────────────────────────────────────
   public static class HangerConstants {
-    /** Encoder rotations traveled per toggle cycle (up or down). */
-    public static final double kToggleDistanceRotations = 200.0;
-    /** Percent output applied when holding the hanger down (X button). */
-    public static final double kHoldDownPower = -0.3;
     /** Percent output for manual d-pad down control. */
     public static final double kManualDownPower = -0.8;
     /** Percent output for manual d-pad up control. */
@@ -85,8 +83,6 @@ public final class Constants {
     public static final int kSecondaryCurrentLimit = 120;
     /** Percent output for the initial autonomous climb (full speed). */
     public static final double kAutoClimbFullPower = -0.95;
-    /** Percent output after stall is detected during autonomous climb (hold). */
-    public static final double kAutoClimbHoldPower = -0.5;
     /** Current threshold (amps) that indicates the climber has reached a hard stop during auto. */
     public static final double kAutoClimbCurrentThreshold = 50.0;
     /** Seconds the current must stay above threshold before stall is confirmed (debounce). */
@@ -95,12 +91,6 @@ public final class Constants {
     public static final double kAutoClimbReleasePower = 0.5;
     /** Duration of the release pulse after the auto climb stalls (seconds). */
     public static final double kAutoClimbReleaseSeconds = 0.3;
-  }
-
-  // ── Dump Shot ─────────────────────────────────────────────────────────────
-  public static class DumpShotConstants {
-    /** Flywheel speed for the close-range dump shot (RPM). */
-    public static final double kFlywheelRPM = 1850;
   }
 
   // ── Hood ──────────────────────────────────────────────────────────────────

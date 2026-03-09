@@ -114,7 +114,7 @@ public final class SubsystemCommands {
             shooter.spinUpMapCommand(shooterRpmOffset),
             aimCommand,
             Commands.waitUntil(() -> shooter.isShooterReady() && aimCommand.isAimed())
-                .withTimeout(Constants.shootReadyTimeoutSeconds)
+                .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
                 .andThen(feedCommand)
         );
     }
@@ -122,7 +122,7 @@ public final class SubsystemCommands {
     private Command feed() {
         return Commands.parallel(
             feeder.feedCommand(),
-            Commands.waitSeconds(Constants.floorFeedDelaySeconds)
+            Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds)
                 .andThen(floor.feedCommand())//.alongWith(intake.agitateCommand()))
         );
     }
