@@ -6,9 +6,13 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.Volts;
 
+import java.util.OptionalInt;
+
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 
 /**
@@ -18,6 +22,7 @@ import edu.wpi.first.wpilibj2.command.CommandScheduler;
  */
 public class Robot extends TimedRobot {
     private final RobotContainer m_robotContainer;
+    private Command m_autonomousCommand;
     
     /**
      * This function is run when the robot is first started up and should be used for any
@@ -45,5 +50,57 @@ public class Robot extends TimedRobot {
         // and running subsystem periodic() methods.  This must be called from the robot's periodic
         // block in order for anything in the Command-based framework to work.
         CommandScheduler.getInstance().run();
+        SmartDashboard.putBoolean("Hub Active", GameData.isHubActive());
+        SmartDashboard.putBoolean("Hub Active (Expanded)", GameData.isHubActiveExpanded(5.0));
+    }
+
+    @Override
+    public void autonomousInit() {
+        m_autonomousCommand = m_robotContainer.getAutonomousCommand();
+        if (m_autonomousCommand != null) {
+            m_autonomousCommand.schedule();
+        }
+    }
+
+    @Override
+    public void autonomousExit() {
+        if (m_autonomousCommand != null) {
+            m_autonomousCommand.cancel();
+        }
+    }
+
+    @Override
+    public void teleopInit()
+    {
+        // This makes sure that the autonomous stops running when
+        // teleop starts running. If you want the autonomous to
+        // continue until interrupted by another command, remove
+        // this line or comment it out.
+        // if (m_autonomousCommand != null)
+        // {
+        //     m_autonomousCommand.cancel();
+        // }
+        
+        // Set the robot's starting position for teleop
+        // Choose the starting location that matches where you placed the robot
+
+        OptionalInt dsLocation = DriverStation.getLocation();
+    
+        Landmarks.StartingLocation location;
+        if (dsLocation.isPresent()) {
+            location = switch (dsLocation.getAsInt()) {
+            case 1 -> Landmarks.StartingLocation.LEFT;
+            case 2 -> Landmarks.StartingLocation.CENTER;
+            case 3 -> Landmarks.StartingLocation.RIGHT;
+            default -> Landmarks.StartingLocation.CENTER;
+            };
+        } else {
+            location = Landmarks.StartingLocation.CENTER; // Default if not connected
+        }
+
+        m_robotContainer.zeroGyroWithAlliance();
+        m_robotContainer.resetOdometry(
+            Landmarks.getStartingPosition(location)
+        );
     }
 }

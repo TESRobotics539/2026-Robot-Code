@@ -2,46 +2,46 @@ package frc.robot.commands;
 
 import java.util.function.DoubleSupplier;
 
+import frc.robot.Constants;
+
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
-import frc.robot.subsystems.Hanger;
 import frc.robot.subsystems.Hood;
-import frc.robot.subsystems.Intake;
-import frc.robot.subsystems.Shooter;
+import frc.robot.subsystems.ShooterOrca;
 import frc.robot.subsystems.Swerve;
 
 public final class SubsystemCommands {
     private final Swerve swerve;
-    private final Intake intake;
+    //private final Intake intake;
     private final Floor floor;
     private final Feeder feeder;
-    private final Shooter shooter;
+    private final ShooterOrca shooter;
     private final Hood hood;
-    private final Hanger hanger;
+    //private final Hanger hanger;
 
     private final DoubleSupplier forwardInput;
     private final DoubleSupplier leftInput;
 
     public SubsystemCommands(
         Swerve swerve,
-        Intake intake,
+        //Intake intake,
         Floor floor,
         Feeder feeder,
-        Shooter shooter,
+        ShooterOrca shooter,
         Hood hood,
-        Hanger hanger,
+        //Hanger hanger,
         DoubleSupplier forwardInput,
         DoubleSupplier leftInput
     ) {
         this.swerve = swerve;
-        this.intake = intake;
+        //this.intake = intake;
         this.floor = floor;
         this.feeder = feeder;
         this.shooter = shooter;
         this.hood = hood;
-        this.hanger = hanger;
+        //this.hanger = hanger;
 
         this.forwardInput = forwardInput;
         this.leftInput = leftInput;
@@ -49,21 +49,21 @@ public final class SubsystemCommands {
 
     public SubsystemCommands(
         Swerve swerve,
-        Intake intake,
+        //Intake intake,
         Floor floor,
         Feeder feeder,
-        Shooter shooter,
-        Hood hood,
-        Hanger hanger
+        ShooterOrca shooter,
+        Hood hood
+        //Hanger hanger
     ) {
         this(
             swerve,
-            intake,
+            //intake,
             floor,
             feeder,
             shooter,
             hood,
-            hanger,
+            //hanger,
             () -> 0,
             () -> 0
         );
@@ -72,12 +72,13 @@ public final class SubsystemCommands {
     public Command aimAndShoot() {
         final AimAndDriveCommand aimAndDriveCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
         final PrepareShotCommand prepareShotCommand = new PrepareShotCommand(shooter, hood, () -> swerve.getPose());
-        return Commands.parallel(
+        // deadline() ends the whole group (and cancels aim/prepare) once the feed sequence completes.
+        return Commands.deadline(
+            Commands.waitUntil(() -> aimAndDriveCommand.isAimed() && prepareShotCommand.isReadyToShoot())
+                .andThen(feed()),
             aimAndDriveCommand,
             Commands.waitSeconds(0.25)
-                .andThen(prepareShotCommand),
-            Commands.waitUntil(() -> aimAndDriveCommand.isAimed() && prepareShotCommand.isReadyToShoot())
-                .andThen(feed())
+                .andThen(prepareShotCommand)
         );
     }
 
@@ -87,14 +88,49 @@ public final class SubsystemCommands {
             .handleInterrupt(() -> shooter.stop());
     }
 
-    private Command feed() {
-        return Commands.sequence(
-            Commands.waitSeconds(0.25),
-            Commands.parallel(
-                feeder.feedCommand(),
-                Commands.waitSeconds(0.125)
-                    .andThen(floor.feedCommand().alongWith(intake.agitateCommand()))
-            )
+    public Command shootMap() {
+        return aimAndFire(feed());
+    }
+
+    /** Holds flywheel speed and continues aiming at the hub for the given duration, then stops both. */
+    public Command holdAimAndSpeedCommand(double seconds) {
+        return Commands.parallel(
+            shooter.holdSpeedCommand(seconds),
+            new AimAndDriveCommand(swerve, forwardInput, leftInput)
+        ).withTimeout(seconds);
+    }
+
+    public Command autoShoot() {
+        return aimAndFire(longFeed(), 150).withTimeout(4.0);
+    }
+
+    private Command aimAndFire(Command feedCommand) {
+        return aimAndFire(feedCommand, 0);
+    }
+
+    private Command aimAndFire(Command feedCommand, double shooterRpmOffset) {
+        AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
+        return Commands.parallel(
+            shooter.spinUpMapCommand(shooterRpmOffset),
+            aimCommand,
+            Commands.waitUntil(() -> shooter.isShooterReady() && aimCommand.isAimed())
+                .withTimeout(Constants.shootReadyTimeoutSeconds)
+                .andThen(feedCommand)
         );
+    }
+
+    private Command feed() {
+        return Commands.parallel(
+            feeder.feedCommand(),
+            Commands.waitSeconds(Constants.floorFeedDelaySeconds)
+                .andThen(floor.feedCommand())//.alongWith(intake.agitateCommand()))
+        );
+    }
+
+    private Command longFeed() {
+        return Commands.parallel(
+            feeder.feedCommand(),
+            floor.feedCommand()
+        ).withTimeout(7.0);
     }
 }

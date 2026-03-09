@@ -1,126 +1,173 @@
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.Amps;
-import static edu.wpi.first.units.Units.Inches;
-import static edu.wpi.first.units.Units.Rotations;
-import static edu.wpi.first.units.Units.RotationsPerSecond;
-import static edu.wpi.first.units.Units.Second;
-import static edu.wpi.first.units.Units.Volts;
+import com.revrobotics.PersistMode;
+import com.revrobotics.RelativeEncoder;
+import com.revrobotics.ResetMode;
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+// import com.revrobotics.spark.SparkClosedLoopController;
+// import com.revrobotics.spark.FeedbackSensor;
+// import com.revrobotics.spark.SparkBase.ControlType;
 
-import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
-import com.ctre.phoenix6.configs.MotionMagicConfigs;
-import com.ctre.phoenix6.configs.MotorOutputConfigs;
-import com.ctre.phoenix6.configs.Slot0Configs;
-import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.MotionMagicVoltage;
-import com.ctre.phoenix6.controls.VoltageOut;
-import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.InvertedValue;
-import com.ctre.phoenix6.signals.NeutralModeValue;
+// import edu.wpi.first.units.AngleUnit;
+// import edu.wpi.first.units.DistanceUnit;
+// import edu.wpi.first.units.Measure;
+// import edu.wpi.first.units.measure.Angle;
+// import edu.wpi.first.units.measure.Distance;
+// import edu.wpi.first.units.measure.Per;
+// import static edu.wpi.first.units.Units.Inches;
+// import static edu.wpi.first.units.Units.Rotations;
 
-import edu.wpi.first.units.AngleUnit;
-import edu.wpi.first.units.DistanceUnit;
-import edu.wpi.first.units.Measure;
-import edu.wpi.first.units.measure.Angle;
-import edu.wpi.first.units.measure.Distance;
-import edu.wpi.first.units.measure.Per;
+import edu.wpi.first.math.filter.Debouncer;
+import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Command.InterruptionBehavior;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.Constants.KrakenX60;
+import frc.robot.Constants;
 import frc.robot.Ports;
 
 public class Hanger extends SubsystemBase {
     public enum Position {
-        HOMED(0),
-        EXTEND_HOPPER(2),
-        HANGING(6),
-        HUNG(0.2);
+        HOMED,
+        EXTEND_HOPPER,
+        HANGING,
+        HUNG;
 
-        private final double inches;
-
-        private Position(double inches) {
-            this.inches = inches;
-        }
-
-        public Angle motorAngle() {
-            final Measure<AngleUnit> angleMeasure = Inches.of(inches).divideRatio(kHangerExtensionPerMotorAngle);
-            return Rotations.of(angleMeasure.in(Rotations)); // Promote from Measure<AngleUnit> to Angle
-        }
+        // PID position control removed — values kept for reference
+        // HOMED(0), EXTEND_HOPPER(2), HANGING(6), HUNG(0.2)
+        // public Angle motorAngle() {
+        //     final Measure<AngleUnit> angleMeasure = Inches.of(inches).divideRatio(kHangerExtensionPerMotorAngle);
+        //     return Rotations.of(angleMeasure.in(Rotations));
+        // }
     }
 
-    private static final Per<DistanceUnit, AngleUnit> kHangerExtensionPerMotorAngle = Inches.of(6).div(Rotations.of(142));
-    private static final Distance kExtensionTolerance = Inches.of(1);
+    // private static final Per<DistanceUnit, AngleUnit> kHangerExtensionPerMotorAngle = Inches.of(6).div(Rotations.of(142));
+    // private static final Distance kExtensionTolerance = Inches.of(1);
 
-    private final TalonFX motor;
-    private final MotionMagicVoltage motionMagicRequest = new MotionMagicVoltage(0).withSlot(0);
-    private final VoltageOut voltageRequest = new VoltageOut(0);
+    private final SparkMax motor;
+    // private final SparkClosedLoopController pidController;
+    private final RelativeEncoder encoder;
+
+    // private static final double kToggleDistanceRotations = Constants.HangerConstants.kToggleDistanceRotations;
+
+    private final Debouncer climbCurrentDebouncer = new Debouncer(Constants.HangerConstants.kAutoClimbCurrentDebounceSeconds, DebounceType.kRising);
 
     private boolean isHomed = false;
+    private boolean toggleIsUp = false;
+
+    // Tracks auto climb encoder position for teleop reversal
+    // Zero'd at climb start; records ticks at spike detection or autonomous end
+    private static final double kDeclimbReturnThresholdRotations = 10.0;
+    private double climbEncoderTicks = 0;
+    private boolean autoClimbCompleted = false;
 
     public Hanger() {
-        motor = new TalonFX(Ports.kHanger, Ports.kRoboRioCANBus);
+        motor = new SparkMax(Ports.kHanger, MotorType.kBrushless);
 
-        final TalonFXConfiguration config = new TalonFXConfiguration()
-            .withMotorOutput(
-                new MotorOutputConfigs()
-                    .withInverted(InvertedValue.Clockwise_Positive)
-                    .withNeutralMode(NeutralModeValue.Brake)
-            )
-            .withCurrentLimits(
-                new CurrentLimitsConfigs()
-                    .withStatorCurrentLimit(Amps.of(20))
-                    .withStatorCurrentLimitEnable(true)
-                    .withSupplyCurrentLimit(Amps.of(70))
-                    .withSupplyCurrentLimitEnable(true)
-            )
-            .withMotionMagic(
-                new MotionMagicConfigs()
-                    .withMotionMagicCruiseVelocity(KrakenX60.kFreeSpeed)
-                    .withMotionMagicAcceleration(KrakenX60.kFreeSpeed.per(Second))
-            )
-            .withSlot0(
-                new Slot0Configs()
-                    .withKP(10)
-                    .withKI(0)
-                    .withKD(0)
-                    .withKV(12.0 / KrakenX60.kFreeSpeed.in(RotationsPerSecond)) // 12 volts when requesting max RPS
-            );
+        SparkMaxConfig config = new SparkMaxConfig();
+        config.inverted(true)
+            .idleMode(IdleMode.kBrake)
+            .smartCurrentLimit(Constants.HangerConstants.kSmartCurrentLimit)
+            .secondaryCurrentLimit(Constants.HangerConstants.kSecondaryCurrentLimit);
 
-        motor.getConfigurator().apply(config);
+        // config.closedLoop
+        //     .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+        //     .pid(0.1, 0, 0)
+        //     .velocityFF(0.000175);
+
+        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+
+        encoder = motor.getEncoder();
+        encoder.setPosition(0);
+
+        // pidController = motor.getClosedLoopController();
+
         SmartDashboard.putData(this);
     }
 
-    public void set(Position position) {
-        motor.setControl(
-            motionMagicRequest
-                .withPosition(position.motorAngle())
-        );
-    }
+    // public void set(Position position) {
+    //     targetPositionRotations = position.motorAngle().in(Rotations);
+    //     pidController.setSetpoint(targetPositionRotations, ControlType.kPosition);
+    // }
 
     public void setPercentOutput(double percentOutput) {
-        motor.setControl(
-            voltageRequest
-                .withOutput(Volts.of(percentOutput * 12.0))
-        );
+        motor.set(percentOutput);
     }
 
-    public Command positionCommand(Position position) {
-        return runOnce(() -> set(position))
-            .andThen(Commands.waitUntil(this::isExtensionWithinTolerance));
+    // public Command positionCommand(Position position) {
+    //     return runOnce(() -> set(position))
+    //         .andThen(Commands.waitUntil(this::isExtensionWithinTolerance));
+    // }
+
+    public Command toggleCommand() {
+        return runOnce(() -> {
+            toggleIsUp = !toggleIsUp;
+            // pidController.setSetpoint(targetPositionRotations, ControlType.kPosition);
+        });
+    }
+
+    public Command autoClimbCommand() {
+        return Commands.sequence(
+            runOnce(() -> {
+                climbCurrentDebouncer.calculate(false); // reset debouncer state
+                encoder.setPosition(0);                 // zero encoder at climb start
+                autoClimbCompleted = false;
+            }),
+            run(() -> setPercentOutput(Constants.HangerConstants.kAutoClimbFullPower))
+                .until(() -> climbCurrentDebouncer.calculate(motor.getOutputCurrent() > Constants.HangerConstants.kAutoClimbCurrentThreshold)),
+            runOnce(() -> {
+                climbEncoderTicks = encoder.getPosition(); // record ticks at spike
+                autoClimbCompleted = true;
+                setPercentOutput(Constants.HangerConstants.kAutoClimbReleasePower);
+            }),
+            Commands.waitSeconds(Constants.HangerConstants.kAutoClimbReleaseSeconds),
+            runOnce(() -> setPercentOutput(0))
+        ).finallyDo(interrupted -> {
+            // If autonomous ended before the spike was detected, record ticks at interruption
+            if (interrupted && !autoClimbCompleted) {
+                climbEncoderTicks = encoder.getPosition();
+                autoClimbCompleted = true;
+                setPercentOutput(0);
+            }
+        });
+    }
+
+    public boolean isAutoClimbCompleted() {
+        return autoClimbCompleted;
+    }
+
+    /**
+     * If the auto climb command ran during autonomous, reverses the climber until the
+     * encoder returns to within {@link #kDeclimbReturnThresholdRotations} of zero.
+     * Works whether the spike was detected or autonomous ended mid-climb.
+     * Clears the flag so it only runs once at the start of teleop.
+     */
+    public Command reverseClimbIfNeededCommand() {
+        return Commands.defer(() -> {
+            if (!autoClimbCompleted || climbEncoderTicks == 0) return Commands.none();
+            double ticks = climbEncoderTicks;
+            autoClimbCompleted = false;
+            // signum(ticks) tells us which direction the encoder moved;
+            // stop when we've returned within threshold of zero
+            return run(() -> setPercentOutput(-Constants.HangerConstants.kAutoClimbFullPower))
+                .until(() -> Math.signum(ticks) * encoder.getPosition() <= kDeclimbReturnThresholdRotations)
+                .andThen(runOnce(() -> setPercentOutput(0)));
+        }, java.util.Set.of(this));
     }
 
     public Command homingCommand() {
         return Commands.sequence(
             runOnce(() -> setPercentOutput(-0.05)),
-            Commands.waitUntil(() -> motor.getSupplyCurrent().getValue().in(Amps) > 0.4),
+            Commands.waitUntil(() -> motor.getOutputCurrent() > 7.0),
             runOnce(() -> {
-                motor.setPosition(Position.HOMED.motorAngle());
+                encoder.setPosition(0);
                 isHomed = true;
-                set(Position.EXTEND_HOPPER);
+                // set(Position.EXTEND_HOPPER);
             })
         )
         .unless(() -> isHomed)
@@ -131,21 +178,22 @@ public class Hanger extends SubsystemBase {
         return isHomed;
     }
 
-    private boolean isExtensionWithinTolerance() {
-        final Distance currentExtension = motorAngleToExtension(motor.getPosition().getValue());
-        final Distance targetExtension = motorAngleToExtension(motionMagicRequest.getPositionMeasure());
-        return currentExtension.isNear(targetExtension, kExtensionTolerance);
-    }
+    // private boolean isExtensionWithinTolerance() {
+    //     final Distance currentExtension = motorAngleToExtension(Rotations.of(encoder.getPosition()));
+    //     final Distance targetExtension = motorAngleToExtension(Rotations.of(targetPositionRotations));
+    //     return currentExtension.isNear(targetExtension, kExtensionTolerance);
+    // }
 
-    private Distance motorAngleToExtension(Angle motorAngle) {
-        final Measure<DistanceUnit> extensionMeasure = motorAngle.timesRatio(kHangerExtensionPerMotorAngle);
-        return Inches.of(extensionMeasure.in(Inches)); // Promote from Measure<DistanceUnit> to Distance
-    }
+    // private Distance motorAngleToExtension(Angle motorAngle) {
+    //     final Measure<DistanceUnit> extensionMeasure = motorAngle.timesRatio(kHangerExtensionPerMotorAngle);
+    //     return Inches.of(extensionMeasure.in(Inches));
+    // }
 
     @Override
     public void initSendable(SendableBuilder builder) {
         builder.addStringProperty("Command", () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "null", null);
-        builder.addDoubleProperty("Extension (inches)", () -> motorAngleToExtension(motor.getPosition().getValue()).in(Inches), null);
-        builder.addDoubleProperty("Supply Current", () -> motor.getSupplyCurrent().getValue().in(Amps), null);
+        // builder.addDoubleProperty("Extension (inches)", () -> motorAngleToExtension(Rotations.of(encoder.getPosition())).in(Inches), null);
+        builder.addDoubleProperty("Supply Current", () -> motor.getOutputCurrent(), null);
+        builder.addDoubleProperty("Encoder Position", () -> encoder.getPosition(), null);
     }
 }

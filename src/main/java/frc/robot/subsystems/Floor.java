@@ -20,7 +20,7 @@ import frc.robot.Ports;
 public class Floor extends SubsystemBase {
     public enum Speed {
         STOP(0),
-        FEED(0.25);  // TODO: was initially 0.83
+        FEED(0.75);
 
         private final double percentOutput;
 
@@ -44,8 +44,8 @@ public class Floor extends SubsystemBase {
         SparkMaxConfig config = new SparkMaxConfig();
         config.inverted(true);
         config.idleMode(IdleMode.kBrake);
-        config.smartCurrentLimit(30);
-        config.secondaryCurrentLimit(120);
+        // config.smartCurrentLimit(30);
+        // config.secondaryCurrentLimit(120);
         
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
         SmartDashboard.putData(this);

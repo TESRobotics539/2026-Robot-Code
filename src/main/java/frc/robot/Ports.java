@@ -1,15 +1,9 @@
 package frc.robot;
 
-import com.ctre.phoenix6.CANBus;
-
 public final class Ports {
-    // CAN Buses
-    public static final CANBus kRoboRioCANBus = new CANBus("rio");
-    public static final CANBus kCANivoreCANBus = new CANBus("main");
-
     // Motor IDs
-    public static final int kIntakePivot = 10;
-    public static final int kIntakeRollers = 11;
+    public static final int kIntakePivot = 59;
+    public static final int kIntakeRollers = 58;
     
     public static final int kFloor = 54;
     public static final int kFeeder = 61;
@@ -18,9 +12,14 @@ public final class Ports {
     public static final int kShooterMiddle = 56;
     public static final int kShooterRight = 55;
     
-    public static final int kHanger = 18;
+
+    //Servo Hub
+    public static final int kHanger = 41;
+    public static final int kPivot = 59;
+
+    // REV Servo Hub (CAN)
+    public static final int kServoHub = 45;
 
     // PWM Ports
-    public static final int kHoodLeftServo = 3;
-    public static final int kHoodRightServo = 4;
+    public static final int kBlinkinLed = 9;
 }

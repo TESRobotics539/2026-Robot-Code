@@ -11,15 +11,14 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Landmarks;
 import frc.robot.subsystems.Swerve;
-import frc.util.DriveInputSmoother;
 import frc.util.GeometryUtil;
-import frc.util.ManualDriveInput;
 
 public class AimAndDriveCommand extends Command {
-    private static final Angle kAimTolerance = Degrees.of(5);
+    private static final Angle kAimTolerance = Degrees.of(3);
 
     private final Swerve swerve;
-    private final DriveInputSmoother inputSmoother;
+    private final DoubleSupplier forwardInput;
+    private final DoubleSupplier leftInput;
     private Rotation2d targetHeading = new Rotation2d();
 
     public AimAndDriveCommand(
@@ -28,7 +27,8 @@ public class AimAndDriveCommand extends Command {
         DoubleSupplier leftInput
     ) {
         this.swerve = swerve;
-        this.inputSmoother = new DriveInputSmoother(forwardInput, leftInput);
+        this.forwardInput = forwardInput;
+        this.leftInput = leftInput;
         addRequirements(swerve);
     }
 
@@ -56,15 +56,22 @@ public class AimAndDriveCommand extends Command {
 
     @Override
     public void execute() {
-        final ManualDriveInput input = inputSmoother.getSmoothedInput();
-        
         // Update target heading to point at the hub
         targetHeading = getDirectionToHub();
-        
-        // Use YAGSL's heading controller
+
+        // Console log for debugging
+        // System.out.println("Target Heading: " + targetHeading.getDegrees() + " degrees");
+        // System.out.println("Current Heading (gyro): " + swerve.getHeading().getDegrees() + " degrees");
+        // System.out.println("Pose Rotation (theta): " + swerve.getPose().getRotation().getDegrees() + " degrees");
+        // System.out.println("Difference: " + (swerve.getPose().getRotation().getDegrees() - swerve.getHeading().getDegrees()) + " degrees");
+        // System.out.println("Robot Position: " + swerve.getPose().getTranslation());
+        // System.out.println("Hub Position: " + Landmarks.hubPosition());
+    
+    
+        // Use YAGSL's heading controller with raw inputs
         ChassisSpeeds targetSpeeds = swerve.getTargetSpeeds(
-            input.forward,
-            input.left,
+            forwardInput.getAsDouble(),
+            leftInput.getAsDouble(),
             targetHeading
         );
         swerve.driveFieldOriented(targetSpeeds);

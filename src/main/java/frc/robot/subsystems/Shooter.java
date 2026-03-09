@@ -23,7 +23,7 @@ import frc.robot.Ports;
 
 public class Shooter extends SubsystemBase {
     public enum Speed {
-        SHOOT(1000),
+        SHOOT(5000),
         DASHBOARD(0);
 
         private final double rpm;
@@ -38,16 +38,13 @@ public class Shooter extends SubsystemBase {
     }
 
     private static final double kNeoVortexFreeSpeed = 6784.0; // RPM
-    private static final AngularVelocity kVelocityTolerance = RPM.of(100);
 
     private final SparkFlex leftMotor, middleMotor, rightMotor;
     private final RelativeEncoder leftEncoder, middleEncoder, rightEncoder;
-    private final List<RelativeEncoder> encoders;
     private final SparkClosedLoopController leftController, middleController, rightController;
 
     private double targetRPM = 0.0;
     private double dashboardTargetRPM = 0.0;
-    private boolean isVelocityMode = false;
 
     public Shooter() {
         leftMotor = new SparkFlex(Ports.kShooterLeft, MotorType.kBrushless);
@@ -57,13 +54,12 @@ public class Shooter extends SubsystemBase {
         leftEncoder = leftMotor.getEncoder();
         middleEncoder = middleMotor.getEncoder();
         rightEncoder = rightMotor.getEncoder();
-        encoders = List.of(leftEncoder, middleEncoder, rightEncoder);
 
         leftController = leftMotor.getClosedLoopController();
         middleController = middleMotor.getClosedLoopController();
         rightController = rightMotor.getClosedLoopController();
 
-        configureMotor(leftMotor, leftController, false); // Inverted in REV client
+        configureMotor(leftMotor, leftController, false); 
         configureMotor(middleMotor, middleController, false);
         configureMotor(rightMotor, rightController, true);
 
@@ -74,14 +70,15 @@ public class Shooter extends SubsystemBase {
         SparkFlexConfig config = new SparkFlexConfig();
         
         config.inverted(inverted);
-       //config.idleMode(IdleMode.kCoast);
-        //config.smartCurrentLimit(70); // Supply current limit
-        //config.secondaryCurrentLimit(120); // Stator current limit
+        config.closedLoopRampRate(0.5);
+        //config.idleMode(IdleMode.kCoast);
+        config.smartCurrentLimit(70); // Supply current limit
+        config.secondaryCurrentLimit(120); // Stator current limit
         
         // PID configuration
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-            .pid(0.0002, 0.0008, 0.0) // kP, kI, kD for velocity control in RPM
+            .pid(0.0002, 0.0, 0.0) // kP, kI, kD for velocity control in RPM
             .velocityFF(12.0 / kNeoVortexFreeSpeed) // kV: 12 volts when requesting max RPM
             .iZone(0);
         
@@ -97,13 +94,19 @@ public class Shooter extends SubsystemBase {
     // }
 
     public void setPercentOutput(double percentOutput) {
-        isVelocityMode = false;
+        //isVelocityMode = false;
         double voltage = percentOutput * 12.0;
         leftMotor.setVoltage(voltage);
         middleMotor.setVoltage(voltage);
         rightMotor.setVoltage(voltage);
     }
     
+    public void set(double rpm) {
+        leftMotor.getClosedLoopController().setSetpoint(rpm, ControlType.kVelocity);
+        middleMotor.getClosedLoopController().setSetpoint(rpm, ControlType.kVelocity);
+        rightMotor.getClosedLoopController().setSetpoint(rpm, ControlType.kVelocity);
+    }
+
     public void set(Speed speed) {
         leftMotor.getClosedLoopController().setSetpoint(
             speed.angularVelocity().in(RPM),
@@ -136,7 +139,7 @@ public class Shooter extends SubsystemBase {
     }
 
     public Command dashboardSpinUpCommand() {
-        return defer(() -> spinUpCommand(Speed.DASHBOARD)); 
+        return runOnce(() -> set(Speed.SHOOT)); 
     }
  
     // public boolean isVelocityWithinTolerance() {
