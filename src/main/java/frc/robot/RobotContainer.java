@@ -11,6 +11,7 @@ import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -61,7 +62,8 @@ public class RobotContainer
 
     // private final Pivot pivot = new Pivot();
 
-    final CommandXboxController  driverXbox = new CommandXboxController(0);
+    final CommandXboxController driverXbox = new CommandXboxController(0);
+    private double lastIntakeTriggerPressTime = Double.NEGATIVE_INFINITY;
     
     // private final AutoRoutines autoRoutines = new AutoRoutines(
     //     drivebase,
@@ -131,7 +133,6 @@ public class RobotContainer
 
         // Hood tracking: continuously adjust position based on distance to hub
         hood.setDefaultCommand(hood.trackHubCommand(drivebase::getPose));
-        driverXbox.povDown().toggleOnTrue(hood.holdPositionCommand(0.1));
 
         // At autonomous start: enforce brake mode and snapshot the current encoder position
         // as the PID target. If kStowIntakeForMatch is enabled, the pivot is locked to that
@@ -162,9 +163,15 @@ public class RobotContainer
                 }
             }, Set.of(hanger, intake)));
 
-        driverXbox.leftTrigger()
-            .onTrue(intake.intakePressCommand())
-            .onFalse(intake.cancelPressCommand());
+        // Single pull → deploy/toggle rollers. Double-tap → stow.
+        driverXbox.leftTrigger().onTrue(
+            Commands.defer(() -> {
+                double now = Timer.getFPGATimestamp();
+                boolean isDoubleTap = (now - lastIntakeTriggerPressTime)
+                    < Constants.IntakeConstants.kDoubleTapWindowSeconds;
+                lastIntakeTriggerPressTime = now;
+                return isDoubleTap ? intake.stowCommand() : intake.intakePressCommand();
+            }, Set.of(intake)));
         driverXbox.rightBumper().whileTrue(
             Commands.parallel(
                 shooter.spinUpMapCommand(),
@@ -207,10 +214,14 @@ public class RobotContainer
       // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
       // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
 
-      driverXbox.povLeft().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
+      // D-pad up/down → manual hanger control
+      driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
+                        .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+      driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
                           .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-      driverXbox.povRight().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
-                           .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+      // D-pad left/right → hood fully retracted / fully extended
+      driverXbox.povLeft().toggleOnTrue(hood.holdPositionCommand(Constants.HoodConstants.kMinPosition));
+      driverXbox.povRight().toggleOnTrue(hood.holdPositionCommand(Constants.HoodConstants.kMaxPosition));
       driverXbox.a().onTrue(
           hanger.runOnce(() -> hanger.setPercentOutput(0.5))
               .andThen(Commands.waitSeconds(0.33))

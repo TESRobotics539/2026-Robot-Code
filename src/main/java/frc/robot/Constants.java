@@ -27,8 +27,8 @@ public final class Constants {
     /** If true, the intake is locked stowed from the start of autonomous through the end of the match. */
     public static final boolean kStowIntakeForMatch = false;
 
-    /** Trigger hold duration that separates a short press from a long press (seconds). */
-    public static final double kLongPressThresholdSeconds = 0.5;
+    /** Maximum seconds between two trigger pulls to count as a double-tap. */
+    public static final double kDoubleTapWindowSeconds = 0.4;
     /** Roller target speed when running (RPM). */
     public static final double kRollerRPM = 6500.0;
     /** Roller current (amps) threshold that indicates a fuel pickup spike. */

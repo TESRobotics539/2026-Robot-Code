@@ -232,43 +232,33 @@ public class Intake extends SubsystemBase {
     }
 
     /**
-     * Holds the subsystem for up to 0.5 seconds to distinguish short vs long press.
-     * Short press (released before 0.5s):
-     *   - If stowed: deploy + start rollers
-     *   - If deployed: toggle rollers on/off
-     * Long press (held >= 0.5s): stow intake and stop rollers.
-     *
-     * Bind onTrue to this command and onFalse to {@link #cancelPressCommand()}.
+     * Single trigger pull: if stowed → deploy + start rollers.
+     * If deployed and rollers running → stop rollers.
+     * If deployed and rollers stopped → start rollers.
      */
     public Command intakePressCommand() {
-        return run(() -> {})
-            .withTimeout(Constants.IntakeConstants.kLongPressThresholdSeconds)
-            .finallyDo(interrupted -> {
-                if (interrupted) {
-                    // Short press
-                    if (!isDeployed()) {
-                        setPivotPosition(Position.DEPLOYED);
-                        setRollerSpeed(Constants.IntakeConstants.kRollerRPM);
-                        rollerRunning = true;
-                    } else if (rollerRunning) {
-                        stopRoller();
-                        rollerRunning = false;
-                    } else {
-                        setRollerSpeed(Constants.IntakeConstants.kRollerRPM);
-                        rollerRunning = true;
-                    }
-                } else {
-                    // Long press — stow
-                    setPivotPosition(Position.STOWED);
-                    stopRoller();
-                    rollerRunning = false;
-                }
-            });
+        return runOnce(() -> {
+            if (!isDeployed()) {
+                setPivotPosition(Position.DEPLOYED);
+                setRollerSpeed(Constants.IntakeConstants.kRollerRPM);
+                rollerRunning = true;
+            } else if (rollerRunning) {
+                stopRoller();
+                rollerRunning = false;
+            } else {
+                setRollerSpeed(Constants.IntakeConstants.kRollerRPM);
+                rollerRunning = true;
+            }
+        });
     }
 
-    /** Schedule this onFalse to cancel intakePressCommand and trigger short-press logic. */
-    public Command cancelPressCommand() {
-        return runOnce(() -> {});
+    /** Double-tap: stow the intake and stop rollers. */
+    public Command stowCommand() {
+        return runOnce(() -> {
+            setPivotPosition(Position.STOWED);
+            stopRoller();
+            rollerRunning = false;
+        });
     }
 
     /**
