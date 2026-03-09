@@ -17,6 +17,7 @@ import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.util.sendable.SendableBuilder;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -53,6 +54,7 @@ public class Intake extends SubsystemBase {
     private boolean rollerRunning = false;
     private int rollerSpikeCount = 0;
     private boolean lastRollerAboveThreshold = false;
+    private final Timer rollerNoLoadTimer = new Timer();
     private boolean matchStowLocked = false;
     private boolean deployedPositionCalibrated = false;
     private boolean initialDeployEnabled = false;   // true only when the match-start deploy fires
@@ -137,8 +139,15 @@ public class Intake extends SubsystemBase {
             rollerMotor.getOutputCurrent() > Constants.IntakeConstants.kRollerLoadCurrentThreshold;
         if (aboveThreshold && !lastRollerAboveThreshold) {
             rollerSpikeCount++;
+            rollerNoLoadTimer.restart(); // Reset window after each pickup
         }
         lastRollerAboveThreshold = aboveThreshold;
+
+        // Cut off rollers if no load spike seen within the timeout window
+        if (rollerRunning && rollerNoLoadTimer.hasElapsed(Constants.IntakeConstants.kRollerNoLoadTimeoutSeconds)) {
+            stopRoller();
+            rollerRunning = false;
+        }
     }
 
     private void setPivotIdleMode(IdleMode mode) {
@@ -198,10 +207,13 @@ public class Intake extends SubsystemBase {
 
     public void setRollerSpeed(double rpm) {
         rollerController.setSetpoint(rpm, ControlType.kVelocity);
+        rollerNoLoadTimer.restart();
     }
 
     public void stopRoller() {
         rollerMotor.set(0);
+        rollerNoLoadTimer.stop();
+        rollerNoLoadTimer.reset();
     }
 
     /** Returns true once the roller has seen enough current spikes to confirm fuel pickup. */

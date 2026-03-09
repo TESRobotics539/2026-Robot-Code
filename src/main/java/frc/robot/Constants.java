@@ -35,6 +35,8 @@ public final class Constants {
     public static final double kRollerLoadCurrentThreshold = 25.0;
     /** Number of current spikes required before flywheel pre-spin is enabled in teleop. */
     public static final int kRollerFuelSpikeCount = 4;
+    /** Seconds the roller can run without a load spike before being automatically cut off. */
+    public static final double kRollerNoLoadTimeoutSeconds = 15.0;
     /** Pivot motor current (amps) that indicates the intake has reached the deployed hard stop. */
     public static final double kPivotDeployedCurrentThreshold = 30.0;
     /** Minimum encoder travel (rotations) before the deployed hard-stop current spike is checked. */
