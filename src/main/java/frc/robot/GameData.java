@@ -128,6 +128,36 @@ public final class GameData {
     }
 
     /**
+     * Returns true if the hub active state will change within {@code withinSeconds}.
+     * Only meaningful during teleop; returns false otherwise or if game data is unavailable.
+     */
+    public static boolean isPhaseChangeSoon(double withinSeconds) {
+        Optional<Alliance> alliance = DriverStation.getAlliance();
+        if (alliance.isEmpty()) return false;
+        if (!DriverStation.isTeleopEnabled()) return false;
+
+        double matchTime = DriverStation.getMatchTime();
+        String gameData = DriverStation.getGameSpecificMessage();
+        if (gameData.isEmpty()) return false;
+
+        boolean redInactiveFirst;
+        switch (gameData.charAt(0)) {
+            case 'R' -> redInactiveFirst = true;
+            case 'B' -> redInactiveFirst = false;
+            default -> { return false; }
+        }
+
+        boolean shift1Active = switch (alliance.get()) {
+            case Red -> !redInactiveFirst;
+            case Blue -> redInactiveFirst;
+        };
+
+        // matchTime counts down; state in withinSeconds is at matchTime - withinSeconds
+        return isShiftActiveAt(matchTime, shift1Active)
+            != isShiftActiveAt(matchTime - withinSeconds, shift1Active);
+    }
+
+    /**
      * Evaluates shift activity for a given countdown time, without any expansion.
      * Used internally by {@link #isHubActiveExpanded}.
      */

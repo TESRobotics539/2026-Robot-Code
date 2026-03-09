@@ -4,7 +4,6 @@
 
 package frc.robot;
 
-import java.util.Optional;
 import java.util.Set;
 
 import com.pathplanner.lib.auto.NamedCommands;
@@ -51,7 +50,6 @@ public class RobotContainer
     private final Hood hood = new Hood();
     private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
-    private final Limelight limelightRear = new Limelight("limelight-rear");
     private final Field2d field = new Field2d();
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
     private final ShooterOrca shooter = new ShooterOrca(drivebase);
@@ -110,7 +108,7 @@ public class RobotContainer
       limelight.setDefaultCommand(updateVisionCommand());
 
 
-      blinkinLed.setDefaultCommand(Commands.run(blinkinLed::setDefaultPattern, blinkinLed));
+      blinkinLed.setDefaultCommand(Commands.run(blinkinLed::setPhasePattern, blinkinLed));
 
 
       SmartDashboard.putData("Auto Chooser", autoChooser);
@@ -130,8 +128,13 @@ public class RobotContainer
         hood.setDefaultCommand(hood.trackHubCommand(drivebase::getPose));
         driverXbox.povDown().toggleOnTrue(hood.holdPositionCommand(0.1));
 
-        // Ensure intake pivot is in brake mode at the start of autonomous
-        RobotModeTriggers.autonomous().onTrue(intake.runOnce(intake::enforceBrakeMode));
+        // At autonomous start: enforce brake mode and snapshot the current encoder position
+        // as the PID target. If kStowIntakeForMatch is enabled, the pivot is locked to that
+        // position for the rest of the match.
+        RobotModeTriggers.autonomous().onTrue(intake.runOnce(() -> {
+            intake.enforceBrakeMode();
+            intake.lockCurrentPositionAsStow();
+        }));
 
         // driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
@@ -147,10 +150,10 @@ public class RobotContainer
                         .andThen(Commands.waitUntil(() ->
                             drivebase.getPose().getTranslation()
                                 .getDistance(startPose.getTranslation()) >= 2.0))
-                        .andThen(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)));
+                        .andThen(intake.runOnce(intake::setInitialDeployPosition));
                 } else {
                     return Commands.waitSeconds(1.0)
-                        .andThen(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)));
+                        .andThen(intake.runOnce(intake::setInitialDeployPosition));
                 }
             }, Set.of(hanger, intake)));
 
@@ -161,6 +164,17 @@ public class RobotContainer
             Commands.parallel(
                 shooter.spinUpMapCommand(),
                 intake.agitateCommand(),
+                Commands.waitUntil(shooter::isShooterReady)
+                    .withTimeout(Constants.shootReadyTimeoutSeconds)
+                    .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
+                    .andThen(Commands.parallel(
+                        feeder.feedCommand(),
+                        Commands.waitSeconds(Constants.floorFeedDelaySeconds).andThen(floor.feedCommand())
+                    ))
+            ));
+        driverXbox.x().whileTrue(
+            Commands.parallel(
+                shooter.startEnd(() -> shooter.setShooterTarget(Constants.DumpShotConstants.kFlywheelRPM), () -> shooter.stop()),
                 Commands.waitUntil(shooter::isShooterReady)
                     .withTimeout(Constants.shootReadyTimeoutSeconds)
                     .andThen(Commands.waitSeconds(Constants.shootWaitSeconds))
@@ -249,23 +263,11 @@ public class RobotContainer
     private Command updateVisionCommand() {
         return Commands.run(() -> {
             final Pose2d currentRobotPose = drivebase.getPose();
-            final Optional<Limelight.Measurement> front = limelight.getMeasurement(currentRobotPose);
-            final Optional<Limelight.Measurement> rear = limelightRear.getMeasurement(currentRobotPose);
-
-            final Optional<Limelight.Measurement> best;
-            if (front.isPresent() && rear.isPresent()) {
-                best = front.get().avgTagArea >= rear.get().avgTagArea ? front : rear;
-            } else if (front.isPresent()) {
-                best = front;
-            } else {
-                best = rear;
-            }
-
-            best.ifPresent(m -> drivebase.addVisionMeasurement(
+            limelight.getMeasurement(currentRobotPose).ifPresent(m -> drivebase.addVisionMeasurement(
                 m.poseEstimate.pose,
                 m.poseEstimate.timestampSeconds,
                 m.standardDeviations
             ));
-        }, limelight, limelightRear).ignoringDisable(true);
+        }, limelight).ignoringDisable(true);
     }
 }

@@ -14,6 +14,8 @@ import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
 import com.revrobotics.spark.config.SparkMaxConfig;
 
+import edu.wpi.first.math.filter.Debouncer;
+import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -48,6 +50,12 @@ public class Intake extends SubsystemBase {
     private double targetPivotPosition = 0.0;
     private boolean usePercentOutput = false;
     private boolean rollerRunning = false;
+    private boolean matchStowLocked = false;
+    private boolean deployedPositionCalibrated = false;
+    private boolean initialDeployEnabled = false;   // true only when the match-start deploy fires
+    private double  deployStartPosition   = 0.0;    // encoder position when deploy began
+    private double  calibratedDeployedPosition = Double.NaN; // persists across deploys once set
+    private final Debouncer deployCurrentDebouncer = new Debouncer(Constants.IntakeConstants.kPivotDeployedCurrentDebounceSeconds, DebounceType.kRising);
 
     public Intake() {
         pivotMotor = new SparkMax(Ports.kIntakePivot, MotorType.kBrushless);
@@ -93,6 +101,22 @@ public class Intake extends SubsystemBase {
 
     @Override
     public void periodic() {
+        if (matchStowLocked) {
+            usePercentOutput = false;
+        }
+        // Snap deployed position to the hard stop once the intake has traveled >= 0.2 encoder
+        // rotations from where it started deploying. Only runs on the initial match deploy.
+        if (!usePercentOutput && !deployedPositionCalibrated && initialDeployEnabled && isDeployed()) {
+            boolean travelMet = Math.abs(absEncoder.getPosition() - deployStartPosition) >= Constants.IntakeConstants.kPivotDeployedTravelThreshold;
+            boolean spiked = deployCurrentDebouncer.calculate(
+                travelMet && pivotMotor.getOutputCurrent() > Constants.IntakeConstants.kPivotDeployedCurrentThreshold);
+            if (spiked) {
+                calibratedDeployedPosition = Math.max(kMinPosition, Math.min(kMaxPosition, absEncoder.getPosition()));
+                targetPivotPosition = calibratedDeployedPosition;
+                deployedPositionCalibrated = true;
+                initialDeployEnabled = false;
+            }
+        }
         if (!usePercentOutput && targetPivotPosition != 0.0) {
             pivotController.setSetpoint(targetPivotPosition, ControlType.kPosition);
         }
@@ -105,18 +129,47 @@ public class Intake extends SubsystemBase {
     }
 
     public void setPivotPosition(Position position) {
+        if (matchStowLocked) return;
         usePercentOutput = false;
-        targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
         if (position == Position.DEPLOYED) {
             setPivotIdleMode(IdleMode.kCoast);
+            deployedPositionCalibrated = false;
+            deployStartPosition = absEncoder.getPosition();
+            deployCurrentDebouncer.calculate(false); // reset debouncer state
+            // Reuse the calibrated position if already established, otherwise use the constant
+            targetPivotPosition = !Double.isNaN(calibratedDeployedPosition)
+                ? calibratedDeployedPosition
+                : Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
         } else if (position == Position.STOWED) {
             setPivotIdleMode(IdleMode.kBrake);
+            targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
         }
+    }
+
+    /**
+     * Deploys the intake and enables current-spike calibration for this deploy.
+     * Call only from the automatic match-start deploy trigger.
+     */
+    public void setInitialDeployPosition() {
+        initialDeployEnabled = true;
+        setPivotPosition(Position.DEPLOYED);
     }
 
     /** Forces brake mode regardless of current position — call at autonomous start. */
     public void enforceBrakeMode() {
         setPivotIdleMode(IdleMode.kBrake);
+    }
+
+    /**
+     * Reads the current absolute encoder position and sets it as the PID target.
+     * If {@link Constants#kStowIntakeForMatch} is enabled, also locks the pivot for
+     * the rest of the match so any subsequent calls to {@link #setPivotPosition} are ignored.
+     */
+    public void lockCurrentPositionAsStow() {
+        double currentPos = absEncoder.getPosition();
+        targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, currentPos));
+        usePercentOutput = false;
+        matchStowLocked = Constants.kStowIntakeForMatch;
     }
 
     public void setPivotPercentOutput(double percentOutput) {

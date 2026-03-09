@@ -54,7 +54,7 @@ public class Hood extends SubsystemBase {
     private Time lastUpdateTime = Seconds.of(0);
 
     // Tracking smoothing state
-    private static final double kTrackingUpdateIntervalSeconds  = 0.34;
+    private static final double kTrackingUpdateIntervalSeconds  = 1.0;
     // If the servo direction flips this many consecutive times, suppress updates
     // until the computed position stops moving significantly
     private static final int    kOscillationFlipThreshold       = 4;
@@ -67,6 +67,9 @@ public class Hood extends SubsystemBase {
     private int     trackingLastDirection        = 0;    // +1 up, -1 down, 0 none
     private int     trackingConsecutiveFlips     = 0;
     private boolean trackingWaitingForStable     = false;
+
+    // Rate limiter — servo position may only change at most once per second
+    private double  lastSetPositionTimestamp     = Double.NEGATIVE_INFINITY;
 
     public Hood() {
         servoHub = new ServoHub(Ports.kServoHub);
@@ -94,12 +97,15 @@ public class Hood extends SubsystemBase {
         return kMinPulseUs + (int)(position * (kMaxPulseUs - kMinPulseUs));
     }
 
-    /** Expects a position between 0.0 and 1.0 */
+    /** Expects a position between 0.0 and 1.0. Rate-limited to at most one move per second. */
     public void setPosition(double position) {
+        double now = Timer.getFPGATimestamp();
+        if (now - lastSetPositionTimestamp < 1.0) return;
         final double clampedPosition = MathUtil.clamp(position, kMinPosition, kMaxPosition);
         leftChannel.setPulseWidth(positionToPulseWidth(clampedPosition));
         rightChannel.setPulseWidth(positionToPulseWidth(clampedPosition));
         targetPosition = clampedPosition;
+        lastSetPositionTimestamp = now;
     }
 
     private static final double kTrackingMinDistanceMeters = Constants.HoodConstants.kTrackingMinDistanceMeters;

@@ -1,7 +1,9 @@
 package frc.robot.subsystems;
 
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.motorcontrol.Spark;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.GameData;
 import frc.robot.Ports;
 
 /**
@@ -26,8 +28,10 @@ public class BlinkinLed extends SubsystemBase {
         public static final double LARSON_SCANNER_COLOR1  = 0.05; // "Cylon eye" sweep in Color 1
         public static final double CHASE_COLOR1_AND_2     = 0.09; // running/chasing lights, Color 1 & 2
         public static final double HEARTBEAT_SLOW_COLOR1  = 0.17; // slow throb in Color 1
+        public static final double HEARTBEAT_SLOW_COLOR2  = 0.19; // slow throb in Color 2
         public static final double BREATH_SLOW_COLOR1     = 0.23; // slow breath fade, Color 1
         public static final double STROBE_COLOR1          = 0.29; // fast strobe, Color 1
+        public static final double STROBE_COLOR2          = 0.31; // fast strobe, Color 2
 
         // Fixed Palette Patterns (no hardware color setup required)
         public static final double SINELON_FOREST         = -0.11; // greens/dark, moving dot
@@ -72,5 +76,26 @@ public class BlinkinLed extends SubsystemBase {
     /** Turns off the LEDs. */
     public void off() {
         setPattern(Pattern.SOLID_BLACK);
+    }
+
+    /**
+     * Sets the LED pattern based on the current game phase.
+     * Strobes in the incoming phase color 5 seconds before each phase switch.
+     * Color 1 (scoring phase active) or Color 2 (inactive phase).
+     * Falls back to the default pattern outside of teleop.
+     */
+    public void setPhasePattern() {
+        if (!DriverStation.isTeleopEnabled()) {
+            setDefaultPattern();
+            return;
+        }
+        if (GameData.isPhaseChangeSoon(5.0)) {
+            // Flash the color of the INCOMING phase so drivers know what's coming
+            setPattern(GameData.isHubActive() ? Pattern.STROBE_COLOR2 : Pattern.STROBE_COLOR1);
+        } else if (GameData.isHubActive()) {
+            setPattern(Pattern.HEARTBEAT_SLOW_COLOR1);
+        } else {
+            setPattern(Pattern.HEARTBEAT_SLOW_COLOR2);
+        }
     }
 }

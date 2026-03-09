@@ -310,6 +310,17 @@ public class ShooterOrca extends SubsystemBase {
         return runEnd(() -> setShooterMap(), () -> stop());
     }
 
+    /**
+     * Like {@link #spinUpMapCommand()}, but adds a fixed RPM offset on top of the map value.
+     * Useful for auto routines that need slightly more speed than the standard map.
+     */
+    public Command spinUpMapCommand(double rpmOffset) {
+        return runEnd(() -> {
+            double distanceToHub = m_swerveSubsystem.getDistanceToHub();
+            shooterVelocityTarget = shooterSpeedMap.get(distanceToHub) + rpmOffset;
+        }, () -> stop());
+    }
+
     /** Holds the current flywheel target speed for the given duration, then stops. */
     public Command holdSpeedCommand(double seconds) {
         return run(() -> {}).withTimeout(seconds).andThen(runOnce(() -> stop()));

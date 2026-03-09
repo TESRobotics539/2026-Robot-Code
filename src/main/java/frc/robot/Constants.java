@@ -22,7 +22,7 @@ public final class Constants {
 
   // ── Drivetrain ────────────────────────────────────────────────────────────
   /** Maximum drivetrain translation speed (meters per second). */
-  public static final double maxSpeed = Units.feetToMeters(14);
+  public static final double maxSpeed = Units.feetToMeters(17);
 
   // ── Shoot timing ─────────────────────────────────────────────────────────
   /** Seconds to wait after shooter reaches speed before feeding the note. */
@@ -31,6 +31,10 @@ public final class Constants {
   public static final double shootReadyTimeoutSeconds = 1.33;
   /** Delay before floor motor starts feeding, so the feeder gets the note first. */
   public static final double floorFeedDelaySeconds = 0.25;
+
+  // ── Match Behavior ────────────────────────────────────────────────────────
+  /** If true, the intake is locked stowed from the start of autonomous through the end of the match. */
+  public static final boolean kStowIntakeForMatch = false;
 
   // ── Intake ────────────────────────────────────────────────────────────────
   public static class IntakeConstants {
@@ -41,6 +45,12 @@ public final class Constants {
     public static final double kLongPressThresholdSeconds = 0.5;
     /** Roller percent output when running. */
     public static final double kRollerSpeed = 1.0;
+    /** Pivot motor current (amps) that indicates the intake has reached the deployed hard stop. */
+    public static final double kPivotDeployedCurrentThreshold = 30.0;
+    /** Minimum encoder travel (rotations) before the deployed hard-stop current spike is checked. */
+    public static final double kPivotDeployedTravelThreshold = 0.2;
+    /** Seconds the current must stay above threshold to confirm the deployed hard stop (debounce). */
+    public static final double kPivotDeployedCurrentDebounceSeconds = 0.08;
 
     // Agitation pattern during shooting
     /** Pivot percent output going up during agitation. */
@@ -85,6 +95,12 @@ public final class Constants {
     public static final double kAutoClimbReleasePower = 0.5;
     /** Duration of the release pulse after the auto climb stalls (seconds). */
     public static final double kAutoClimbReleaseSeconds = 0.3;
+  }
+
+  // ── Dump Shot ─────────────────────────────────────────────────────────────
+  public static class DumpShotConstants {
+    /** Flywheel speed for the close-range dump shot (RPM). */
+    public static final double kFlywheelRPM = 1850;
   }
 
   // ── Hood ──────────────────────────────────────────────────────────────────
