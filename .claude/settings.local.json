@@ -4,7 +4,8 @@
       "Bash(./gradlew build)",
       "Bash(/c/Users/Public/wpilib/2026/jdk/bin/javap -classpath \"/c/Users/cynth/.gradle/caches/modules-2/files-2.1/com.revrobotics.frc/REVLib-java/2026.0.1/a08031d998e92fc2d94538f62e08a0c32382d470/REVLib-java-2026.0.1.jar\" com.revrobotics.servohub.ServoChannel)",
       "Bash(/c/Users/Public/wpilib/2026/jdk/bin/javap -classpath \"/c/Users/cynth/.gradle/caches/modules-2/files-2.1/com.revrobotics.frc/REVLib-java/2026.0.1/a08031d998e92fc2d94538f62e08a0c32382d470/REVLib-java-2026.0.1.jar\" com.revrobotics.servohub.ServoHub)",
-      "WebFetch(domain:docs.wpilib.org)"
+      "WebFetch(domain:docs.wpilib.org)",
+      "Bash(git config --global user.email \"mribakov@gmail.com\")"
     ]
   }
 }
