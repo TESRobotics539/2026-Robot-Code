@@ -4,8 +4,6 @@
 
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.RPM;
-
 import com.revrobotics.PersistMode;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
@@ -25,7 +23,6 @@ import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -49,42 +46,44 @@ import frc.robot.Ports;
 
 public class ShooterOrca extends SubsystemBase {
     public enum Speed {
-        SHOOT(5000),
+        SHOOT(87),   // ~5000 RPM with 4" wheel
         DASHBOARD(0);
 
-        private final double rpm;
+        public final double metersPerSecond;
 
-        private Speed(double rpm) {
-            this.rpm = rpm;
-        }
-
-        public AngularVelocity angularVelocity() {
-            return RPM.of(rpm);
+        private Speed(double metersPerSecond) {
+            this.metersPerSecond = metersPerSecond;
         }
     }
 
     public static final class ShooterConstants {
-        // Motor free speed (RPM) — used for physics-based FF calculation
-        public static final double kNeoVortexFreeSpeed = 6784.0;
+        // Flywheel wheel size
+        public static final double kWheelDiameterFeet = 4.0 / 12.0; // 4 inches
+        public static final double kWheelCircumferenceFeet = Math.PI * kWheelDiameterFeet;
+        // Converts motor RPM → wheel surface velocity (ft/s)
+        public static final double kVelocityConversionFactor = kWheelCircumferenceFeet / 60.0;
+
+        // Motor free speed in ft/s — used for physics-based FF calculation
+        public static final double kNeoVortexFreeSpeedFPS = 6784.0 * kVelocityConversionFactor; // ~118.39 ft/s
 
         // PID gains
         public static final double kP = 0.003;
         public static final double kI = 0.000;
         public static final double kD = 0.25;
         public static final double kS = 0.15;
-        public static final double kV = .0033;
+        public static final double kV = 0.0033 / kVelocityConversionFactor; // V/(m/s)
 
-        // Setpoint ramp rates (RPM per 20ms cycle)
-        // At 200 RPM/cycle spin-up: 0 → 5000 RPM takes ~0.5 seconds
-        // At 400 RPM/cycle spin-down: 5000 → 0 RPM takes ~0.25 seconds
-        public static final double kRampUpRate = 200.0;
-        public static final double kRampDownRate = 400.0;
+        // Setpoint ramp rates (ft/s per 20ms cycle)
+        // At spin-up rate: 0 → ~87.3 ft/s takes ~0.5 seconds
+        // At spin-down rate: ~87.3 → 0 ft/s takes ~0.25 seconds
+        public static final double kRampUpRate = 200.0 * kVelocityConversionFactor;
+        public static final double kRampDownRate = 400.0 * kVelocityConversionFactor;
 
         // Rolling average window for encoder noise filtering (samples at 50Hz)
         public static final int kVelocityAvgSamples = 8; // 8 × 20ms = 160ms
 
-        // Flywheel is "ready" when the 160ms average is within this tolerance of target RPM
-        public static final double kReadyToleranceRPM = 100;
+        // Flywheel is "ready" when the 160ms average is within this tolerance of target (ft/s)
+        public static final double kReadyTolerance = 100 * kVelocityConversionFactor; // ~2 ft/s
 
         // Motor current limits (amps)
         public static final int kSmartCurrentLimit = 60;
@@ -94,9 +93,9 @@ public class ShooterOrca extends SubsystemBase {
 
     public static final class TelemetryKeys {
         public static final String kTable = "Shooter";
-        public static final String kVelocityRPM = "Velocity RPM";
-        public static final String kTargetRPM = "Target RPM";
-        public static final String kRampedSetpoint = "Ramped Setpoint RPM";
+        public static final String kVelocity = "Velocity ft/s";
+        public static final String kTarget = "Target ft/s";
+        public static final String kRampedSetpoint = "Ramped Setpoint ft/s";
         public static final String kPrimaryCurrent = "Primary Current";
         public static final String kSecondaryCurrent = "Secondary Current";
     }
@@ -129,13 +128,13 @@ public class ShooterOrca extends SubsystemBase {
     private final NetworkTable shooterTable = networkTable.getTable(TelemetryKeys.kTable);
 
     // Cached NetworkTable entries — avoids hash lookups every cycle (50Hz)
-    private final NetworkTableEntry velocityEntryShooter = shooterTable.getEntry(TelemetryKeys.kVelocityRPM);
-    private final NetworkTableEntry targetEntryShooter = shooterTable.getEntry(TelemetryKeys.kTargetRPM);
+    private final NetworkTableEntry velocityEntryShooter = shooterTable.getEntry(TelemetryKeys.kVelocity);
+    private final NetworkTableEntry targetEntryShooter = shooterTable.getEntry(TelemetryKeys.kTarget);
     private final NetworkTableEntry rampedSetpointEntryShooter = shooterTable.getEntry(TelemetryKeys.kRampedSetpoint);
     private final NetworkTableEntry primaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kPrimaryCurrent);
     private final NetworkTableEntry secondaryCurrentEntryShooter = shooterTable.getEntry(TelemetryKeys.kSecondaryCurrent);
     private final NetworkTableEntry readyEntryShooter = shooterTable.getEntry("Ready");
-    private final NetworkTableEntry avgVelocityEntryShooter = shooterTable.getEntry("Avg Velocity RPM");
+    private final NetworkTableEntry avgVelocityEntryShooter = shooterTable.getEntry("Avg Velocity ft/s");
     private final NetworkTableEntry distanceToHubEntry = shooterTable.getEntry("Distance to Hub (m)");
 
     private final InterpolatingDoubleTreeMap shooterSpeedMap = new InterpolatingDoubleTreeMap();
@@ -160,19 +159,22 @@ public class ShooterOrca extends SubsystemBase {
               .idleMode(IdleMode.kCoast)
               .smartCurrentLimit(ShooterConstants.kSmartCurrentLimit, ShooterConstants.kFreeCurrentLimit)
               .secondaryCurrentLimit(ShooterConstants.kStatorCurrentLimit);
+        config.encoder
+            .velocityConversionFactor(ShooterConstants.kVelocityConversionFactor);
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
             .pid(ShooterConstants.kP, ShooterConstants.kI, ShooterConstants.kD)
-            .velocityFF(12.0 / ShooterConstants.kNeoVortexFreeSpeed);
+            .velocityFF(12.0 / ShooterConstants.kNeoVortexFreeSpeedFPS);
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
     private void addMapValues() {
-        shooterSpeedMap.put(1.0, 2700.0);
-        shooterSpeedMap.put(2.0, 2865.0); // Untested
-        shooterSpeedMap.put(3.0, 3050.0);
-        shooterSpeedMap.put(4.5, 3250.0); // Untested
-        shooterSpeedMap.put(6.5, 4100.0);
+        // Keys: distance in meters; values: wheel surface velocity in ft/s (converted from RPM with 4" wheel)
+        shooterSpeedMap.put(1.0, 47.0); // 2700 RPM
+        shooterSpeedMap.put(2.0, 50.0); // 2865 RPM — Untested
+        shooterSpeedMap.put(3.0, 53.0); // 3050 RPM
+        shooterSpeedMap.put(4.5, 57.0); // 3250 RPM — Untested
+        shooterSpeedMap.put(6.5, 72.0); // 4100 RPM
     }
 
     public double calculateShooterFeedForward() {
@@ -191,7 +193,7 @@ public class ShooterOrca extends SubsystemBase {
         // so the FF matches what the PID is currently tracking.
         double ff = calculateShooterFeedForward();
 
-        if (Math.abs(shooterVelocity) > 200) {
+        if (Math.abs(shooterVelocity) > 3.0) { // ~200 RPM with 4" wheel
             shooterPrimaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
             shooterSecondaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
             shooterTertiaryPIDController.setSetpoint(shooterVelocity, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
@@ -243,7 +245,7 @@ public class ShooterOrca extends SubsystemBase {
         }
         if (!shooterReadyLatch) {
             shooterReadyLatch = shooterVelocity >= shooterVelocityTarget
-                && Math.abs(getAverageVelocity() - shooterVelocityTarget) < ShooterConstants.kReadyToleranceRPM;
+                && Math.abs(getAverageVelocity() - shooterVelocityTarget) < ShooterConstants.kReadyTolerance;
         }
         return shooterReadyLatch;
     }
@@ -253,12 +255,12 @@ public class ShooterOrca extends SubsystemBase {
         shooterVelocityTarget = shooterSpeedMap.get(distanceToHub) * 1.0;
     }
 
-    /** @return Primary encoder velocity in RPM (instantaneous) */
+    /** @return Primary encoder velocity in ft/s (instantaneous) */
     public double getShooterVelocity() {
         return primaryEncoder.getVelocity();
     }
 
-    /** @return 160ms rolling average of primary encoder velocity in RPM */
+    /** @return 160ms rolling average of primary encoder velocity in ft/s */
     public double getAverageVelocity() {
         return velocityBufferSum / ShooterConstants.kVelocityAvgSamples;
     }
@@ -306,15 +308,15 @@ public class ShooterOrca extends SubsystemBase {
     @Override
     public void initSendable(SendableBuilder builder) {
         super.initSendable(builder);
-        builder.addDoubleProperty("Left RPM",   () -> primaryEncoder.getVelocity(),   null);
-        builder.addDoubleProperty("Middle RPM", () -> secondaryEncoder.getVelocity(), null);
-        builder.addDoubleProperty("Right RPM",  () -> tertiaryEncoder.getVelocity(),  null);
+        builder.addDoubleProperty("Left ft/s",   () -> primaryEncoder.getVelocity(),   null);
+        builder.addDoubleProperty("Middle ft/s", () -> secondaryEncoder.getVelocity(), null);
+        builder.addDoubleProperty("Right ft/s",  () -> tertiaryEncoder.getVelocity(),  null);
         builder.addDoubleProperty("Left Current",   () -> shooterPrimaryMotor.getOutputCurrent(),   null);
         builder.addDoubleProperty("Middle Current", () -> shooterSecondaryMotor.getOutputCurrent(), null);
         builder.addDoubleProperty("Right Current",  () -> shooterTertiaryMotor.getOutputCurrent(),  null);
-        builder.addDoubleProperty("Target RPM",   () -> shooterVelocityTarget, null);
-        builder.addDoubleProperty("Ramped RPM",   () -> shooterVelocity,       null);
-        builder.addDoubleProperty("Avg RPM",      () -> getAverageVelocity(),  null);
+        builder.addDoubleProperty("Target ft/s",   () -> shooterVelocityTarget, null);
+        builder.addDoubleProperty("Ramped ft/s",   () -> shooterVelocity,       null);
+        builder.addDoubleProperty("Avg ft/s",      () -> getAverageVelocity(),  null);
         builder.addBooleanProperty("Ready",       () -> isShooterReady(),      null);
         builder.addStringProperty("Command",
             () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "none", null);
@@ -359,8 +361,8 @@ public class ShooterOrca extends SubsystemBase {
                     && GameData.isHubActiveExpanded(5.0)
                     && Landmarks.isInScoringZone(m_swerveSubsystem.getPose())) {
                 double distanceToHub = m_swerveSubsystem.getDistanceToHub();
-                double mapRPM = shooterSpeedMap.get(distanceToHub);
-                shooterVelocityTarget = mapRPM * Constants.ShooterConstants.kPreSpinFraction;
+                double mapSpeed = shooterSpeedMap.get(distanceToHub);
+                shooterVelocityTarget = mapSpeed * Constants.ShooterConstants.kPreSpinFraction;
             } else {
                 shooterVelocityTarget = 0;
             }
@@ -376,15 +378,15 @@ public class ShooterOrca extends SubsystemBase {
     }
 
     public Command spinUpCommand() {
-        return startEnd(() -> setShooterTarget(5000), () -> stop());
+        return startEnd(() -> setShooterTarget(Speed.SHOOT.metersPerSecond), () -> stop());
     }
 
     public Command spinUpCommand(Speed speed) {
-        return startEnd(() -> setShooterTarget(speed.rpm), () -> stop());
+        return startEnd(() -> setShooterTarget(speed.metersPerSecond), () -> stop());
     }
 
     public Command dashboardSpinUpCommand() {
-        return runOnce(() -> setShooterTarget(5000));
+        return runOnce(() -> setShooterTarget(Speed.SHOOT.metersPerSecond));
     }
 
     /**
@@ -396,13 +398,13 @@ public class ShooterOrca extends SubsystemBase {
     }
 
     /**
-     * Like {@link #spinUpMapCommand()}, but adds a fixed RPM offset on top of the map value.
+     * Like {@link #spinUpMapCommand()}, but adds a fixed speed offset (ft/s) on top of the map value.
      * Useful for auto routines that need slightly more speed than the standard map.
      */
-    public Command spinUpMapCommand(double rpmOffset) {
+    public Command spinUpMapCommand(double speedOffset) {
         return runEnd(() -> {
             double distanceToHub = m_swerveSubsystem.getDistanceToHub();
-            shooterVelocityTarget = shooterSpeedMap.get(distanceToHub) + rpmOffset;
+            shooterVelocityTarget = shooterSpeedMap.get(distanceToHub) + speedOffset;
         }, () -> stop());
     }
 

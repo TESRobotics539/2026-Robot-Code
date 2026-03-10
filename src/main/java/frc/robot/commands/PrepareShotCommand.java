@@ -27,16 +27,17 @@ public class PrepareShotCommand extends Command {
         (startValue, endValue, t) ->
             new Shot(
                 Interpolator.forDouble()
-                    .interpolate(startValue.shooterRPM, endValue.shooterRPM, t),
+                    .interpolate(startValue.shooterSpeed, endValue.shooterSpeed, t),
                 Interpolator.forDouble()
                     .interpolate(startValue.hoodPosition, endValue.hoodPosition, t)
             )
     );
 
     static {
-        distanceToShotMap.put(Inches.of(52.0), new Shot(2800, 0.19));
-        distanceToShotMap.put(Inches.of(114.4), new Shot(3275, 0.40));
-        distanceToShotMap.put(Inches.of(165.5), new Shot(3650, 0.48));
+        // Shooter speeds in ft/s (converted from RPM with 4" wheel)
+        distanceToShotMap.put(Inches.of(52.0),  new Shot(49.0, 0.19)); // 2800 RPM
+        distanceToShotMap.put(Inches.of(114.4), new Shot(57.0, 0.40)); // 3275 RPM
+        distanceToShotMap.put(Inches.of(165.5), new Shot(64.0, 0.48)); // 3650 RPM
     }
 
     private final ShooterOrca shooter;
@@ -68,7 +69,7 @@ public class PrepareShotCommand extends Command {
     public void execute() {
         final Distance distanceToHub = getDistanceToHub();
         final Shot shot = distanceToShotMap.get(distanceToHub);
-        shooter.setShooterTarget(shot.shooterRPM);
+        shooter.setShooterTarget(shot.shooterSpeed);
         //hood.setPosition(shot.hoodPosition);
         SmartDashboard.putNumber("Distance to Hub (inches)", distanceToHub.in(Inches));
     }
@@ -84,11 +85,11 @@ public class PrepareShotCommand extends Command {
     }
 
     public static class Shot {
-        public final double shooterRPM;
+        public final double shooterSpeed; // m/s
         public final double hoodPosition;
 
-        public Shot(double shooterRPM, double hoodPosition) {
-            this.shooterRPM = shooterRPM;
+        public Shot(double shooterSpeed, double hoodPosition) {
+            this.shooterSpeed = shooterSpeed;
             this.hoodPosition = hoodPosition;
         }
     }

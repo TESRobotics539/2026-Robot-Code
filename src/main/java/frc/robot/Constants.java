@@ -70,11 +70,11 @@ public final class Constants {
     /** Delay before floor motor starts feeding, so the feeder gets the fuel first. */
     public static final double kFloorFeedDelaySeconds = 0.25;
 
-    /** Fraction of the distance-based map RPM to hold during pre-spin (0.0–1.0). */
+    /** Fraction of the distance-based map speed to hold during pre-spin (0.0–1.0). */
     public static final double kPreSpinFraction = 0.60;
 
-    /** Flywheel speed for the close-range dump shot (RPM). */
-    public static final double kDumpShotFlywheelRPM = 1850;
+    /** Flywheel speed for the close-range dump shot (ft/s, converted from 1850 RPM with 4" wheel). */
+    public static final double kDumpShotFlywheelSpeed = 32.0;
   }
 
   // ── Hanger ────────────────────────────────────────────────────────────────

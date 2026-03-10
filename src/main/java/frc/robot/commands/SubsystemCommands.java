@@ -101,17 +101,17 @@ public final class SubsystemCommands {
     }
 
     public Command autoShoot() {
-        return aimAndFire(longFeed(), 150).withTimeout(4.0);
+        return aimAndFire(longFeed(), 3).withTimeout(4.0); // ~150 RPM offset with 4" wheel
     }
 
     private Command aimAndFire(Command feedCommand) {
         return aimAndFire(feedCommand, 0);
     }
 
-    private Command aimAndFire(Command feedCommand, double shooterRpmOffset) {
+    private Command aimAndFire(Command feedCommand, double shooterSpeedOffset) {
         AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
         return Commands.parallel(
-            shooter.spinUpMapCommand(shooterRpmOffset),
+            shooter.spinUpMapCommand(shooterSpeedOffset),
             aimCommand,
             Commands.waitUntil(() -> shooter.isShooterReady() && aimCommand.isAimed())
                 .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)

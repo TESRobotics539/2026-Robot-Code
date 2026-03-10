@@ -100,7 +100,7 @@
 //         depotToShootingPose.active().whileTrue(limelight.idle());
 //         depotToShootingPose.atTime(0.5).onTrue(
 //             Commands.parallel(
-//                 shooter.spinUpCommand(2600),
+//                 shooter.spinUpCommand(45),  // 2600 RPM with 4" wheel
 //                 hood.positionCommand(0.32)
 //             )
 //         );

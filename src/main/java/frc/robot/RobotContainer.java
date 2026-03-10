@@ -186,7 +186,7 @@ public class RobotContainer
             ));
         driverXbox.x().whileTrue(
             Commands.parallel(
-                shooter.startEnd(() -> shooter.setShooterTarget(Constants.ShooterConstants.kDumpShotFlywheelRPM), () -> shooter.stop()),
+                shooter.startEnd(() -> shooter.setShooterTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), () -> shooter.stop()),
                 Commands.waitUntil(shooter::isShooterReady)
                     .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
                     .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
