@@ -9,15 +9,17 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
 //import frc.robot.subsystems.Hood;
-import frc.robot.subsystems.ShooterOrca;
+//import frc.robot.subsystems.ShooterOrca; // deprecated — replaced by UltraShooter
 import frc.robot.subsystems.Swerve;
+import frc.robot.subsystems.UltraShooter;
 
 public final class SubsystemCommands {
     private final Swerve swerve;
     //private final Intake intake;
     private final Floor floor;
     private final Feeder feeder;
-    private final ShooterOrca shooter;
+    //private final ShooterOrca shooter; // deprecated
+    private final UltraShooter ultraShooter;
     //private final Hood hood;
     //private final Hanger hanger;
 
@@ -29,7 +31,8 @@ public final class SubsystemCommands {
         //Intake intake,
         Floor floor,
         Feeder feeder,
-        ShooterOrca shooter,
+        //ShooterOrca shooter, // deprecated
+        UltraShooter ultraShooter,
         //Hood hood,
         //Hanger hanger,
         DoubleSupplier forwardInput,
@@ -39,7 +42,8 @@ public final class SubsystemCommands {
         //this.intake = intake;
         this.floor = floor;
         this.feeder = feeder;
-        this.shooter = shooter;
+        //this.shooter = shooter; // deprecated
+        this.ultraShooter = ultraShooter;
         //this.hood = hood;
         //this.hanger = hanger;
 
@@ -52,7 +56,8 @@ public final class SubsystemCommands {
         //Intake intake,
         Floor floor,
         Feeder feeder,
-        ShooterOrca shooter
+        //ShooterOrca shooter, // deprecated
+        UltraShooter ultraShooter
         //Hood hood
         //Hanger hanger
     ) {
@@ -61,7 +66,8 @@ public final class SubsystemCommands {
             //intake,
             floor,
             feeder,
-            shooter,
+            //shooter, // deprecated
+            ultraShooter,
             //hood,
             //hanger,
             () -> 0,
@@ -83,9 +89,9 @@ public final class SubsystemCommands {
     }
 
     public Command shootManually() {
-        return shooter.dashboardSpinUpCommand()
+        return ultraShooter.spinUpPhysicsCommand()
             .andThen(feed())
-            .handleInterrupt(() -> shooter.stop());
+            .handleInterrupt(ultraShooter::stop);
     }
 
     public Command shootMap() {
@@ -95,25 +101,28 @@ public final class SubsystemCommands {
     /** Holds flywheel speed and continues aiming at the hub for the given duration, then stops both. */
     public Command holdAimAndSpeedCommand(double seconds) {
         return Commands.parallel(
-            shooter.holdSpeedCommand(seconds),
+            ultraShooter.holdSpeedCommand(seconds),
             new AimAndDriveCommand(swerve, forwardInput, leftInput)
         ).withTimeout(seconds);
     }
 
     public Command autoShoot() {
-        return aimAndFire(longFeed(), 3).withTimeout(4.0); // ~150 RPM offset with 4" wheel
+        AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
+        return Commands.parallel(
+            ultraShooter.spinUpPhysicsCommand(),
+            aimCommand,
+            Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
+                .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
+                .andThen(longFeed())
+        ).withTimeout(4.0);
     }
 
     private Command aimAndFire(Command feedCommand) {
-        return aimAndFire(feedCommand, 0);
-    }
-
-    private Command aimAndFire(Command feedCommand, double shooterSpeedOffset) {
         AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
         return Commands.parallel(
-            shooter.spinUpMapCommand(shooterSpeedOffset),
+            ultraShooter.spinUpPhysicsCommand(),
             aimCommand,
-            Commands.waitUntil(() -> shooter.isShooterReady() && aimCommand.isAimed())
+            Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
                 .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
                 .andThen(feedCommand)
         );

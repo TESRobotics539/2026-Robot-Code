@@ -29,8 +29,9 @@ import frc.robot.subsystems.Floor;
 import frc.robot.subsystems.Hanger;
 //import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.Limelight;
-import frc.robot.subsystems.ShooterOrca;
+//import frc.robot.subsystems.ShooterOrca; // deprecated — replaced by UltraShooter
 import frc.robot.subsystems.Swerve;
+import frc.robot.subsystems.UltraShooter;
 
 import java.io.File;
 
@@ -53,11 +54,12 @@ public class RobotContainer
     private final Limelight limelight = new Limelight("limelight-front");
     private final Field2d field = new Field2d();
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
-    private final ShooterOrca shooter = new ShooterOrca(drivebase);
+    //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
+    private final UltraShooter ultraShooter = new UltraShooter(drivebase);
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
     {
-        shooter.setDefaultCommand(shooter.preSpinCommand(intake::hasPickedUpFuel));
+        ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand(intake::hasPickedUpFuel));
     }
 
     // private final Pivot pivot = new Pivot();
@@ -81,7 +83,8 @@ public class RobotContainer
         //intake,
         floor,
         feeder,
-        shooter,
+        //shooter, // deprecated
+        ultraShooter,
         //hood,
         //hanger,
         () -> -driverXbox.getLeftY(),
@@ -174,9 +177,9 @@ public class RobotContainer
             }, Set.of(intake)));
         driverXbox.rightBumper().whileTrue(
             Commands.parallel(
-                shooter.spinUpMapCommand(),
+                ultraShooter.spinUpPhysicsCommand(),
                 intake.agitateCommand(),
-                Commands.waitUntil(shooter::isShooterReady)
+                Commands.waitUntil(ultraShooter::isReady)
                     .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
                     .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
                     .andThen(Commands.parallel(
@@ -186,8 +189,8 @@ public class RobotContainer
             ));
         driverXbox.x().whileTrue(
             Commands.parallel(
-                shooter.startEnd(() -> shooter.setShooterTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), () -> shooter.stop()),
-                Commands.waitUntil(shooter::isShooterReady)
+                ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
+                Commands.waitUntil(ultraShooter::isReady)
                     .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
                     .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
                     .andThen(Commands.parallel(
@@ -230,7 +233,7 @@ public class RobotContainer
       driverXbox.y().onTrue(hanger.autoClimbCommand());
       driverXbox.y()
           .and(() -> DriverStation.isTeleop() && DriverStation.getMatchTime() <= 30)
-          .onTrue(shooter.spinDownCommand());
+          .onTrue(ultraShooter.spinDownCommand());
       // driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
       // driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
     }
