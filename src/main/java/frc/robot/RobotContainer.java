@@ -306,10 +306,16 @@ public class RobotContainer
             int bumpVotes = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
             boolean overBump = bumpVotes >= 2;
 
+            // Pigeon 2 orientation — forwarded to both Limelights so MegaTag2 can compensate
+            // for camera tilt during bump traversal and correct for dynamic yaw rotation.
+            double pitchDeg     = drivebase.getPitchDegrees();
+            double rollDeg      = drivebase.getRollDegrees();
+            double yawRateDegPS = drivebase.getYawRateDegPerSec();
+
             // Request measurements from both Limelights (each call also sends SetRobotOrientation
             // so MegaTag2 keeps a fresh heading even for the camera that isn't chosen).
-            var frontMeasurement = limelight.getMeasurement(currentRobotPose);
-            var rearMeasurement  = limelightRear.getMeasurement(currentRobotPose);
+            var frontMeasurement = limelight.getMeasurement(currentRobotPose, pitchDeg, rollDeg, yawRateDegPS);
+            var rearMeasurement  = limelightRear.getMeasurement(currentRobotPose, pitchDeg, rollDeg, yawRateDegPS);
 
             // Confidence = avgTagArea × tagCount. Larger tag area means the robot is closer to
             // the tags and the projection error is smaller; more tags further reduce ambiguity.

@@ -575,6 +575,27 @@ public class Swerve extends SubsystemBase
     return swerveDrive.getPitch();
   }
 
+  /** Returns Pigeon 2 pitch in degrees. Positive = nose up. */
+  public double getPitchDegrees()
+  {
+    return pigeon2.getPitch().getValueAsDouble();
+  }
+
+  /** Returns Pigeon 2 roll in degrees. Positive = left side up. */
+  public double getRollDegrees()
+  {
+    return pigeon2.getRoll().getValueAsDouble();
+  }
+
+  /**
+   * Returns the robot yaw rate in degrees per second from the Pigeon 2.
+   * Positive = counter-clockwise when viewed from above.
+   */
+  public double getYawRateDegPerSec()
+  {
+    return pigeon2.getAngularVelocityZWorld().getValueAsDouble();
+  }
+
   /**
    * Gets the swerve drive object.
    *

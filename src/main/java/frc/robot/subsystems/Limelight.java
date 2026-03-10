@@ -52,8 +52,21 @@ public class Limelight extends SubsystemBase {
         imuAccelZPub.set(lastImu.accelZ);
     }
 
-    public Optional<Measurement> getMeasurement(Pose2d currentRobotPose) {
-        LimelightHelpers.SetRobotOrientation(name, currentRobotPose.getRotation().getDegrees(), 0, 0, 0, 0, 0);
+    /**
+     * Fetch a pose estimate from this Limelight.
+     *
+     * <p>Pitch, roll, and yaw rate are forwarded to {@code SetRobotOrientation} so MegaTag2 can
+     * compensate for camera tilt (e.g. when traversing the bump) and dynamic rotation.
+     * All angle parameters are in degrees; yawRate is degrees per second.
+     */
+    public Optional<Measurement> getMeasurement(
+            Pose2d currentRobotPose, double pitchDeg, double rollDeg, double yawRateDegPerSec) {
+        LimelightHelpers.SetRobotOrientation(
+            name,
+            currentRobotPose.getRotation().getDegrees(), yawRateDegPerSec,
+            pitchDeg, 0,
+            rollDeg, 0
+        );
 
         final PoseEstimate poseEstimate_MegaTag1 = LimelightHelpers.getBotPoseEstimate_wpiBlue(name);
         final PoseEstimate poseEstimate_MegaTag2 = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(name);
