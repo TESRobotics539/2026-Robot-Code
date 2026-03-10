@@ -10,7 +10,7 @@ import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructPublisher;
-import edu.wpi.first.util.struct.Struct;
+import edu.wpi.first.networktables.DoublePublisher;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.LimelightHelpers;
 import frc.robot.LimelightHelpers.PoseEstimate;
@@ -21,13 +21,35 @@ public class Limelight extends SubsystemBase {
     private final NetworkTable telemetryTable;
     private final StructPublisher<Pose2d> posePublisher;
 
+    // IMU telemetry publishers — visible in Elastic under SmartDashboard/<name>/
+    private final DoublePublisher imuPitchPub;
+    private final DoublePublisher imuYawPub;
+    private final DoublePublisher imuRollPub;
+    private final DoublePublisher imuAccelZPub;
+
+    // Cached last IMU reading — updated once per periodic() to avoid redundant NT calls.
+    private LimelightHelpers.IMUData lastImu = new LimelightHelpers.IMUData();
 
     public Limelight(String name) {
         this.name = name;
         this.telemetryTable = NetworkTableInstance.getDefault().getTable("SmartDashboard/" + name);
         this.posePublisher = telemetryTable.getStructTopic("Estimated Robot Pose", Pose2d.struct).publish();
 
+        imuPitchPub  = telemetryTable.getDoubleTopic("IMU Pitch (deg)").publish();
+        imuYawPub    = telemetryTable.getDoubleTopic("IMU Yaw (deg)").publish();
+        imuRollPub   = telemetryTable.getDoubleTopic("IMU Roll (deg)").publish();
+        imuAccelZPub = telemetryTable.getDoubleTopic("IMU Accel Z (g)").publish();
+
         LimelightHelpers.SetIMUMode(name, 4);
+    }
+
+    @Override
+    public void periodic() {
+        lastImu = LimelightHelpers.getIMUData(name);
+        imuPitchPub.set(lastImu.Pitch);
+        imuYawPub.set(lastImu.Yaw);
+        imuRollPub.set(lastImu.Roll);
+        imuAccelZPub.set(lastImu.accelZ);
     }
 
     public Optional<Measurement> getMeasurement(Pose2d currentRobotPose) {
@@ -97,6 +119,11 @@ public class Limelight extends SubsystemBase {
         return stddevs[5];
     }
 
+
+    /** Returns the cached accelerometer Z-axis reading (g) from the last periodic() call. */
+    public double getAccelZ() {
+        return lastImu.accelZ;
+    }
 
     public boolean getTV() {
         return LimelightHelpers.getTV(name);

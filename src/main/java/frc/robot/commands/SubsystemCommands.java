@@ -75,19 +75,6 @@ public final class SubsystemCommands {
         );
     }
 
-    public Command aimAndShoot() {
-        final AimAndDriveCommand aimAndDriveCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
-        final PrepareShotCommand prepareShotCommand = new PrepareShotCommand(shooter, () -> swerve.getPose());
-        // deadline() ends the whole group (and cancels aim/prepare) once the feed sequence completes.
-        return Commands.deadline(
-            Commands.waitUntil(() -> aimAndDriveCommand.isAimed() && prepareShotCommand.isReadyToShoot())
-                .andThen(feed()),
-            aimAndDriveCommand,
-            Commands.waitSeconds(0.25)
-                .andThen(prepareShotCommand)
-        );
-    }
-
     public Command shootManually() {
         return ultraShooter.spinUpPhysicsCommand()
             .andThen(feed())

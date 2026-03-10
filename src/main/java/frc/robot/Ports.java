@@ -1,6 +1,10 @@
 package frc.robot;
 
 public final class Ports {
+    // Limelight hostnames (set on each camera's web interface)
+    public static final String kLimelightFront = "limelight-front";
+    public static final String kLimelightRear  = "limelight-rear";
+
     // Motor IDs
     public static final int kIntakePivot = 59;
     public static final int kIntakeRollers = 58;

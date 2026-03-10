@@ -23,6 +23,8 @@ import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 
+import com.ctre.phoenix6.hardware.Pigeon2;
+
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
@@ -30,6 +32,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Config;
 import frc.robot.Constants;
+import frc.util.LowPassFilter;
 
 import java.io.File;
 import java.util.Arrays;
@@ -60,6 +63,12 @@ public class Swerve extends SubsystemBase
   private final SwerveAbsoluteEncoder absoluteEncoder_br;
 
   private final Field2d field;
+
+  // Pigeon 2 accelerometer filtering — rejects transient spikes from bump traversal.
+  private final Pigeon2 pigeon2 = new Pigeon2(62, "rio");
+  private final LowPassFilter accelXFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
+  private final LowPassFilter accelYFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
+  private final LowPassFilter accelZFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
 
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
@@ -167,6 +176,21 @@ public class Swerve extends SubsystemBase
     telemetryTable.getEntry("Module BR Absolute Angle").setNumber(absoluteEncoder_br.getAbsolutePosition());
     telemetryTable.getEntry("Module BR Relative Angle").setNumber(swerveDrive.getModules()[3].getState().angle.getDegrees());
     telemetryTable.getEntry("Module BR Drift").setNumber(absoluteEncoder_br.getAbsolutePosition() - swerveDrive.getModules()[3].getState().angle.getDegrees());
+
+    // Filtered Pigeon 2 accelerometer — bump spikes are smoothed out.
+    double rawX = pigeon2.getAccelerationX().getValueAsDouble();
+    double rawY = pigeon2.getAccelerationY().getValueAsDouble();
+    double rawZ = pigeon2.getAccelerationZ().getValueAsDouble();
+    double filtX = accelXFilter.calculate(rawX);
+    double filtY = accelYFilter.calculate(rawY);
+    double filtZ = accelZFilter.calculate(rawZ);
+
+    telemetryTable.getEntry("Accel X Raw (g)").setNumber(rawX);
+    telemetryTable.getEntry("Accel Y Raw (g)").setNumber(rawY);
+    telemetryTable.getEntry("Accel Z Raw (g)").setNumber(rawZ);
+    telemetryTable.getEntry("Accel X Filtered (g)").setNumber(filtX);
+    telemetryTable.getEntry("Accel Y Filtered (g)").setNumber(filtY);
+    telemetryTable.getEntry("Accel Z Filtered (g)").setNumber(filtZ);
   }
 
   @Override
@@ -580,6 +604,26 @@ public class Swerve extends SubsystemBase
    */
   public void addVisionMeasurement(Pose2d visionPose, double timestamp) {
       swerveDrive.addVisionMeasurement(visionPose, timestamp);
+  }
+
+  /**
+   * Returns the latest low-pass-filtered Pigeon 2 Z-axis acceleration (g).
+   * Used by external callers (e.g. RobotContainer) for bump consensus with the Limelight IMU.
+   */
+  public double getFilteredAccelZ() {
+    return accelZFilter.get();
+  }
+
+  /**
+   * Returns true when the Pigeon 2 alone indicates the robot is traversing the bump.
+   * Checks both pitch angle and filtered Z-acceleration deviation from 1 g.
+   * For higher-confidence bump detection, also check the Limelight accelerometer externally.
+   */
+  public boolean isOverBump() {
+    double pitchDeg = Math.abs(swerveDrive.getPitch().getDegrees());
+    double zDeviation = Math.abs(accelZFilter.get() - 1.0);
+    return pitchDeg > Constants.BumpDetectionConstants.kBumpPitchThresholdDegrees
+        || zDeviation > Constants.BumpDetectionConstants.kBumpAccelZDeviationThreshold;
   }
 
   public double getDistanceToHub() {

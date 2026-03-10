@@ -22,7 +22,9 @@ import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
+import frc.robot.subsystems.BallVision;
 import frc.robot.subsystems.BlinkinLed;
+import frc.robot.subsystems.PiAprilTagVision;
 import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
@@ -45,13 +47,16 @@ import swervelib.SwerveInputStream;
 public class RobotContainer
 {
     private final BlinkinLed blinkinLed = new BlinkinLed();
+    private final BallVision       ballVision    = new BallVision();
+    private final PiAprilTagVision piAprilTag    = new PiAprilTagVision();
 
     private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
     //private final Hood hood = new Hood();
     private final Hanger hanger = new Hanger();
-    private final Limelight limelight = new Limelight("limelight-front");
+    private final Limelight limelight     = new Limelight(Ports.kLimelightFront);
+    private final Limelight limelightRear = new Limelight(Ports.kLimelightRear);
     private final Field2d field = new Field2d();
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
     //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
@@ -254,7 +259,7 @@ public class RobotContainer
 
     private void configureNamedCommands() {
       NamedCommands.registerCommand("Shoot Command", subsystemCommands.shootMap().withTimeout(5.0));
-      NamedCommands.registerCommand("Auto Shoot", subsystemCommands.autoShoot().andThen(shooter.spinDownCommand()));
+      NamedCommands.registerCommand("Auto Shoot", subsystemCommands.autoShoot().andThen(ultraShooter.spinDownCommand()));
       NamedCommands.registerCommand("Climber Toggle Command", hanger.toggleCommand());
       NamedCommands.registerCommand("Climber Down and Hold", hanger.autoClimbCommand());
     }
@@ -289,11 +294,66 @@ public class RobotContainer
     private Command updateVisionCommand() {
         return Commands.run(() -> {
             final Pose2d currentRobotPose = drivebase.getPose();
-            limelight.getMeasurement(currentRobotPose).ifPresent(m -> drivebase.addVisionMeasurement(
-                m.poseEstimate.pose,
-                m.poseEstimate.timestampSeconds,
-                m.standardDeviations
-            ));
-        }, limelight).ignoringDisable(true);
+
+            // 2-of-3 majority vote across three independent sensors at different robot locations.
+            // Requires at least two to agree before inflating stddevs, avoiding false positives
+            // from single-sensor vibration or noise.
+            boolean pigeonOverBump = drivebase.isOverBump();
+            boolean frontOverBump  = Math.abs(limelight.getAccelZ() - 1.0)
+                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
+            boolean rearOverBump   = Math.abs(limelightRear.getAccelZ() - 1.0)
+                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
+            int bumpVotes = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
+            boolean overBump = bumpVotes >= 2;
+
+            // Request measurements from both Limelights (each call also sends SetRobotOrientation
+            // so MegaTag2 keeps a fresh heading even for the camera that isn't chosen).
+            var frontMeasurement = limelight.getMeasurement(currentRobotPose);
+            var rearMeasurement  = limelightRear.getMeasurement(currentRobotPose);
+
+            // Confidence = avgTagArea × tagCount. Larger tag area means the robot is closer to
+            // the tags and the projection error is smaller; more tags further reduce ambiguity.
+            double frontConf = frontMeasurement.map(
+                m -> m.avgTagArea * m.poseEstimate.tagCount).orElse(0.0);
+            double rearConf  = rearMeasurement.map(
+                m -> m.avgTagArea * m.poseEstimate.tagCount).orElse(0.0);
+
+            // Publish for Elastic so drivers can verify which camera is active.
+            String activeSource;
+            var bestMeasurement = frontMeasurement.isEmpty() && rearMeasurement.isEmpty()
+                ? java.util.Optional.<frc.robot.subsystems.Limelight.Measurement>empty()
+                : (frontConf >= rearConf ? frontMeasurement : rearMeasurement);
+            if (frontMeasurement.isEmpty() && rearMeasurement.isEmpty()) {
+                activeSource = "none";
+            } else if (frontConf >= rearConf && frontMeasurement.isPresent()) {
+                activeSource = "front (" + String.format("%.3f", frontConf) + ")";
+            } else {
+                activeSource = "rear (" + String.format("%.3f", rearConf) + ")";
+            }
+            SmartDashboard.putString("Vision/Active Source", activeSource);
+            SmartDashboard.putNumber("Vision/Front Confidence", frontConf);
+            SmartDashboard.putNumber("Vision/Rear Confidence",  rearConf);
+
+            if (bestMeasurement.isPresent()) {
+                var m = bestMeasurement.get();
+                // While over the bump the cameras are tilted — inflate stddevs so the
+                // pose estimator heavily discounts this measurement.
+                var stdDevs = overBump
+                    ? m.standardDeviations.times(Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier)
+                    : m.standardDeviations;
+                drivebase.addVisionMeasurement(
+                    m.poseEstimate.pose,
+                    m.poseEstimate.timestampSeconds,
+                    stdDevs
+                );
+            } else if (!overBump) {
+                // Fallback: Pi AprilTag camera — skip entirely during confirmed bumps.
+                piAprilTag.getMeasurement().ifPresent(m -> drivebase.addVisionMeasurement(
+                    m.pose,
+                    m.timestampSeconds,
+                    m.standardDeviations
+                ));
+            }
+        }, limelight, limelightRear, piAprilTag).ignoringDisable(true);
     }
 }

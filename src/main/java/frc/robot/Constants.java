@@ -170,6 +170,41 @@ public final class Constants {
     public static final double kFarShotOffsetPercent  = 0.0; // tune me
   }
 
+  // ── Drivetrain IMU / Bump Detection ───────────────────────────────────────
+  public static class BumpDetectionConstants {
+    /**
+     * Low-pass filter alpha for Pigeon 2 accelerometer axes.
+     * Range [0, 1]: lower = heavier filtering (more bump rejection), higher = faster response.
+     */
+    public static final double kAccelFilterAlpha = 0.15;
+
+    /**
+     * Robot pitch (degrees) above which a bump is considered in progress.
+     * The Pigeon 2 reports positive pitch as nose-up.
+     */
+    public static final double kBumpPitchThresholdDegrees = 8.0;
+
+    /**
+     * Deviation from 1 g on the Pigeon 2 Z-axis (g) that indicates a bump.
+     * Normal flat-ground reading is ~1 g; bumps cause it to spike significantly.
+     */
+    public static final double kBumpAccelZDeviationThreshold = 0.25;
+
+    /**
+     * Deviation from 1 g on the Limelight Z-axis accelerometer (g) used to
+     * confirm the bump independently. Both sensors must agree before vision
+     * measurements are rejected.
+     */
+    public static final double kLimelightAccelZDeviationThreshold = 0.25;
+
+    /**
+     * Standard-deviation multiplier applied to vision measurements while a
+     * confirmed bump is in progress. Effectively tells the pose estimator to
+     * trust vision far less until the robot is level again.
+     */
+    public static final double kBumpVisionStdDevMultiplier = 10.0;
+  }
+
   // ── Hood ──────────────────────────────────────────────────────────────────
   public static class HoodConstants {
     /** Minimum servo position (0.0–1.0) — prevents over-retraction. */

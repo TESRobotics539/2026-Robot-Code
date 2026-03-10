@@ -116,6 +116,23 @@ public class UltraShooter extends SubsystemBase {
     private final NetworkTableEntry   ntPrimCur    = nt.getEntry("Primary Current");
     private final NetworkTableEntry   ntSecCur     = nt.getEntry("Secondary Current");
 
+    // ── Pi co-processor integration ───────────────────────────────────────────
+    // physics_coprocessor.py (on WPILibPi) publishes raw physics velocity and a
+    // heartbeat counter every 20 ms.  We prefer the Pi result when the heartbeat
+    // has changed within the last 25 cycles (500 ms); otherwise we fall back to
+    // the local calculateRequiredVelocityFPS() call transparently.
+
+    private final NetworkTableEntry   ntPiPhysics  = nt.getEntry("Pi Physics Velocity ft/s");
+    private final NetworkTableEntry   ntPiHB       = nt.getEntry("Pi Heartbeat");
+    private final NetworkTableEntry   ntPiActive   = nt.getEntry("Pi Active");
+
+    /** Last heartbeat counter seen from the Pi. */
+    private long piLastHeartbeat = Long.MIN_VALUE;
+    /** Cycles since the heartbeat last changed (each cycle = 20 ms). */
+    private int  piStaleFrames   = 0;
+    /** A Pi is considered disconnected after this many stale cycles (500 ms). */
+    private static final int PI_STALE_THRESHOLD = 25;
+
     // ─────────────────────────────────────────────────────────────────────────
     // Construction
     // ─────────────────────────────────────────────────────────────────────────
@@ -230,21 +247,61 @@ public class UltraShooter extends SubsystemBase {
     // Target control
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Sets the flywheel velocity target (ft/s) and resets the ready latch if changed. */
+    /**
+     * Sets the flywheel velocity target (ft/s).
+     *
+     * <p>The ready latch is only cleared when transitioning between stopped (0) and
+     * running (non-zero). Mid-shot physics recalculations that nudge the target
+     * value will NOT clear the latch, so a flywheel that has already been confirmed
+     * ready stays ready for the duration of the shot.
+     */
     public void setTarget(double targetFPS) {
-        if (targetFPS != velocityTarget) readyLatch = false;
+        boolean wasRunning = velocityTarget != 0;
+        boolean willRun    = targetFPS      != 0;
+        if (wasRunning != willRun) readyLatch = false;
         velocityTarget = targetFPS;
     }
 
     /**
      * Updates the flywheel target using the projectile-motion calculator from the
      * 1-second averaged distance, with the fine-tune offset blended in.
+     *
+     * <p>When the Raspberry Pi co-processor ({@code physics_coprocessor.py}) is
+     * live, its pre-computed physics velocity is used instead of the local
+     * calculation.  If the Pi heartbeat goes stale for more than 500 ms the
+     * fallback is automatic and transparent.
      */
     public void setPhysicsTarget() {
-        final double distance = getAverageDistanceToHub();
-        final double physicsSpeed = calculateRequiredVelocityFPS(distance);
+        final double distance       = getAverageDistanceToHub();
         final double offsetFraction = interpolateOffsetFraction(distance);
+
+        final double physicsSpeed;
+        if (isPiResultFresh()) {
+            physicsSpeed = ntPiPhysics.getDouble(0.0);
+        } else {
+            physicsSpeed = calculateRequiredVelocityFPS(distance);
+        }
+
         setTarget(physicsSpeed * (1.0 + offsetFraction));
+    }
+
+    /**
+     * Returns true when the Pi co-processor heartbeat has updated within the
+     * last {@value #PI_STALE_THRESHOLD} cycles (~500 ms).
+     */
+    private boolean isPiResultFresh() {
+        return piStaleFrames < PI_STALE_THRESHOLD;
+    }
+
+    /** Called every periodic cycle to track whether the Pi heartbeat is advancing. */
+    private void updatePiStaleness() {
+        long hb = ntPiHB.getInteger(Long.MIN_VALUE);
+        if (hb != piLastHeartbeat) {
+            piLastHeartbeat = hb;
+            piStaleFrames   = 0;
+        } else {
+            piStaleFrames++;
+        }
     }
 
     public void stop() {
@@ -393,6 +450,7 @@ public class UltraShooter extends SubsystemBase {
         ntHubHeight .setDouble(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
         ntPrimCur   .setDouble(primaryMotor.getOutputCurrent());
         ntSecCur    .setDouble(secondaryMotor.getOutputCurrent());
+        ntPiActive  .setBoolean(isPiResultFresh());
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -401,6 +459,7 @@ public class UltraShooter extends SubsystemBase {
 
     @Override
     public void periodic() {
+        updatePiStaleness();
         updateDistanceBuffer();
         updateVelocityBuffer();
         rampSetpoint();
