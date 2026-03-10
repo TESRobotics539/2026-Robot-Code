@@ -99,6 +99,77 @@ public final class Constants {
     public static final double kAutoClimbReleaseSeconds = 0.3;
   }
 
+  // ── UltraShooter Physics ──────────────────────────────────────────────────
+  public static class UltraShooterConstants {
+    // ── Geometry ───────────────────────────────────────────────────────────
+
+    /**
+     * Height of the hood exit (ball launch point) above the floor (inches).
+     * Measure from the ground to the center of the shooter barrel exit.
+     */
+    public static final double kHoodHeightFromFloorInches = 27.0;
+
+    /**
+     * Height of the hub center (scoring target) above the floor (inches).
+     * Look this up from the game manual or measure on the field.
+     */
+    public static final double kHubCenterHeightFromFloorInches = 96.0; // TODO: confirm from game manual
+
+    /**
+     * Horizontal distance from the robot center to the shooter exit point,
+     * measured toward the hub (inches). Subtracted from the odometry
+     * distance so the physics model uses the true shooter-to-hub range.
+     */
+    public static final double kShooterCenterlineOffsetInches = 8.0;
+
+    /**
+     * Fixed launch angle above horizontal (degrees). With a static hood this
+     * is a constant — tune to match the actual shooter barrel angle.
+     */
+    public static final double kLaunchAngleDegrees = 75.0;
+
+    // ── Motor / PID (mirrors ShooterOrca values — adjust if hardware differs) ─
+    public static final int kSmartCurrentLimit    = 60;
+    public static final int kFreeCurrentLimit     = 40;
+    public static final int kStatorCurrentLimit   = 120;
+
+    public static final double kP = 0.003;
+    public static final double kI = 0.000;
+    public static final double kD = 0.25;
+    public static final double kS = 0.15;
+
+    /** Setpoint ramp-up rate (ft/s per 20 ms cycle). */
+    public static final double kRampUpRate   = 200.0 * (Math.PI * (4.0 / 12.0) / 60.0);
+    /** Setpoint ramp-down rate (ft/s per 20 ms cycle). */
+    public static final double kRampDownRate = 400.0 * (Math.PI * (4.0 / 12.0) / 60.0);
+
+    /** Rolling-average window for encoder noise filtering (samples at 50 Hz). */
+    public static final int kVelocityAvgSamples = 8;
+
+    /** Flywheel is "ready" within this tolerance of target (ft/s). */
+    public static final double kReadyTolerance = 100.0 * (Math.PI * (4.0 / 12.0) / 60.0);
+
+    /** Fraction of the physics-calculated speed used for pre-spin (0.0–1.0). */
+    public static final double kPreSpinFraction = 0.60;
+
+    // ── Fine-tune offsets ──────────────────────────────────────────────────
+    // Added on top of the physics-calculated flywheel speed as a percentage.
+    // The offset is linearly blended between the near (20 in) and far (120 in)
+    // reference distances. Positive = spin faster, negative = spin slower.
+    //
+    // Example: kNearShotOffsetPercent = 5.0, kFarShotOffsetPercent = 10.0
+    //   → +5 % added at 20 in
+    //   → +7.5 % added at 70 in  (midpoint)
+    //   → +10 % added at 120 in
+    // The offset is clamped — distances outside 20–120 in use the nearest value.
+
+    /** Speed offset (%) applied at the near reference distance (20 in). */
+    public static final double kNearShotOffsetPercent = 0.0; // tune me
+
+    /** Speed offset (%) applied at the far reference distance (120 in). */
+    public static final double kFarShotOffsetPercent  = 0.0; // tune me
+  }
+
   // ── Hood ──────────────────────────────────────────────────────────────────
   public static class HoodConstants {
     /** Minimum servo position (0.0–1.0) — prevents over-retraction. */

@@ -27,7 +27,7 @@ import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
 import frc.robot.subsystems.Hanger;
-import frc.robot.subsystems.Hood;
+//import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.Limelight;
 import frc.robot.subsystems.ShooterOrca;
 import frc.robot.subsystems.Swerve;
@@ -48,7 +48,7 @@ public class RobotContainer
     private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
-    private final Hood hood = new Hood();
+    //private final Hood hood = new Hood();
     private final Hanger hanger = new Hanger();
     private final Limelight limelight = new Limelight("limelight-front");
     private final Field2d field = new Field2d();
@@ -82,7 +82,7 @@ public class RobotContainer
         floor,
         feeder,
         shooter,
-        hood,
+        //hood,
         //hanger,
         () -> -driverXbox.getLeftY(),
         () -> -driverXbox.getLeftX()
@@ -132,7 +132,7 @@ public class RobotContainer
         //driverXbox.a().whileTrue(hood.positionCommand(0.15));
 
         // Hood tracking: continuously adjust position based on distance to hub
-        hood.setDefaultCommand(hood.trackHubCommand(drivebase::getPose));
+        //hood.setDefaultCommand(hood.trackHubCommand(drivebase::getPose));
 
         // At autonomous start: enforce brake mode and snapshot the current encoder position
         // as the PID target. If kStowIntakeForMatch is enabled, the pivot is locked to that
@@ -220,8 +220,8 @@ public class RobotContainer
       driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
                           .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
       // D-pad left/right → hood fully retracted / fully extended
-      driverXbox.povLeft().toggleOnTrue(hood.holdPositionCommand(Constants.HoodConstants.kMinPosition));
-      driverXbox.povRight().toggleOnTrue(hood.holdPositionCommand(Constants.HoodConstants.kMaxPosition));
+      //driverXbox.povLeft().toggleOnTrue(hood.holdPositionCommand(Constants.HoodConstants.kMinPosition));
+      //driverXbox.povRight().toggleOnTrue(hood.holdPositionCommand(Constants.HoodConstants.kMaxPosition));
       driverXbox.a().onTrue(
           hanger.runOnce(() -> hanger.setPercentOutput(0.5))
               .andThen(Commands.waitSeconds(0.33))

@@ -16,7 +16,7 @@ import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Landmarks;
-import frc.robot.subsystems.Hood;
+//import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.ShooterOrca;
 
 public class PrepareShotCommand extends Command {
@@ -44,7 +44,7 @@ public class PrepareShotCommand extends Command {
     //private final Hood hood;
     private final Supplier<Pose2d> robotPoseSupplier;
 
-    public PrepareShotCommand(ShooterOrca shooter, Hood hood, Supplier<Pose2d> robotPoseSupplier) {
+    public PrepareShotCommand(ShooterOrca shooter, /*Hood hood,*/ Supplier<Pose2d> robotPoseSupplier) {
         this.shooter = shooter;
         //this.hood = hood;
         this.robotPoseSupplier = robotPoseSupplier;

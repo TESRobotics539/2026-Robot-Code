@@ -8,7 +8,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
-import frc.robot.subsystems.Hood;
+//import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.ShooterOrca;
 import frc.robot.subsystems.Swerve;
 
@@ -18,7 +18,7 @@ public final class SubsystemCommands {
     private final Floor floor;
     private final Feeder feeder;
     private final ShooterOrca shooter;
-    private final Hood hood;
+    //private final Hood hood;
     //private final Hanger hanger;
 
     private final DoubleSupplier forwardInput;
@@ -30,7 +30,7 @@ public final class SubsystemCommands {
         Floor floor,
         Feeder feeder,
         ShooterOrca shooter,
-        Hood hood,
+        //Hood hood,
         //Hanger hanger,
         DoubleSupplier forwardInput,
         DoubleSupplier leftInput
@@ -40,7 +40,7 @@ public final class SubsystemCommands {
         this.floor = floor;
         this.feeder = feeder;
         this.shooter = shooter;
-        this.hood = hood;
+        //this.hood = hood;
         //this.hanger = hanger;
 
         this.forwardInput = forwardInput;
@@ -52,8 +52,8 @@ public final class SubsystemCommands {
         //Intake intake,
         Floor floor,
         Feeder feeder,
-        ShooterOrca shooter,
-        Hood hood
+        ShooterOrca shooter
+        //Hood hood
         //Hanger hanger
     ) {
         this(
@@ -62,7 +62,7 @@ public final class SubsystemCommands {
             floor,
             feeder,
             shooter,
-            hood,
+            //hood,
             //hanger,
             () -> 0,
             () -> 0
@@ -71,7 +71,7 @@ public final class SubsystemCommands {
 
     public Command aimAndShoot() {
         final AimAndDriveCommand aimAndDriveCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
-        final PrepareShotCommand prepareShotCommand = new PrepareShotCommand(shooter, hood, () -> swerve.getPose());
+        final PrepareShotCommand prepareShotCommand = new PrepareShotCommand(shooter, () -> swerve.getPose());
         // deadline() ends the whole group (and cancels aim/prepare) once the feed sequence completes.
         return Commands.deadline(
             Commands.waitUntil(() -> aimAndDriveCommand.isAimed() && prepareShotCommand.isReadyToShoot())
