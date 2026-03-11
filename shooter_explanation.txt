@@ -1,0 +1,172 @@
+========================================================
+2026 ROBOT CODE - PLAIN LANGUAGE EXPLANATION
+For students explaining the code to non-experts
+========================================================
+
+
+THE SHOOTER
+===========
+
+"How does the robot know how hard to shoot?"
+---------------------------------------------
+The robot doesn't use a lookup table that says "at 10 feet, shoot at speed X."
+Instead, it solves physics equations in real time -- the same equations you'd
+use in a high school projectile motion problem.
+
+Every cycle (50 times per second), the robot:
+  1. Measures the distance to the hub using wheel odometry
+  2. Plugs that distance into a physics formula to calculate exactly how fast
+     the ball needs to leave the shooter to arc into the hub
+  3. Commands the flywheel motors to spin at that speed
+
+There are actually two versions of this calculation:
+
+  - Without air resistance (simpler, instant):
+    Uses the classic v = d x sqrt(g / ...) formula
+
+  - With air resistance (more accurate, slower):
+    Runs a 60-step binary search, simulating the ball's flight 60 times with
+    slightly different launch speeds until it finds the one that lands in the hub
+
+The drag model even uses the real physical properties of a 9.5-inch foam ball
+-- diameter, drag coefficient, and air density -- to predict how much the air
+slows it down.
+
+
+"What about when the robot is moving?"
+---------------------------------------
+Two adjustments handle movement:
+
+  1. Radial velocity compensation: If the robot is driving toward or away from
+     the hub, the ball needs less or more initial speed. The code projects the
+     robot's velocity onto the robot->hub line and subtracts it from the
+     required launch speed.
+
+  2. Aiming lead: The robot predicts how long the ball will be in the air
+     (time-of-flight), then aims at where the hub will be relative to the
+     robot's motion by that many seconds -- like leading a moving target when
+     throwing a ball.
+
+
+"How do we fine-tune it after testing?"
+-----------------------------------------
+The team can apply percentage offsets at three distances (close, mid, far), and
+the robot smoothly blends between them using parabolic interpolation -- a curve
+that passes through all three points. These offsets are stored on a Raspberry Pi
+co-processor and saved/loaded from a file, so tuning values survive power cycles.
+
+
+========================================================
+THE PHYSICS SIMULATION (VISUALIZATION)
+========================================================
+
+The robot draws a live side-view diagram of the ball's flight path on the
+dashboard -- a 140-foot-wide virtual canvas showing the robot, the hub, and
+two arcs:
+
+  - White arc: the ideal path if the flywheel were 100% efficient
+  - Red arc:   the actual predicted path with the tuning offsets applied
+
+This is calculated using Euler integration -- breaking the flight into tiny
+5-millisecond steps, updating velocity and position at each step with both
+gravity and drag. It's the same method used in game physics engines and basic
+orbital simulations.
+
+
+========================================================
+THE STATE MACHINE
+========================================================
+
+A state machine is just a way of saying: "the robot can only be doing one thing
+at a time, and there are rules for when it switches."
+
+Here's the shooting sequence:
+
+  IDLE
+    -> [Driver pulls trigger]
+  SPINNING UP  (flywheel accelerates toward target speed)
+    + AIMING   (robot rotates to face hub, accounting for lead)
+    -> [Both ready, OR 1.33-second timeout]
+  FEEDING      (ball is pushed into the spinning flywheel)
+    -> [Done]
+  IDLE
+
+The flywheel has its own internal state -- it ramps UP at 200 ft/s per cycle
+to avoid sudden current spikes. When the target drops, it coasts down freely
+on its own inertia (no active braking, to conserve energy). "Ready"
+is only declared once the flywheel has been at speed for 160 milliseconds --
+this prevents the robot from feeding a ball into a flywheel that only
+momentarily hit the right speed.
+
+There is also a pre-spin behavior: when the robot is in the scoring zone and
+the hub is "active" (based on the game clock), the flywheel automatically spins
+up to 60% speed as a default, so it's already partway there when the driver
+decides to shoot.
+
+
+========================================================
+OTHER UNIQUE ASPECTS
+========================================================
+
+Bump Detection
+--------------
+Three accelerometers (the gyro and two Limelights) vote on whether the robot
+just hit a bump. If 2 out of 3 detect a sudden jolt, the robot trusts its
+cameras more than its wheel odometry for position -- because a bump can cause
+the wheels to slip and give bad position data. This is called a sensor fusion
+consensus pattern.
+
+Wheel Slip Detection
+--------------------
+The code constantly compares the acceleration the wheels report (from encoder
+speed changes) to the acceleration the IMU measures. If they disagree by more
+than ~0.6 g, the wheels are slipping -- and vision measurements get extra
+weight to compensate.
+
+Live Parameter Tuning via Raspberry Pi
+---------------------------------------
+A Raspberry Pi runs a Python script that exposes tuning knobs on the dashboard
+(flywheel efficiency, drag coefficient, ball mass, shot offsets, PID gains).
+These are frozen every time the robot is disabled -- so the drive team can't
+accidentally change a value mid-match by bumping the dashboard. But an
+"edit live" toggle exists for practice.
+
+Game Clock Awareness
+--------------------
+The code tracks which "shift" of the game is active (the hub alternates between
+being active/inactive in ~25-second windows during teleop). The robot only
+pre-spins and enables shooting when the hub is active, preventing wasted energy
+and illegal shots.
+
+Three-Motor Flywheel
+--------------------
+Three motors drive the flywheel, all synchronized to the same speed target.
+Using three motors (instead of one) distributes the mechanical stress on the
+ball more evenly and gives the flywheel more rotational inertia -- meaning it
+loses less speed when the ball hits it.
+
+
+========================================================
+SUMMARY
+========================================================
+
+This code is notable for replacing a simple lookup table with a real physics
+engine running on the robot, complete with drag simulation, moving-target
+compensation, and live trajectory visualization. The whole shooter stack --
+from "driver pulls trigger" to "ball exits flywheel" -- is designed to work
+correctly even when the robot is driving at full speed across the field.
+
+========================================================
+KEY FILES FOR REFERENCE
+========================================================
+
+  UltraShooter.java        -- Main physics shooter (949 lines)
+  ShooterOrca.java         -- Legacy lookup-table shooter
+  ShooterTuner.java        -- Live parameter tuning system
+  AimAndDriveCommand.java  -- Aiming with time-of-flight lead
+  SubsystemCommands.java   -- Shoot state machine (trigger -> feed)
+  Constants.java           -- Physical constants (drag, ball mass, geometry)
+  GameData.java            -- Hub active/inactive phase tracking
+  RobotContainer.java      -- Bump detection, sensor fusion, default commands
+
+========================================================

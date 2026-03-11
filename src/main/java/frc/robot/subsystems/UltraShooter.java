@@ -769,8 +769,7 @@ public class UltraShooter extends SubsystemBase {
             rampedSetpoint = Math.min(
                     rampedSetpoint + Constants.UltraShooterConstants.kRampUpRate, velocityTarget);
         } else if (rampedSetpoint > velocityTarget) {
-            rampedSetpoint = Math.max(
-                    rampedSetpoint - Constants.UltraShooterConstants.kRampDownRate, velocityTarget);
+            rampedSetpoint = velocityTarget; // coast down — no active braking
         }
     }
 
