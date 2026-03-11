@@ -57,11 +57,9 @@ public class ShooterTuner extends SubsystemBase {
     private final DoubleEntry eNearShotOffsetPercent;
     private final DoubleEntry eFarShotOffsetPercent;
     private final DoubleEntry eReadyTolerance;
-    private final DoubleEntry ePreSpinFraction;
-    private final DoubleEntry eShootWaitSeconds;
     private final DoubleEntry eShootReadyTimeoutSeconds;
     private final DoubleEntry eFloorFeedDelaySeconds;
-    private final DoubleEntry eDumpShotFlywheelSpeed;
+    private final DoubleEntry eKp;
 
     // Save handshake
     private final BooleanEntry eSaveCmd;
@@ -79,11 +77,9 @@ public class ShooterTuner extends SubsystemBase {
     private double cachedNearShotOffsetPercent;
     private double cachedFarShotOffsetPercent;
     private double cachedReadyTolerance;
-    private double cachedPreSpinFraction;
-    private double cachedShootWaitSeconds;
     private double cachedShootReadyTimeoutSeconds;
     private double cachedFloorFeedDelaySeconds;
-    private double cachedDumpShotFlywheelSpeed;
+    private double cachedKp;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -102,16 +98,12 @@ public class ShooterTuner extends SubsystemBase {
                                           .getEntry(Constants.UltraShooterConstants.kFarShotOffsetPercent);
         eReadyTolerance           = params.getDoubleTopic("ReadyTolerance")
                                           .getEntry(Constants.UltraShooterConstants.kReadyTolerance);
-        ePreSpinFraction          = params.getDoubleTopic("PreSpinFraction")
-                                          .getEntry(Constants.UltraShooterConstants.kPreSpinFraction);
-        eShootWaitSeconds         = params.getDoubleTopic("ShootWaitSeconds")
-                                          .getEntry(Constants.ShooterConstants.kShootWaitSeconds);
         eShootReadyTimeoutSeconds = params.getDoubleTopic("ShootReadyTimeoutSeconds")
                                           .getEntry(Constants.ShooterConstants.kShootReadyTimeoutSeconds);
         eFloorFeedDelaySeconds    = params.getDoubleTopic("FloorFeedDelaySeconds")
                                           .getEntry(Constants.ShooterConstants.kFloorFeedDelaySeconds);
-        eDumpShotFlywheelSpeed    = params.getDoubleTopic("DumpShotFlywheelSpeed")
-                                          .getEntry(Constants.ShooterConstants.kDumpShotFlywheelSpeed);
+        eKp                       = params.getDoubleTopic("Kp")
+                                          .getEntry(Constants.UltraShooterConstants.kP);
 
         eSaveCmd    = cmd.getBooleanTopic("Save").getEntry(false);
         eSavedOk    = status.getBooleanTopic("SavedOk").subscribe(false);
@@ -134,11 +126,9 @@ public class ShooterTuner extends SubsystemBase {
         cachedNearShotOffsetPercent    = eNearShotOffsetPercent.get();
         cachedFarShotOffsetPercent     = eFarShotOffsetPercent.get();
         cachedReadyTolerance           = eReadyTolerance.get();
-        cachedPreSpinFraction          = ePreSpinFraction.get();
-        cachedShootWaitSeconds         = eShootWaitSeconds.get();
         cachedShootReadyTimeoutSeconds = eShootReadyTimeoutSeconds.get();
         cachedFloorFeedDelaySeconds    = eFloorFeedDelaySeconds.get();
-        cachedDumpShotFlywheelSpeed    = eDumpShotFlywheelSpeed.get();
+        cachedKp                       = eKp.get();
     }
 
     // ── Parameter getters ──────────────────────────────────────────────────────
@@ -155,20 +145,29 @@ public class ShooterTuner extends SubsystemBase {
     /** ft/s tolerance band around target speed to consider the shooter ready. */
     public double getReadyTolerance()           { return cachedReadyTolerance; }
 
-    /** Fraction of target speed to spin up to while waiting for a shot command. */
-    public double getPreSpinFraction()          { return cachedPreSpinFraction; }
-
-    /** Seconds to wait after shoot command before advancing the feeder. */
-    public double getShootWaitSeconds()         { return cachedShootWaitSeconds; }
-
     /** Seconds to wait for the shooter to reach ready speed before giving up. */
     public double getShootReadyTimeoutSeconds() { return cachedShootReadyTimeoutSeconds; }
 
     /** Seconds to delay floor roller engagement after the feeder starts. */
     public double getFloorFeedDelaySeconds()    { return cachedFloorFeedDelaySeconds; }
 
-    /** ft/s flywheel target speed for dump shots. */
-    public double getDumpShotFlywheelSpeed()    { return cachedDumpShotFlywheelSpeed; }
+    /**
+     * Active (frozen) kP — what the robot is currently using.
+     * Snapshotted from NT on every disable; applied to motors by {@link UltraShooter}.
+     */
+    public double getKp()                       { return cachedKp; }
+
+    /**
+     * Live NT kP — reflects any autotuner updates made during this session.
+     * Use this to read the autotuner's current recommendation before the next disable.
+     */
+    public double getLiveKp()                   { return eKp.get(); }
+
+    /**
+     * Writes a new kP to the live NT entry.  Called by {@link ShooterAutoTuner}
+     * after each shot analysis.  The value becomes active at the next disable.
+     */
+    public void setLiveKp(double kp)            { eKp.set(kp); }
 
     // ── Save command ──────────────────────────────────────────────────────────
 
@@ -229,19 +228,15 @@ public class ShooterTuner extends SubsystemBase {
         builder.addDoubleProperty("Live/Near Shot Offset (%)",      eNearShotOffsetPercent::get,    null);
         builder.addDoubleProperty("Live/Far Shot Offset (%)",       eFarShotOffsetPercent::get,     null);
         builder.addDoubleProperty("Live/Ready Tolerance (ft/s)",    eReadyTolerance::get,           null);
-        builder.addDoubleProperty("Live/Pre-Spin Fraction",         ePreSpinFraction::get,          null);
-        builder.addDoubleProperty("Live/Shoot Wait (s)",            eShootWaitSeconds::get,         null);
         builder.addDoubleProperty("Live/Shoot Ready Timeout (s)",   eShootReadyTimeoutSeconds::get, null);
         builder.addDoubleProperty("Live/Floor Feed Delay (s)",      eFloorFeedDelaySeconds::get,    null);
-        builder.addDoubleProperty("Live/Dump Shot Speed (ft/s)",    eDumpShotFlywheelSpeed::get,    null);
+        builder.addDoubleProperty("Live/kP",                        eKp::get,                       null);
 
         builder.addDoubleProperty("Active/Near Shot Offset (%)",    this::getNearShotOffsetPercent,    null);
         builder.addDoubleProperty("Active/Far Shot Offset (%)",     this::getFarShotOffsetPercent,     null);
         builder.addDoubleProperty("Active/Ready Tolerance (ft/s)",  this::getReadyTolerance,           null);
-        builder.addDoubleProperty("Active/Pre-Spin Fraction",       this::getPreSpinFraction,          null);
-        builder.addDoubleProperty("Active/Shoot Wait (s)",          this::getShootWaitSeconds,         null);
         builder.addDoubleProperty("Active/Shoot Ready Timeout (s)", this::getShootReadyTimeoutSeconds, null);
         builder.addDoubleProperty("Active/Floor Feed Delay (s)",    this::getFloorFeedDelaySeconds,    null);
-        builder.addDoubleProperty("Active/Dump Shot Speed (ft/s)",  this::getDumpShotFlywheelSpeed,    null);
+        builder.addDoubleProperty("Active/kP",                      this::getKp,                       null);
     }
 }

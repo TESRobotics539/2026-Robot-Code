@@ -26,6 +26,7 @@ import frc.robot.subsystems.BallVision;
 import frc.robot.subsystems.BlinkinLed;
 import frc.robot.subsystems.BumpTuner;
 import frc.robot.subsystems.ShooterTuner;
+import frc.robot.subsystems.ShooterAutoTuner;
 import frc.robot.subsystems.PiAprilTagVision;
 import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Feeder;
@@ -63,8 +64,9 @@ public class RobotContainer
     private final Field2d field = new Field2d();
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field, bumpTuner);
     //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
-    private final ShooterTuner shooterTuner = new ShooterTuner();
-    private final UltraShooter ultraShooter = new UltraShooter(drivebase, shooterTuner);
+    private final ShooterTuner     shooterTuner     = new ShooterTuner();
+    private final UltraShooter     ultraShooter     = new UltraShooter(drivebase, shooterTuner);
+    private final ShooterAutoTuner shooterAutoTuner = new ShooterAutoTuner(ultraShooter, shooterTuner);
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
     {
@@ -158,7 +160,7 @@ public class RobotContainer
                 intake.agitateCommand(),
                 Commands.waitUntil(ultraShooter::isReady)
                     .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
-                    .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
+                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
                         Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())
@@ -166,10 +168,10 @@ public class RobotContainer
             ), Set.of(ultraShooter, intake, feeder, floor)));
         driverXbox.x().whileTrue(
             Commands.defer(() -> Commands.parallel(
-                ultraShooter.startEnd(() -> ultraShooter.setTarget(shooterTuner.getDumpShotFlywheelSpeed()), ultraShooter::stop),
+                ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
                 Commands.waitUntil(ultraShooter::isReady)
                     .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
-                    .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
+                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
                         Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())

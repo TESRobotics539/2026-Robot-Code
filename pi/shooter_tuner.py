@@ -14,11 +14,9 @@ NetworkTables layout  (table: "ShooterTuner")
   Params/NearShotOffsetPercent    double  — percent offset applied to flywheel speed for near shots
   Params/FarShotOffsetPercent     double  — percent offset applied to flywheel speed for far shots
   Params/ReadyTolerance           double  — ft/s tolerance band around target speed to consider shooter ready
-  Params/PreSpinFraction          double  — fraction of target speed to spin up to while waiting for a shot
-  Params/ShootWaitSeconds         double  — seconds to wait after shoot command before advancing feeder
   Params/ShootReadyTimeoutSeconds double  — seconds to wait for shooter to reach ready speed before giving up
   Params/FloorFeedDelaySeconds    double  — seconds to delay floor roller engagement after feeder starts
-  Params/DumpShotFlywheelSpeed    double  — ft/s flywheel target speed for dump shots
+  Params/Kp                       double  — flywheel proportional gain (written by ShooterAutoTuner)
   Cmd/Save                        boolean — Java sets True → Pi saves current values + resets
   Status/Heartbeat                integer — increments every loop for staleness detection
   Status/SavedOk                  boolean — True after the most recent save succeeded
@@ -43,11 +41,9 @@ DEFAULTS: dict[str, float] = {
     "NearShotOffsetPercent":    0.0,
     "FarShotOffsetPercent":     0.0,
     "ReadyTolerance":           1.745,   # ft/s — 100 RPM converted
-    "PreSpinFraction":          0.60,
-    "ShootWaitSeconds":         0.5,
     "ShootReadyTimeoutSeconds": 1.33,
     "FloorFeedDelaySeconds":    0.25,
-    "DumpShotFlywheelSpeed":    32.0,    # ft/s
+    "Kp":                       0.003,   # flywheel proportional gain (autotuned)
 }
 
 

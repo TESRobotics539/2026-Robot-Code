@@ -19,6 +19,7 @@ import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.util.sendable.SendableBuilder;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -136,6 +137,9 @@ public class UltraShooter extends SubsystemBase {
     private int  piStaleFrames   = 0;
     /** A Pi is considered disconnected after this many stale cycles (500 ms). */
     private static final int PI_STALE_THRESHOLD = 25;
+
+    /** kP value most recently written to the SparkFlex controllers. */
+    private double appliedKp = Constants.UltraShooterConstants.kP;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Construction
@@ -375,7 +379,7 @@ public class UltraShooter extends SubsystemBase {
                     && GameData.isHubActiveExpanded(5.0)
                     && Landmarks.isInScoringZone(swerve.getPose())) {
                 double physicsSpeed = calculateRequiredVelocityFPS(swerve.getDistanceToHub());
-                setTarget(physicsSpeed * shooterTuner.getPreSpinFraction());
+                setTarget(physicsSpeed * Constants.UltraShooterConstants.kPreSpinFraction);
             } else {
                 setTarget(0);
             }
@@ -428,6 +432,27 @@ public class UltraShooter extends SubsystemBase {
         }
     }
 
+    /**
+     * Re-configures all three SparkFlex controllers with a new kP value.
+     * Uses {@code kNoResetSafeParameters} so only the closed-loop block is
+     * touched, and {@code kNoPersistParameters} to avoid burning motor flash
+     * (the Pi JSON is the persistence layer instead).
+     */
+    private void applyKpToMotors(double kP) {
+        SparkFlexConfig cfg = new SparkFlexConfig();
+        cfg.closedLoop
+           .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
+           .pid(kP, Constants.UltraShooterConstants.kI, Constants.UltraShooterConstants.kD)
+           .velocityFF(KV);
+        primaryMotor  .configure(cfg, com.revrobotics.spark.SparkBase.ResetMode.kNoResetSafeParameters,
+                                       com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
+        secondaryMotor.configure(cfg, com.revrobotics.spark.SparkBase.ResetMode.kNoResetSafeParameters,
+                                       com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
+        tertiaryMotor .configure(cfg, com.revrobotics.spark.SparkBase.ResetMode.kNoResetSafeParameters,
+                                       com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
+        appliedKp = kP;
+    }
+
     private void applyPID() {
         double ff = Constants.UltraShooterConstants.kS + rampedSetpoint * KV;
         if (Math.abs(rampedSetpoint) > 3.0) {
@@ -470,6 +495,15 @@ public class UltraShooter extends SubsystemBase {
         rampSetpoint();
         applyPID();
         updateNetworkTable();
+
+        // Apply any autotuner-updated kP while the robot is disabled so the
+        // motors are never reconfigured mid-match.
+        if (DriverStation.isDisabled()) {
+            double newKp = shooterTuner.getKp();
+            if (newKp != appliedKp) {
+                applyKpToMotors(newKp);
+            }
+        }
     }
 
     @Override
