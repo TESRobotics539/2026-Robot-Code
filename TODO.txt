@@ -1,33 +1,20 @@
 ================================================================================
   TEAM 539 — 2026 ROBOT CODE  |  TODO / TUNING CHECKLIST
 ================================================================================
-Generated from the current codebase session.
-Items marked [BUG] will cause compile errors and must be fixed before deploying.
 Items marked [MEASURE] require physical measurement on the robot.
-Items marked [TUNE] require on-field testing to dial in.
-Items marked [DEPLOY] are one-time setup tasks.
+Items marked [TUNE]    require on-field testing to dial in.
+Items marked [DEPLOY]  are one-time setup tasks.
 Items marked [CONFIRM] require verification against the game manual.
+Items marked [TODO]    are general tasks.
+
+  ★  Live-tunable items (shooter PID, ramp, tolerance, bump thresholds) can be
+     adjusted in real-time via NetworkTables using BumpTuner / ShooterTuner.
+     Changes persist on the Pi; no redeploy needed between test runs.
 ================================================================================
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 1 — COMPILE ERRORS (fix before first deploy)
-────────────────────────────────────────────────────────────────────────────────
-
-[BUG]  RobotContainer.java:261
-       configureNamedCommands() calls shooter.spinDownCommand()
-       but 'shooter' (ShooterOrca) is deprecated and commented out.
-       Fix: replace with ultraShooter.spinDownCommand()
-
-[BUG]  SubsystemCommands.java:80
-       aimAndShoot() creates a PrepareShotCommand(shooter, ...) where
-       'shooter' no longer exists.  aimAndShoot() is unused (commented out
-       at the call site) but will still fail to compile.
-       Fix: either delete aimAndShoot() or update it to use ultraShooter.
-
-
-────────────────────────────────────────────────────────────────────────────────
-  SECTION 2 — PHYSICS / SHOOTER (Constants.java → UltraShooterConstants)
+  SECTION 1 — PHYSICS / SHOOTER (Constants.java → UltraShooterConstants)
 ────────────────────────────────────────────────────────────────────────────────
 
 [CONFIRM]  kHubCenterHeightFromFloorInches = 96.0
@@ -61,19 +48,24 @@ Items marked [CONFIRM] require verification against the game manual.
            The value at intermediate distances is linearly interpolated.
            File: Constants.java
 
-[TUNE]     kP = 0.003, kI = 0.000, kD = 0.25, kS = 0.15
-           UltraShooter PID + static feedforward. Tune with REV Hardware
-           Client or Tuner X while observing velocity response on NT.
-           File: Constants.java
+[TUNE]     kP, kI, kD, kS — UltraShooter PID + static feedforward
+           Current values: kP=0.003, kI=0.000, kD=0.25, kS=0.15
+           kP is now AUTO-TUNED by ShooterAutoTuner (Pi shooter_tuner.py).
+           Run ShooterAutoTuner command on-robot and allow it to converge.
+           kD and kS still require manual observation via NT velocity graphs.
+           Live-tunable: adjust via ShooterTuner NT keys without redeploying.
+           File: Constants.java / pi/shooter_tuner.py
 
 [TUNE]     kRampUpRate / kRampDownRate
-           Currently equivalent to ~200 RPM and ~400 RPM per cycle.
-           If flywheel overshoots or feels sluggish, adjust these.
+           Currently ~200 RPM up, ~400 RPM down per cycle.
+           Live-tunable via ShooterTuner NT keys.
+           If flywheel overshoots or feels sluggish, adjust these in NT.
            File: Constants.java
 
 [TUNE]     kReadyTolerance
            Currently ~100 RPM-equivalent. If "ready" triggers too early
            (balls missing) raise it; too late (unnecessary wait) lower it.
+           Live-tunable via ShooterTuner NT keys.
            File: Constants.java
 
 [TUNE]     kShootWaitSeconds = 0.5
@@ -83,7 +75,7 @@ Items marked [CONFIRM] require verification against the game manual.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 3 — INTAKE (Constants.java → IntakeConstants)
+  SECTION 2 — INTAKE (Constants.java → IntakeConstants)
 ────────────────────────────────────────────────────────────────────────────────
 
 [TUNE]     kRollerLoadCurrentThreshold = 25.0 A
@@ -105,7 +97,7 @@ Items marked [CONFIRM] require verification against the game manual.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 4 — HANGER (Constants.java → HangerConstants)
+  SECTION 3 — HANGER (Constants.java → HangerConstants)
 ────────────────────────────────────────────────────────────────────────────────
 
 [TUNE]     kAutoClimbCurrentThreshold = 50.0 A
@@ -120,7 +112,7 @@ Items marked [CONFIRM] require verification against the game manual.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 5 — BALL DETECTION (Pi: ball_detector.py)
+  SECTION 4 — BALL DETECTION (Pi: ball_detector.py)
 ────────────────────────────────────────────────────────────────────────────────
 
 [DEPLOY]   Connect a USB camera to /dev/video0 on the Pi.
@@ -160,7 +152,7 @@ Items marked [CONFIRM] require verification against the game manual.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 6 — APRILTAG BACKUP VISION (Pi: apriltag_vision.py)
+  SECTION 5 — APRILTAG BACKUP VISION (Pi: apriltag_vision.py)
 ────────────────────────────────────────────────────────────────────────────────
 
 [DEPLOY]   Connect a SECOND USB camera to /dev/video1 on the Pi.
@@ -170,7 +162,6 @@ Items marked [CONFIRM] require verification against the game manual.
 [DEPLOY]   Copy the 2026 AprilTag field layout JSON to /home/pi/field.json.
            Source options:
              - C:\Users\Public\wpilib\2026\tools\apriltagfields\ (on your PC)
-             - https://github.com/wpilibsuite/allwpilib  (resources/)
              - FTP from the roboRIO deploy directory (10.5.39.2, port 22)
 
 [MEASURE]  CAM_X / CAM_Y / CAM_Z
@@ -217,24 +208,23 @@ Items marked [CONFIRM] require verification against the game manual.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 7 — PI HARDWARE & DEPLOYMENT
+  SECTION 6 — PI HARDWARE & DEPLOYMENT
 ────────────────────────────────────────────────────────────────────────────────
 
-[DEPLOY]   Flash the Pi with WPILibPi image:
-           https://docs.wpilib.org/en/stable/docs/software/vision-processing/
-                   wpilibpi/using-the-raspberry-pi-for-frc.html
+[DEPLOY]   Flash the Pi with WPILibPi image.
 
 [DEPLOY]   Configure team number on WPILibPi web dashboard (wpilibpi.local):
            Network → Team Number → 539
-           The Pi auto-connects to 10.5.39.2 (roboRIO NT server).
 
-[DEPLOY]   Upload all four Pi scripts via the web dashboard
+[DEPLOY]   Upload all Pi scripts via the web dashboard
            ("Application" → "Uploaded Python file" → upload main.py):
              pi/main.py                  ← set as the startup script
              pi/physics_coprocessor.py
              pi/ball_detector.py
              pi/apriltag_vision.py
-           Use the "File Upload" section to place all four in /home/pi/.
+             pi/bump_tuner.py
+             pi/shooter_tuner.py
+           Use the "File Upload" section to place all in /home/pi/.
 
 [DEPLOY]   Verify Pi Active = true appears in the UltraShooter NT table
            within ~2 seconds of the robot enabling.
@@ -245,7 +235,7 @@ Items marked [CONFIRM] require verification against the game manual.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 8 — LIMELIGHT & DUAL-CAMERA VISION
+  SECTION 7 — LIMELIGHT & DUAL-CAMERA VISION
 ────────────────────────────────────────────────────────────────────────────────
 
 [DEPLOY]   Set the rear Limelight hostname to "limelight-rear" on its web UI:
@@ -253,8 +243,7 @@ Items marked [CONFIRM] require verification against the game manual.
            Must match Ports.kLimelightRear exactly.
 
 [CONFIRM]  LimelightHelpers.SetIMUMode(name, 4) — confirm mode 4 is correct
-           for both Limelight hardware versions and firmware (set in
-           Limelight constructor; applies to both front and rear).
+           for both Limelight hardware versions and firmware.
 
 [TUNE]     Limelight standard deviations (Limelight.java)
            Currently hardcoded to VecBuilder.fill(0.1, 0.1, 10.0) for both
@@ -263,54 +252,51 @@ Items marked [CONFIRM] require verification against the game manual.
            camera is accurate; loosen if it jerks the pose on tag loss.
 
 [TUNE]     kBumpVisionStdDevMultiplier = 10.0  (Constants.BumpDetectionConstants)
-           Applied to the winning Limelight's stddevs when a bump is
-           confirmed. 10× effectively ignores the measurement.
+           Applied to the winning Limelight's stddevs when a bump is confirmed.
+           Live-tunable via BumpTuner NT keys.
            If the pose still drifts mid-bump, raise it (e.g. 25–50).
            If vision recovers too slowly after the bump, lower it.
            File: Constants.java
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 9 — PIGEON 2 ACCELEROMETER FILTER & BUMP DETECTION
+  SECTION 8 — PIGEON 2 ACCELEROMETER FILTER & BUMP DETECTION
 ────────────────────────────────────────────────────────────────────────────────
 
 [DEPLOY]   Drive the robot over the bump while logging the following NT keys
-           in Elastic / Advantage Scope before tuning any thresholds:
+           in Elastic / AdvantageScope before tuning any thresholds:
              AbsoluteEncoders / Accel Z Raw (g)
              AbsoluteEncoders / Accel Z Filtered (g)
              SmartDashboard/limelight-front / IMU Pitch (deg)
              SmartDashboard/limelight-front / IMU Accel Z (g)
              SmartDashboard/limelight-rear  / IMU Pitch (deg)
              SmartDashboard/limelight-rear  / IMU Accel Z (g)
-           Record the peak values on each sensor to calibrate thresholds below.
+           Record peak values on each sensor to calibrate thresholds below.
 
 [TUNE]     kAccelFilterAlpha = 0.15  (Constants.BumpDetectionConstants)
            Low-pass filter alpha for Pigeon 2 X/Y/Z axes.
-           Lower = heavier smoothing (slower to react but cleaner telemetry).
-           Higher = faster response (less lag but more noise passes through).
-           Start at 0.15; raise toward 0.3 if the filtered signal lags
-           noticeably behind the raw signal during normal driving.
+           Live-tunable via BumpTuner NT keys.
+           Lower = heavier smoothing; higher = faster response.
+           Start at 0.15; raise toward 0.3 if filtered signal lags raw.
            File: Constants.java
 
 [TUNE]     kBumpPitchThresholdDegrees = 8.0  (Constants.BumpDetectionConstants)
-           Pitch angle (degrees) above which the Pigeon 2 alone flags a bump.
-           Method: drive over the bump and record peak pitch from
-           swerveDrive.getPitch() via NT. Set threshold to ~70% of the peak.
-           Typical FRC bump: 10–15°; threshold of 8° is conservative.
+           Pitch angle above which the Pigeon 2 alone flags a bump.
+           Live-tunable via BumpTuner NT keys.
+           Set to ~70% of peak pitch observed during bump traversal.
            File: Constants.java
 
 [TUNE]     kBumpAccelZDeviationThreshold = 0.25  (Constants.BumpDetectionConstants)
-           Deviation from 1 g on the Pigeon 2 Z-axis that flags a bump.
-           Method: observe "Accel Z Raw (g)" peak during bump traversal.
-           Set threshold to ~60% of the peak deviation from 1.0 g.
+           Deviation from 1 g on Pigeon 2 Z-axis that flags a bump.
+           Live-tunable via BumpTuner NT keys.
+           Set to ~60% of peak deviation observed during bump traversal.
            File: Constants.java
 
 [TUNE]     kLimelightAccelZDeviationThreshold = 0.25  (Constants.BumpDetectionConstants)
-           Same threshold applied to BOTH front and rear Limelight accel Z.
-           The Limelight's IMU may have a different scale than the Pigeon 2 —
-           check "IMU Accel Z (g)" on each camera during bump traversal and
-           tune this independently from kBumpAccelZDeviationThreshold if
-           the sensors report different magnitudes.
+           Same threshold applied to both front and rear Limelight accel Z.
+           Live-tunable via BumpTuner NT keys.
+           Tune independently from kBumpAccelZDeviationThreshold if the
+           Limelight IMU reports different magnitudes than the Pigeon 2.
            File: Constants.java
 
 [CONFIRM]  2-of-3 majority vote logic — after tuning all three thresholds,
@@ -320,45 +306,38 @@ Items marked [CONFIRM] require verification against the game manual.
              • The bump flag DOES trigger reliably within one loop cycle of
                the robot mounting the bump.
            If false positives occur during aggressive turns/acceleration,
-           raise one or more thresholds.
+           raise one or more thresholds via BumpTuner NT keys.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 10 — DUAL-CAMERA CONFIDENCE SELECTION
+  SECTION 9 — DUAL-CAMERA CONFIDENCE SELECTION
 ────────────────────────────────────────────────────────────────────────────────
 
-[DEPLOY]   Mount the rear Limelight with a clear view of the opposing
-           alliance wall AprilTags when the robot is near its own hub,
-           and the near-side tags when driving across the field.
-           The camera with the larger/closer tags will win the confidence
-           comparison automatically.
+[DEPLOY]   Mount the rear Limelight with a clear view of opposing alliance
+           wall AprilTags when near the hub, and near-side tags mid-field.
 
 [TUNE]     Confidence metric = avgTagArea × tagCount
            Watch Vision/Front Confidence and Vision/Rear Confidence in
-           Elastic across the full field. Verify the camera with the
-           visually larger tags always wins (higher number).
-           If one camera's lens is dirtier or partially obstructed, its
-           avgTagArea will drop naturally and the other camera will take over.
+           Elastic across the full field. Verify the camera with visually
+           larger tags always wins.
 
 [TUNE]     If confidence values are too similar and the active source
            oscillates between front/rear on a straight drive, add a
-           hysteresis band: only switch cameras if the new winner's
-           confidence exceeds the current winner's by >10%.
+           hysteresis band: only switch if new winner exceeds current by >10%.
            (Not yet implemented — implement if oscillation is observed.)
 
 [CONFIRM]  After tuning, run a full-field drive path and overlay the
-           Vision/Active Source log against the Field2d pose track.
+           Vision/Active Source log against Field2d pose track.
            Verify no large jumps occur at camera switch points.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 11 — AUTONOMOUS
+  SECTION 10 — AUTONOMOUS
 ────────────────────────────────────────────────────────────────────────────────
 
 [TODO]     Verify PathPlanner auto paths are correct for the 2026 field.
-           The hub position (Landmarks.java) and starting positions
-           (Landmarks.getStartingPosition) may need updating once the
-           official field survey data is available.
+           Hub positions (Landmarks.java) and starting positions may need
+           updating once official field survey data is available.
 
 [CONFIRM]  Hub positions in Landmarks.java:
            Blue: (182.105 in, 158.845 in)
@@ -371,30 +350,25 @@ Items marked [CONFIRM] require verification against the game manual.
 
 
 ────────────────────────────────────────────────────────────────────────────────
-  SECTION 12 — GENERAL / TESTING
+  SECTION 11 — GENERAL / TESTING
 ────────────────────────────────────────────────────────────────────────────────
 
-[TODO]     Full robot build + deploy — verify no other compile errors remain
-           beyond the two listed in Section 1.
-
-[TODO]     Tuning session checklist order (suggested):
-             1.  Fix Section 1 compile errors.
-             2.  Confirm physical measurements (Section 2 MEASURE items).
-             3.  Confirm game manual values (Section 2, 5, 6 CONFIRM items).
-             4.  Deploy Pi and verify NT connections (Section 7).
-             5.  Deploy both Limelights; verify rear hostname (Section 8).
-             6.  Drive over bump while logging all 6 sensor NT keys (Section 9).
-             7.  Tune kBumpPitchThresholdDegrees and kBumpAccelZDeviationThreshold
-                 using logged peak values (Section 9).
-             8.  Tune kLimelightAccelZDeviationThreshold for each Limelight (Section 9).
-             9.  Confirm 2-of-3 vote fires reliably over bump, not on flat (Section 9).
-            10.  Verify Vision/Active Source switches correctly across the field (Section 10).
-            11.  Tune Limelight stddevs and kBumpVisionStdDevMultiplier (Sections 8–9).
-            12.  Tune shooter PID on a static robot (Section 2).
-            13.  Tune near/far shot offsets with live shots (Section 2).
-            14.  Tune intake current threshold with real balls (Section 3).
-            15.  Tune ball detection HSV under field lighting (Section 5).
-            16.  Calibrate AprilTag camera and verify Pi poses (Section 6).
-            17.  Run full autonomous and verify heading + odometry (Section 11).
+[TODO]     Suggested tuning session order:
+             1.  Confirm physical measurements (Section 1 MEASURE items).
+             2.  Confirm game manual values (Sections 1, 4, 5 CONFIRM items).
+             3.  Deploy Pi with all 6 scripts and verify NT connections (Section 6).
+             4.  Deploy both Limelights; verify rear hostname (Section 7).
+             5.  Drive over bump while logging all 6 sensor NT keys (Section 8).
+             6.  Tune bump thresholds live via BumpTuner NT keys (Section 8).
+             7.  Confirm 2-of-3 vote fires reliably over bump, not on flat (Section 8).
+             8.  Verify Vision/Active Source switches correctly across field (Section 9).
+             9.  Tune Limelight stddevs and kBumpVisionStdDevMultiplier (Sections 7–8).
+            10.  Run ShooterAutoTuner on a static robot to converge kP (Section 1).
+            11.  Tune kD/kS and ramp rates via ShooterTuner NT keys (Section 1).
+            12.  Tune near/far shot offsets with live shots (Section 1).
+            13.  Tune intake current threshold with real balls (Section 2).
+            14.  Tune ball detection HSV under field lighting (Section 4).
+            15.  Calibrate AprilTag camera and verify Pi poses (Section 5).
+            16.  Run full autonomous and verify heading + odometry (Section 10).
 
 ================================================================================

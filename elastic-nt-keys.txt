@@ -1,0 +1,166 @@
+================================================================================
+  TEAM 539 — NETWORKTABLES KEY REFERENCE  (for Elastic dashboard creation)
+================================================================================
+All keys are listed with their type and source subsystem.
+Use these exact strings when adding widgets in Elastic.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+  SHOOTER — UltraShooter
+────────────────────────────────────────────────────────────────────────────────
+UltraShooter/Velocity ft/s                       [Double]   live flywheel speed
+UltraShooter/Target ft/s                         [Double]   speed setpoint
+UltraShooter/Ramped Setpoint ft/s                [Double]   rate-limited setpoint fed to PID
+UltraShooter/Avg Velocity ft/s                   [Double]   160ms rolling average
+UltraShooter/Ready                               [Boolean]  within kReadyTolerance of target
+UltraShooter/Physics Velocity ft/s               [Double]   Java-calculated required speed
+UltraShooter/Pi Physics Velocity ft/s            [Double]   Pi-calculated required speed
+UltraShooter/Distance to Hub (m)                 [Double]   instantaneous distance
+UltraShooter/Avg Distance to Hub (m)             [Double]   1-second rolling average distance
+UltraShooter/Launch Angle (deg)                  [Double]   barrel angle constant
+UltraShooter/Hood Height From Floor (in)         [Double]   shooter exit height constant
+UltraShooter/Hub Center Height From Floor (in)   [Double]   hub height constant
+UltraShooter/Primary Current                     [Double]   primary motor current (A)
+UltraShooter/Secondary Current                   [Double]   secondary motor current (A)
+UltraShooter/Pi Active                           [Boolean]  Pi physics co-processor connected
+UltraShooter/Pi Heartbeat                        [Integer]  Pi heartbeat counter
+
+
+────────────────────────────────────────────────────────────────────────────────
+  SHOOTER TUNER — live-adjustable params (saved to Pi)
+────────────────────────────────────────────────────────────────────────────────
+ShooterTuner/Params/NearShotOffsetPercent        [Double]   near-shot speed offset %
+ShooterTuner/Params/FarShotOffsetPercent         [Double]   far-shot speed offset %
+ShooterTuner/Params/ReadyTolerance               [Double]   ready-window ft/s
+ShooterTuner/Params/ShootReadyTimeoutSeconds     [Double]   max wait for ready (s)
+ShooterTuner/Params/FloorFeedDelaySeconds        [Double]   delay before floor feed (s)
+ShooterTuner/Params/Kp                           [Double]   flywheel PID kP (also set by AutoTuner)
+ShooterTuner/Cmd/Save                            [Boolean]  write true to save params to Pi
+ShooterTuner/Status/SavedOk                      [Boolean]  Pi confirms save succeeded
+ShooterTuner/Status/Heartbeat                    [Integer]  Pi heartbeat
+ShooterTuner/Status/ConfigFile                   [String]   path to config file on Pi
+
+
+────────────────────────────────────────────────────────────────────────────────
+  SHOOTER AUTO-TUNER — kP convergence
+────────────────────────────────────────────────────────────────────────────────
+ShooterAutoTuner/State                           [String]   IDLE | WATCHING | DIP_ACTIVE | RECOVERING
+ShooterAutoTuner/Shots Analyzed                  [Integer]  cumulative shots observed
+ShooterAutoTuner/Last Recovery (ms)              [Double]   last post-shot recovery time (ms)
+ShooterAutoTuner/Last Action                     [String]   last kP adjustment taken
+ShooterAutoTuner/Current kP                      [Double]   live kP value
+ShooterAutoTuner/Autotuner Enabled               [Boolean]  write false to disable
+
+
+────────────────────────────────────────────────────────────────────────────────
+  VISION — Dual Limelight selection
+────────────────────────────────────────────────────────────────────────────────
+SmartDashboard/Vision/Active Source              [String]   "front" | "rear" | "none"
+SmartDashboard/Vision/Front Confidence           [Double]   avgTagArea × tagCount (front)
+SmartDashboard/Vision/Rear Confidence            [Double]   avgTagArea × tagCount (rear)
+SmartDashboard/Vision/Best Confidence            [Double]   winning camera's confidence
+SmartDashboard/Vision/Wheel Slipping             [Boolean]  slip flag (suppresses vision updates)
+SmartDashboard/Vision/Wheel Slip Score           [Double]   slip magnitude m/s²
+SmartDashboard/Vision/StdDev Multiplier          [Double]   active stddev scale factor
+
+SmartDashboard/limelight-front/Estimated Robot Pose  [Pose2d]  MegaTag2 pose estimate
+SmartDashboard/limelight-front/IMU Pitch (deg)       [Double]  Limelight IMU pitch
+SmartDashboard/limelight-front/IMU Roll (deg)        [Double]  Limelight IMU roll
+SmartDashboard/limelight-front/IMU Yaw (deg)         [Double]  Limelight IMU yaw
+SmartDashboard/limelight-front/IMU Accel Z (g)       [Double]  Limelight Z acceleration
+
+SmartDashboard/limelight-rear/Estimated Robot Pose   [Pose2d]  MegaTag2 pose estimate
+SmartDashboard/limelight-rear/IMU Pitch (deg)        [Double]  Limelight IMU pitch
+SmartDashboard/limelight-rear/IMU Roll (deg)         [Double]  Limelight IMU roll
+SmartDashboard/limelight-rear/IMU Yaw (deg)          [Double]  Limelight IMU yaw
+SmartDashboard/limelight-rear/IMU Accel Z (g)        [Double]  Limelight Z acceleration
+
+
+────────────────────────────────────────────────────────────────────────────────
+  VISION — Pi AprilTag backup
+────────────────────────────────────────────────────────────────────────────────
+PiVision/RobotX                                  [Double]   Pi robot X position (m)
+PiVision/RobotY                                  [Double]   Pi robot Y position (m)
+PiVision/RobotYaw                                [Double]   Pi robot yaw (deg)
+PiVision/TagCount                                [Integer]  number of tags seen by Pi
+PiVision/AvgDecisionMargin                       [Double]   tag detection confidence
+PiVision/Heartbeat                               [Integer]  Pi heartbeat
+PiVision/Pi Connected                            [Boolean]  Pi AprilTag vision connected
+
+
+────────────────────────────────────────────────────────────────────────────────
+  BUMP DETECTION — Pigeon 2 + Limelight IMU
+────────────────────────────────────────────────────────────────────────────────
+AbsoluteEncoders/Accel X Raw (g)                 [Double]   Pigeon2 raw X accel
+AbsoluteEncoders/Accel Y Raw (g)                 [Double]   Pigeon2 raw Y accel
+AbsoluteEncoders/Accel Z Raw (g)                 [Double]   Pigeon2 raw Z accel
+AbsoluteEncoders/Accel X Filtered (g)            [Double]   low-pass filtered X
+AbsoluteEncoders/Accel Y Filtered (g)            [Double]   low-pass filtered Y
+AbsoluteEncoders/Accel Z Filtered (g)            [Double]   low-pass filtered Z
+AbsoluteEncoders/Wheel Slip Score Raw (m/s²)     [Double]   unaveraged slip magnitude
+AbsoluteEncoders/Wheel Slip Score (m/s²)         [Double]   3-cycle averaged slip magnitude
+AbsoluteEncoders/Wheel Slipping                  [Boolean]  wheel slip detected
+
+
+────────────────────────────────────────────────────────────────────────────────
+  BUMP TUNER — live-adjustable thresholds (saved to Pi)
+────────────────────────────────────────────────────────────────────────────────
+BumpTuner/Params/BumpPitchThresholdDeg           [Double]   Pigeon pitch threshold (deg)
+BumpTuner/Params/BumpAccelZDeviation             [Double]   Pigeon Z deviation threshold (g)
+BumpTuner/Params/LimelightAccelZDeviation        [Double]   Limelight Z deviation threshold (g)
+BumpTuner/Params/WheelSlipThresholdMps2          [Double]   wheel slip threshold (m/s²)
+BumpTuner/Params/HighConfidenceThreshold         [Double]   min confidence for high-conf state
+BumpTuner/Params/SlipHighConfMultiplier          [Double]   stddev multiplier (slip + high conf)
+BumpTuner/Params/BumpVisionMultiplier            [Double]   stddev multiplier when bump active
+BumpTuner/Cmd/Save                               [Boolean]  write true to save to Pi
+BumpTuner/Status/SavedOk                         [Boolean]  Pi confirms save
+BumpTuner/Status/Heartbeat                       [Integer]  Pi heartbeat
+BumpTuner/Status/ConfigFile                      [String]   config file path on Pi
+
+
+────────────────────────────────────────────────────────────────────────────────
+  BALL DETECTION — Pi camera
+────────────────────────────────────────────────────────────────────────────────
+BallDetection/Count                              [Integer]  balls visible to Pi camera
+BallDetection/NearestAngle                       [Double]   angle to nearest ball (deg)
+BallDetection/NearestDistance                    [Double]   distance to nearest ball (in)
+BallDetection/Heartbeat                          [Integer]  Pi heartbeat
+BallDetection/Pi Connected                       [Boolean]  ball detection Pi connected
+
+
+────────────────────────────────────────────────────────────────────────────────
+  DRIVETRAIN — swerve telemetry
+────────────────────────────────────────────────────────────────────────────────
+DriveState/Pose                                  [Pose2d]   odometry pose
+DriveState/Speeds                                [ChassisSpeeds]  robot chassis speeds
+DriveState/ModuleStates                          [SwerveModuleState[]]  actual module states
+DriveState/ModuleTargets                         [SwerveModuleState[]]  target module states
+DriveState/ModulePositions                       [SwerveModulePosition[]]  module positions
+DriveState/Timestamp                             [Double]   odometry timestamp
+DriveState/OdometryFrequency                     [Double]   odometry update rate (Hz)
+
+AbsoluteEncoders/Module FL Absolute Angle        [Double]   front-left absolute encoder (deg)
+AbsoluteEncoders/Module FL Relative Angle        [Double]   front-left motor angle (deg)
+AbsoluteEncoders/Module FL Drift                 [Double]   front-left drift
+AbsoluteEncoders/Module FR Absolute Angle        [Double]   front-right absolute encoder
+AbsoluteEncoders/Module FR Relative Angle        [Double]   front-right motor angle
+AbsoluteEncoders/Module FR Drift                 [Double]   front-right drift
+AbsoluteEncoders/Module BL Absolute Angle        [Double]   back-left absolute encoder
+AbsoluteEncoders/Module BL Relative Angle        [Double]   back-left motor angle
+AbsoluteEncoders/Module BL Drift                 [Double]   back-left drift
+AbsoluteEncoders/Module BR Absolute Angle        [Double]   back-right absolute encoder
+AbsoluteEncoders/Module BR Relative Angle        [Double]   back-right motor angle
+AbsoluteEncoders/Module BR Drift                 [Double]   back-right drift
+
+
+────────────────────────────────────────────────────────────────────────────────
+  MATCH CONTEXT
+────────────────────────────────────────────────────────────────────────────────
+SmartDashboard/Hub Active                        [Boolean]  hub zone active from game data
+SmartDashboard/Hub Active (Expanded)             [Boolean]  hub active + 5 m expansion
+SmartDashboard/Distance to Hub (inches)          [Double]   distance from PrepareShotCommand
+SmartDashboard/Auto Chooser                      [SendableChooser]  auto routine selector
+SmartDashboard/Field                             [Field2d]  field visualization widget
+
+================================================================================

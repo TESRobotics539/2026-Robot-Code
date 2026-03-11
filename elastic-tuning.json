@@ -1,0 +1,869 @@
+{
+  "version": 1.0,
+  "grid_size": 128,
+  "tabs": [
+    {
+      "name": "Shooter Tuning",
+      "grid_layout": {
+        "layouts": [],
+        "containers": [
+          {
+            "title": "Velocity ft/s",
+            "x": 0.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/UltraShooter/Velocity ft/s",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4280391411,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Target ft/s",
+            "x": 384.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/UltraShooter/Target ft/s",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4283215696,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Avg Velocity ft/s",
+            "x": 0.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/UltraShooter/Avg Velocity ft/s",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4278430196,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Ramped Setpoint ft/s",
+            "x": 384.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/UltraShooter/Ramped Setpoint ft/s",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4294940672,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Shooter Ready",
+            "x": 768.0,
+            "y": 0.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/UltraShooter/Ready",
+              "period": 0.066,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "Physics Velocity ft/s",
+            "x": 768.0,
+            "y": 128.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Physics Velocity ft/s",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Pi Physics Velocity ft/s",
+            "x": 768.0,
+            "y": 256.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Pi Physics Velocity ft/s",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Primary Current (A)",
+            "x": 768.0,
+            "y": 384.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Primary Current",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Secondary Current (A)",
+            "x": 768.0,
+            "y": 512.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Secondary Current",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Avg Distance to Hub (m)",
+            "x": 768.0,
+            "y": 640.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Avg Distance to Hub (m)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "kP (live)",
+            "x": 1024.0,
+            "y": 0.0,
+            "width": 512.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/Kp",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 0.02,
+              "divisions": 200,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Near Shot Offset %",
+            "x": 1024.0,
+            "y": 128.0,
+            "width": 512.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/NearShotOffsetPercent",
+              "period": 0.1,
+              "min_value": -15.0,
+              "max_value": 15.0,
+              "divisions": 150,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Far Shot Offset %",
+            "x": 1024.0,
+            "y": 256.0,
+            "width": 512.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/FarShotOffsetPercent",
+              "period": 0.1,
+              "min_value": -15.0,
+              "max_value": 15.0,
+              "divisions": 150,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Ready Tolerance (ft/s)",
+            "x": 1024.0,
+            "y": 384.0,
+            "width": 512.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/ReadyTolerance",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 5.0,
+              "divisions": 50,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Shoot Ready Timeout (s)",
+            "x": 1024.0,
+            "y": 512.0,
+            "width": 512.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/ShootReadyTimeoutSeconds",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 3.0,
+              "divisions": 30,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Save to Pi",
+            "x": 1024.0,
+            "y": 640.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Toggle Button",
+            "properties": {
+              "topic": "/ShooterTuner/Cmd/Save",
+              "period": 0.1
+            }
+          },
+          {
+            "title": "Saved OK",
+            "x": 1280.0,
+            "y": 640.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/ShooterTuner/Status/SavedOk",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "AutoTuner State",
+            "x": 1536.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/ShooterAutoTuner/State",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Shots Analyzed",
+            "x": 1536.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/ShooterAutoTuner/Shots Analyzed",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Last Recovery (ms)",
+            "x": 1536.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/ShooterAutoTuner/Last Recovery (ms)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Last kP Action",
+            "x": 1536.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/ShooterAutoTuner/Last Action",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Current kP",
+            "x": 1536.0,
+            "y": 512.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/ShooterAutoTuner/Current kP",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Autotuner Enabled",
+            "x": 1536.0,
+            "y": 640.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Toggle Button",
+            "properties": {
+              "topic": "/ShooterAutoTuner/Autotuner Enabled",
+              "period": 0.1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Bump Detection",
+      "grid_layout": {
+        "layouts": [],
+        "containers": [
+          {
+            "title": "Accel Z Raw (g)",
+            "x": 0.0,
+            "y": 0.0,
+            "width": 512.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/AbsoluteEncoders/Accel Z Raw (g)",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4280391411,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Accel Z Filtered (g)",
+            "x": 512.0,
+            "y": 0.0,
+            "width": 512.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/AbsoluteEncoders/Accel Z Filtered (g)",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4278255360,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Limelight Front Accel Z (g)",
+            "x": 0.0,
+            "y": 384.0,
+            "width": 512.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-front/IMU Accel Z (g)",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4294940672,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Limelight Rear Accel Z (g)",
+            "x": 512.0,
+            "y": 384.0,
+            "width": 512.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-rear/IMU Accel Z (g)",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4289415100,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Wheel Slipping",
+            "x": 1024.0,
+            "y": 0.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/AbsoluteEncoders/Wheel Slipping",
+              "period": 0.066,
+              "true_color": 4294940672,
+              "false_color": 4278255360
+            }
+          },
+          {
+            "title": "Wheel Slip Score (m/s²)",
+            "x": 1024.0,
+            "y": 128.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/AbsoluteEncoders/Wheel Slip Score (m/s²)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Slip Score Raw (m/s²)",
+            "x": 1024.0,
+            "y": 256.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/AbsoluteEncoders/Wheel Slip Score Raw (m/s²)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Front IMU Pitch (deg)",
+            "x": 1024.0,
+            "y": 384.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-front/IMU Pitch (deg)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Rear IMU Pitch (deg)",
+            "x": 1024.0,
+            "y": 512.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-rear/IMU Pitch (deg)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Bump Pitch Threshold (deg)",
+            "x": 1280.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/BumpTuner/Params/BumpPitchThresholdDeg",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 20.0,
+              "divisions": 40,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Pigeon Accel Z Threshold (g)",
+            "x": 1280.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/BumpTuner/Params/BumpAccelZDeviation",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "divisions": 20,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Limelight Accel Z Threshold (g)",
+            "x": 1280.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/BumpTuner/Params/LimelightAccelZDeviation",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 1.0,
+              "divisions": 20,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Wheel Slip Threshold (m/s²)",
+            "x": 1280.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/BumpTuner/Params/WheelSlipThresholdMps2",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 5.0,
+              "divisions": 25,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Bump Vision Multiplier",
+            "x": 1280.0,
+            "y": 512.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/BumpTuner/Params/BumpVisionMultiplier",
+              "period": 0.1,
+              "min_value": 1.0,
+              "max_value": 50.0,
+              "divisions": 49,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Slip High-Conf Multiplier",
+            "x": 1280.0,
+            "y": 640.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/BumpTuner/Params/SlipHighConfMultiplier",
+              "period": 0.1,
+              "min_value": 0.1,
+              "max_value": 2.0,
+              "divisions": 19,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "High-Conf Threshold",
+            "x": 1664.0,
+            "y": 0.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/BumpTuner/Params/HighConfidenceThreshold",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 10.0,
+              "divisions": 20,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Save to Pi",
+            "x": 1664.0,
+            "y": 128.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Toggle Button",
+            "properties": {
+              "topic": "/BumpTuner/Cmd/Save",
+              "period": 0.1
+            }
+          },
+          {
+            "title": "Saved OK",
+            "x": 1664.0,
+            "y": 256.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/BumpTuner/Status/SavedOk",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vision / Pose",
+      "grid_layout": {
+        "layouts": [],
+        "containers": [
+          {
+            "title": "Field",
+            "x": 0.0,
+            "y": 0.0,
+            "width": 768.0,
+            "height": 768.0,
+            "type": "Field",
+            "properties": {
+              "topic": "/SmartDashboard/Field",
+              "period": 0.1,
+              "robot_width": 0.87,
+              "robot_length": 0.87,
+              "show_other_objects": true,
+              "show_trajectories": true,
+              "field_rotation": 0.0
+            }
+          },
+          {
+            "title": "Active Vision Source",
+            "x": 768.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Vision/Active Source",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Front Confidence",
+            "x": 768.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Vision/Front Confidence",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Rear Confidence",
+            "x": 768.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Vision/Rear Confidence",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Best Confidence",
+            "x": 768.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Vision/Best Confidence",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "StdDev Multiplier",
+            "x": 768.0,
+            "y": 512.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Vision/StdDev Multiplier",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Wheel Slipping",
+            "x": 768.0,
+            "y": 640.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/SmartDashboard/Vision/Wheel Slipping",
+              "period": 0.066,
+              "true_color": 4294940672,
+              "false_color": 4278255360
+            }
+          },
+          {
+            "title": "Pi Robot X (m)",
+            "x": 1152.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/PiVision/RobotX",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Pi Robot Y (m)",
+            "x": 1152.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/PiVision/RobotY",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Pi Robot Yaw (deg)",
+            "x": 1152.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/PiVision/RobotYaw",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Pi Tags Seen",
+            "x": 1152.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/PiVision/TagCount",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Pi Decision Margin",
+            "x": 1152.0,
+            "y": 512.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/PiVision/AvgDecisionMargin",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "AprilTag Pi Connected",
+            "x": 1152.0,
+            "y": 640.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/PiVision/Pi Connected",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "Front IMU Pitch (deg)",
+            "x": 1536.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-front/IMU Pitch (deg)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Front IMU Roll (deg)",
+            "x": 1536.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-front/IMU Roll (deg)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Front IMU Accel Z (g)",
+            "x": 1536.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-front/IMU Accel Z (g)",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Rear IMU Pitch (deg)",
+            "x": 1536.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-rear/IMU Pitch (deg)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Rear IMU Roll (deg)",
+            "x": 1536.0,
+            "y": 512.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-rear/IMU Roll (deg)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Rear IMU Accel Z (g)",
+            "x": 1536.0,
+            "y": 640.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/limelight-rear/IMU Accel Z (g)",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

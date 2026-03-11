@@ -1,0 +1,153 @@
+{
+  "version": 1.0,
+  "grid_size": 128,
+  "tabs": [
+    {
+      "name": "In-Game",
+      "grid_layout": {
+        "layouts": [],
+        "containers": [
+          {
+            "title": "Field",
+            "x": 0.0,
+            "y": 0.0,
+            "width": 1024.0,
+            "height": 768.0,
+            "type": "Field",
+            "properties": {
+              "topic": "/SmartDashboard/Field",
+              "period": 0.1,
+              "robot_width": 0.87,
+              "robot_length": 0.87,
+              "show_other_objects": true,
+              "show_trajectories": true,
+              "field_rotation": 0.0
+            }
+          },
+          {
+            "title": "Shooter Ready",
+            "x": 1024.0,
+            "y": 0.0,
+            "width": 512.0,
+            "height": 256.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/UltraShooter/Ready",
+              "period": 0.066,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "Hub Active",
+            "x": 1024.0,
+            "y": 256.0,
+            "width": 512.0,
+            "height": 256.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/SmartDashboard/Hub Active",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "Auto Chooser",
+            "x": 1024.0,
+            "y": 512.0,
+            "width": 512.0,
+            "height": 256.0,
+            "type": "ComboBox Chooser",
+            "properties": {
+              "topic": "/SmartDashboard/Auto Chooser",
+              "period": 0.1,
+              "sort_options": false
+            }
+          },
+          {
+            "title": "Avg Distance to Hub (m)",
+            "x": 1536.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Avg Distance to Hub (m)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Active Vision Source",
+            "x": 1536.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Vision/Active Source",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Balls Visible",
+            "x": 1536.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/BallDetection/Count",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Pi Active (Shooter)",
+            "x": 1536.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/UltraShooter/Pi Active",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "Ball Detection Pi",
+            "x": 1536.0,
+            "y": 512.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/BallDetection/Pi Connected",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "AprilTag Pi",
+            "x": 1536.0,
+            "y": 640.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/PiVision/Pi Connected",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
