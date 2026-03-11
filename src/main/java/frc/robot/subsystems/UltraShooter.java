@@ -85,6 +85,8 @@ public class UltraShooter extends SubsystemBase {
 
     // ── State ─────────────────────────────────────────────────────────────────
 
+    /** Primary encoder velocity sampled once per periodic() cycle (ft/s). */
+    private double cachedVelocity = 0;
     /** Final velocity target set by commands (ft/s). */
     private double velocityTarget = 0;
     /** Ramped setpoint currently fed to the PID controllers (ft/s). */
@@ -276,6 +278,9 @@ public class UltraShooter extends SubsystemBase {
                 Constants.UltraShooterConstants.kI,
                 Constants.UltraShooterConstants.kD)
            .velocityFF(KV);
+        // Position is never used on the Rio for these motors — slow it down to reduce CAN traffic.
+        cfg.signals
+           .primaryEncoderPositionPeriodMs(500);
         motor.configure(cfg, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
@@ -642,7 +647,7 @@ public class UltraShooter extends SubsystemBase {
 
     /** Instantaneous primary encoder velocity (ft/s). */
     public double getVelocity() {
-        return primaryEncoder.getVelocity();
+        return cachedVelocity;
     }
 
     /** 160 ms rolling average of primary encoder velocity (ft/s). */
@@ -751,7 +756,7 @@ public class UltraShooter extends SubsystemBase {
     }
 
     private void updateVelocityBuffer() {
-        double newest = primaryEncoder.getVelocity();
+        double newest = cachedVelocity;
         velocityBufferSum -= velocityBuffer[velocityBufferIndex];
         velocityBuffer[velocityBufferIndex] = newest;
         velocityBufferSum += newest;
@@ -905,6 +910,7 @@ public class UltraShooter extends SubsystemBase {
 
     @Override
     public void periodic() {
+        cachedVelocity = primaryEncoder.getVelocity();
         updatePiStaleness();
         updateDistanceBuffer();
         updateVelocityBuffer();

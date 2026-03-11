@@ -41,13 +41,17 @@ public class Floor extends SubsystemBase {
         motor = new SparkMax(Ports.kFloor, MotorType.kBrushless);
         encoder = motor.getEncoder();
 
-        // Configure motor
         SparkMaxConfig config = new SparkMaxConfig();
         config.inverted(true);
         config.idleMode(IdleMode.kBrake);
         // config.smartCurrentLimit(30);
         // config.secondaryCurrentLimit(120);
-        
+
+        // Floor runs open-loop only; position/velocity/current are dashboard-only.
+        config.signals
+            .primaryEncoderPositionPeriodMs(500)
+            .primaryEncoderVelocityPeriodMs(100);
+
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
         SmartDashboard.putData(this);
     }

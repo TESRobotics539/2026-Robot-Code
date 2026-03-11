@@ -50,6 +50,11 @@ public class Hanger extends SubsystemBase {
             .smartCurrentLimit(Constants.HangerConstants.kSmartCurrentLimit)
             .secondaryCurrentLimit(Constants.HangerConstants.kSecondaryCurrentLimit);
 
+        // Current is needed at 20ms for stall detection; position for encoder tracking.
+        // Velocity is never read on the Rio.
+        config.signals
+            .primaryEncoderVelocityPeriodMs(500);
+
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
         encoder = motor.getEncoder();

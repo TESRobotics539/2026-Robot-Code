@@ -47,7 +47,11 @@ public class Feeder extends SubsystemBase {
         config.closedLoop
             .pid(Constants.FeederConstants.kP, Constants.FeederConstants.kI, Constants.FeederConstants.kD)
             .velocityFF(Constants.FeederConstants.kVelocityFF);
-        
+
+        // Position is never used; velocity is needed for closed-loop but current is dashboard-only.
+        config.signals
+            .primaryEncoderPositionPeriodMs(500);
+
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
         
         encoder = motor.getEncoder();

@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Team 539 — 2026 Pit Tuning Checklist</title>
+<style>
+  :root {
+    --p1: #b91c1c;
+    --p2: #c2410c;
+    --p3: #b45309;
+    --p4: #15803d;
+    --p5: #1d4ed8;
+    --gray: #374151;
+    --light: #f9fafb;
+    --border: #d1d5db;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 10.5pt;
+    color: #111;
+    background: white;
+    padding: 18mm 16mm;
+  }
+
+  /* ── Cover header ── */
+  .cover {
+    text-align: center;
+    border-bottom: 3px solid #111;
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 22pt;
+    font-weight: 900;
+    letter-spacing: 1px;
+  }
+  .cover h2 {
+    font-size: 13pt;
+    font-weight: 600;
+    color: #444;
+    margin-top: 2px;
+  }
+  .cover .meta {
+    font-size: 9pt;
+    color: #666;
+    margin-top: 6px;
+  }
+
+  /* ── Priority legend ── */
+  .legend {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+    padding: 8px 10px;
+    background: #f3f4f6;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 8.5pt;
+  }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 7.5pt;
+    color: white;
+  }
+  .p1-pill { background: var(--p1); }
+  .p2-pill { background: var(--p2); }
+  .p3-pill { background: var(--p3); }
+  .p4-pill { background: var(--p4); }
+  .p5-pill { background: var(--p5); }
+
+  .nt-note {
+    font-size: 8.5pt;
+    color: #444;
+    padding: 5px 10px;
+    border-left: 3px solid #6b7280;
+    background: #f9fafb;
+    margin-bottom: 14px;
+  }
+
+  /* ── Section headings ── */
+  .section {
+    margin-top: 14px;
+    page-break-inside: avoid;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    color: white;
+    font-weight: 700;
+    font-size: 10pt;
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+  }
+  .bg-p1 { background: var(--p1); }
+  .bg-p2 { background: var(--p2); }
+  .bg-p3 { background: var(--p3); }
+  .bg-p4 { background: var(--p4); }
+  .bg-p5 { background: var(--p5); }
+
+  /* ── Checklist items ── */
+  .item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 6px;
+    border-bottom: 1px solid #e5e7eb;
+    page-break-inside: avoid;
+  }
+  .item:last-child { border-bottom: none; }
+
+  .checkbox {
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    border: 1.5px solid #6b7280;
+    border-radius: 2px;
+    margin-top: 1px;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 0 5px;
+    border-radius: 3px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    white-space: nowrap;
+    margin-top: 1px;
+    min-width: 54px;
+    text-align: center;
+  }
+  .tag-MEASURE  { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+  .tag-TUNE     { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+  .tag-DEPLOY   { background: #f0fdf4; color: #14532d; border: 1px solid #86efac; }
+  .tag-CONFIRM  { background: #eff6ff; color: #1e3a8a; border: 1px solid #93c5fd; }
+  .tag-TODO     { background: #fafafa; color: #374151; border: 1px solid #d1d5db; }
+
+  .item-body { flex: 1; }
+  .item-title {
+    font-weight: 600;
+    font-size: 9.5pt;
+    color: #111;
+    line-height: 1.35;
+  }
+  .item-detail {
+    font-size: 8pt;
+    color: #555;
+    margin-top: 1px;
+    line-height: 1.4;
+  }
+  .item-file {
+    font-size: 7.5pt;
+    color: #888;
+    font-style: italic;
+    margin-top: 2px;
+  }
+
+  /* ── Session order table ── */
+  .session-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    margin-top: 6px;
+  }
+  .session-table th {
+    background: #374151;
+    color: white;
+    padding: 4px 8px;
+    text-align: left;
+  }
+  .session-table td {
+    padding: 3px 8px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+  }
+  .session-table tr:nth-child(even) td { background: #f9fafb; }
+
+  /* ── Notes box ── */
+  .notes-box {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-top: 16px;
+    page-break-inside: avoid;
+  }
+  .notes-box h4 { font-size: 9pt; color: #555; margin-bottom: 6px; }
+  .notes-line {
+    border-bottom: 1px solid #d1d5db;
+    height: 18px;
+    margin-bottom: 2px;
+  }
+
+  /* ── Print ── */
+  @media print {
+    body { padding: 12mm 14mm; }
+    .section { page-break-inside: avoid; }
+    a { text-decoration: none; color: inherit; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<div class="cover">
+  <h1>&#9881; TEAM 539 — PIT TUNING CHECKLIST</h1>
+  <h2>2026 Competition Season</h2>
+  <div class="meta">Print date: 2026-03-11 &nbsp;|&nbsp; Priority-ordered for competition readiness</div>
+</div>
+
+<div class="legend">
+  <strong>Priority:</strong>
+  <span class="legend-item"><span class="pill p1-pill">P1</span> Critical — do before any robot testing</span>
+  <span class="legend-item"><span class="pill p2-pill">P2</span> High — required for primary function</span>
+  <span class="legend-item"><span class="pill p3-pill">P3</span> Medium — competition-level reliability</span>
+  <span class="legend-item"><span class="pill p4-pill">P4</span> Low — improves consistency</span>
+  <span class="legend-item"><span class="pill p5-pill">P5</span> Backlog — when time allows</span>
+</div>
+
+<div class="nt-note">
+  &#9733; <strong>Live-tunable items</strong> (shooter PID, ramp, tolerance, bump thresholds) adjust in real-time via
+  NetworkTables using <strong>BumpTuner</strong> / <strong>ShooterTuner</strong>. Changes persist on the Pi — no redeploy needed.
+</div>
+
+
+<!-- ═══════════════ P1 — MEASUREMENTS ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p1">
+    <span class="pill p1-pill">P1</span> PHYSICAL MEASUREMENTS &mdash; must happen before any tuning session
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-MEASURE">MEASURE</span>
+    <div class="item-body">
+      <div class="item-title">kHoodHeightFromFloorInches = 27.0</div>
+      <div class="item-detail">Measure floor → centre of shooter barrel exit on physical robot.</div>
+      <div class="item-file">Constants.java → UltraShooterConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-MEASURE">MEASURE</span>
+    <div class="item-body">
+      <div class="item-title">kShooterCenterlineOffsetInches = 8.0</div>
+      <div class="item-detail">Measure robot geometric centre → shooter exit (forward direction).</div>
+      <div class="item-file">Constants.java → UltraShooterConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-MEASURE">MEASURE</span>
+    <div class="item-body">
+      <div class="item-title">kLaunchAngleDegrees = 75.0</div>
+      <div class="item-detail">Confirm actual barrel angle with a protractor after shooter is fully assembled.</div>
+      <div class="item-file">Constants.java → UltraShooterConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-MEASURE">MEASURE</span>
+    <div class="item-body">
+      <div class="item-title">Pi AprilTag Camera Position (CAM_X / CAM_Y / CAM_Z)</div>
+      <div class="item-detail">Physical position of Pi camera relative to robot centre (forward, left, up — in metres).</div>
+      <div class="item-file">pi/apriltag_vision.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-MEASURE">MEASURE</span>
+    <div class="item-body">
+      <div class="item-title">Pi AprilTag Camera Rotation (CAM_ROLL / CAM_PITCH / CAM_YAW)</div>
+      <div class="item-detail">Rotation relative to robot frame (radians). Set CAM_PITCH if camera tilts upward for distant tags.</div>
+      <div class="item-file">pi/apriltag_vision.py</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P1 — GAME MANUAL CONFIRMS ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p1">
+    <span class="pill p1-pill">P1</span> GAME MANUAL CONFIRMATIONS &mdash; verify before trusting physics model
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-CONFIRM">CONFIRM</span>
+    <div class="item-body">
+      <div class="item-title">kHubCenterHeightFromFloorInches = 72.0</div>
+      <div class="item-detail">Verify against the 2026 game manual.</div>
+      <div class="item-file">Constants.java → UltraShooterConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-CONFIRM">CONFIRM</span>
+    <div class="item-body">
+      <div class="item-title">BALL_DIAMETER_INCHES = 9.5</div>
+      <div class="item-detail">Verify against the 2026 game manual.</div>
+      <div class="item-file">pi/ball_detector.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-CONFIRM">CONFIRM</span>
+    <div class="item-body">
+      <div class="item-title">TAG_SIZE_METERS = 0.1651 (6.5 inches)</div>
+      <div class="item-detail">Verify AprilTag outer border size from 2026 game manual. Incorrect size directly scales the distance estimate.</div>
+      <div class="item-file">pi/apriltag_vision.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-CONFIRM">CONFIRM</span>
+    <div class="item-body">
+      <div class="item-title">Hub positions in Landmarks.java</div>
+      <div class="item-detail">Blue: (182.105 in, 158.845 in) &nbsp;/&nbsp; Red: (469.115 in, 158.845 in) — confirm against 2026 game manual field drawings.</div>
+      <div class="item-file">Landmarks.java</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P2 — DEPLOYMENT ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p2">
+    <span class="pill p2-pill">P2</span> PI &amp; LIMELIGHT DEPLOYMENT &mdash; required for shooter + vision to function
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Flash Pi with WPILibPi image</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Configure team number on WPILibPi web dashboard</div>
+      <div class="item-detail">wpilibpi.local → Network → Team Number → 539</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Upload all 6 Pi scripts to /home/pi/</div>
+      <div class="item-detail">main.py (set as startup) &nbsp;·&nbsp; physics_coprocessor.py &nbsp;·&nbsp; ball_detector.py &nbsp;·&nbsp; apriltag_vision.py &nbsp;·&nbsp; bump_tuner.py &nbsp;·&nbsp; shooter_tuner.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Copy 2026 AprilTag field layout JSON to /home/pi/field.json</div>
+      <div class="item-detail">Source: C:\Users\Public\wpilib\2026\tools\apriltagfields\ or FTP from roboRIO</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Verify Pi Active = true in UltraShooter NT table (within ~2 s of enable)</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Verify Ball Detection / Pi Connected appears in NT</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Verify PiVision / Pi Connected appears in NT</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Connect USB cameras: /dev/video0 (ball detection), /dev/video1 (AprilTag)</div>
+      <div class="item-detail">video0 → aim at floor/intake zone &nbsp;·&nbsp; video1 → forward-facing, clear view of field tags</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Set rear Limelight hostname to "limelight-rear"</div>
+      <div class="item-detail">http://limelight-rear.local:5801 → Settings → Name. Must match Ports.kLimelightRear.</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-CONFIRM">CONFIRM</span>
+    <div class="item-body">
+      <div class="item-title">LimelightHelpers.SetIMUMode(name, 4)</div>
+      <div class="item-detail">Confirm mode 4 is correct for both Limelight hardware versions and firmware.</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Add camera streams to Shuffleboard</div>
+      <div class="item-detail">Ball detection: 10.5.39.2:1182/stream.mjpg &nbsp;·&nbsp; AprilTag: 10.5.39.2:1183/stream.mjpg</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P2 — SHOOTER TUNING ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p2">
+    <span class="pill p2-pill">P2</span> CORE SHOOTER TUNING &mdash; primary scoring mechanism
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kP — run ShooterAutoTuner to converge automatically</div>
+      <div class="item-detail">Starting value: 0.003. Run ShooterAutoTuner command on-robot; allow it to converge. Live-tunable via ShooterTuner NT.</div>
+      <div class="item-file">Constants.java / pi/shooter_tuner.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kD = 0.25 / kS = 0.15 — manual observation via NT velocity graphs</div>
+      <div class="item-detail">Adjust after kP converges. Watch for ringing on velocity graph. Live-tunable via ShooterTuner NT.</div>
+      <div class="item-file">Constants.java</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kRampUpRate / kRampDownRate (~200 up / ~400 down RPM/cycle)</div>
+      <div class="item-detail">Adjust if flywheel overshoots or feels sluggish. Live-tunable via ShooterTuner NT.</div>
+      <div class="item-file">Constants.java</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kReadyTolerance (~100 RPM-equivalent)</div>
+      <div class="item-detail">Raise if shots miss (triggers too early). Lower if wait feels unnecessary. Live-tunable via ShooterTuner NT.</div>
+      <div class="item-file">Constants.java</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kShootWaitSeconds = 0.5 s (post-flywheel-ready delay)</div>
+      <div class="item-detail">Reduce if wait feels too long. Increase if balls miss on feed.</div>
+      <div class="item-file">Constants.java</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kNearShotOffsetPercent = 0.0 (20" from hub)</div>
+      <div class="item-detail">Shoot from ~20". Positive = spin faster, negative = slower. Adjust until balls score consistently.</div>
+      <div class="item-file">Constants.java</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kFarShotOffsetPercent = 0.0 (120" from hub)</div>
+      <div class="item-detail">Shoot from ~120". Intermediate distances are linearly interpolated.</div>
+      <div class="item-file">Constants.java</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P3 — BUMP DETECTION ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p3">
+    <span class="pill p3-pill">P3</span> BUMP DETECTION &amp; VISION STABILITY &mdash; pose reliability on field
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Drive over bump and log all 6 sensor NT keys (before tuning thresholds)</div>
+      <div class="item-detail">Log: Accel Z Raw/Filtered, limelight-front/rear IMU Pitch &amp; Accel Z. Record peak values.</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kAccelFilterAlpha = 0.15</div>
+      <div class="item-detail">Low-pass alpha for Pigeon 2 axes. Start at 0.15; raise toward 0.3 if filtered lags raw. Live-tunable via BumpTuner NT.</div>
+      <div class="item-file">Constants.java → BumpDetectionConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kBumpPitchThresholdDegrees = 8.0°</div>
+      <div class="item-detail">Set to ~70% of peak pitch during bump. Live-tunable via BumpTuner NT.</div>
+      <div class="item-file">Constants.java → BumpDetectionConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kBumpAccelZDeviationThreshold = 0.25 g</div>
+      <div class="item-detail">Deviation from 1 g on Pigeon 2 Z-axis. Set to ~60% of peak deviation. Live-tunable via BumpTuner NT.</div>
+      <div class="item-file">Constants.java → BumpDetectionConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kLimelightAccelZDeviationThreshold = 0.25 g</div>
+      <div class="item-detail">Same threshold for front + rear Limelight accel Z. Tune independently if Limelight IMU differs from Pigeon 2. Live-tunable.</div>
+      <div class="item-file">Constants.java → BumpDetectionConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-CONFIRM">CONFIRM</span>
+    <div class="item-body">
+      <div class="item-title">2-of-3 vote: verify in Elastic</div>
+      <div class="item-detail">
+        &#9642; Vision/Active Source shows correct camera &nbsp;·&nbsp;
+        &#9642; Bump flag does NOT trigger on normal fast driving &nbsp;·&nbsp;
+        &#9642; Bump flag DOES trigger within one loop cycle of mounting the bump
+      </div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kBumpVisionStdDevMultiplier = 10.0</div>
+      <div class="item-detail">Applied to Limelight stddevs during bump. Raise (25–50) if pose drifts mid-bump. Lower if recovery is too slow. Live-tunable.</div>
+      <div class="item-file">Constants.java → BumpDetectionConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">Limelight standard deviations (both cameras)</div>
+      <div class="item-detail">Currently VecBuilder.fill(0.1, 0.1, 10.0). Compare front/rear poses to Pigeon odometry at match distances. Tighten x/y if accurate.</div>
+      <div class="item-file">Limelight.java</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P3 — INTAKE ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p3">
+    <span class="pill p3-pill">P3</span> INTAKE TUNING &mdash; ball pickup reliability
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kRollerLoadCurrentThreshold = 25.0 A</div>
+      <div class="item-detail">Spike level that counts as a fuel pickup. Raise for false positives; lower if pickups aren't detected.</div>
+      <div class="item-file">Constants.java → IntakeConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kRollerFuelSpikeCount = 4</div>
+      <div class="item-detail">Number of current spikes before flywheel pre-spin enables. Adjust to typical ball carry count.</div>
+      <div class="item-file">Constants.java → IntakeConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kDeployedPosition = 0.57 (absolute encoder)</div>
+      <div class="item-detail">Verify intake reaches full deployment. Calibration routine refines at match start; this is the fallback.</div>
+      <div class="item-file">Constants.java → IntakeConstants</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P4 — DUAL CAMERA ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p4">
+    <span class="pill p4-pill">P4</span> DUAL-CAMERA CONFIDENCE SELECTION
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-DEPLOY">DEPLOY</span>
+    <div class="item-body">
+      <div class="item-title">Mount rear Limelight with clear view of opposing alliance wall tags + near-side mid-field tags</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">Confidence metric: avgTagArea × tagCount</div>
+      <div class="item-detail">Watch Vision/Front Confidence and Vision/Rear Confidence in Elastic across full field. Camera with larger tags should always win.</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">Add hysteresis band if source oscillates (not yet implemented)</div>
+      <div class="item-detail">Only switch camera if new winner exceeds current by &gt;10%. Implement if oscillation is observed on straight drive.</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-CONFIRM">CONFIRM</span>
+    <div class="item-body">
+      <div class="item-title">Full-field drive: overlay Vision/Active Source log against Field2d pose</div>
+      <div class="item-detail">Verify no large jumps at camera switch points.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P4 — HANGER ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p4">
+    <span class="pill p4-pill">P4</span> HANGER &mdash; climb tuning
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kAutoClimbCurrentThreshold = 50.0 A</div>
+      <div class="item-detail">Current level that signals stall on bar. Tune by watching current during a practice climb.</div>
+      <div class="item-file">Constants.java → HangerConstants</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">kAutoClimbReleasePower = 0.5 / kAutoClimbReleaseSeconds = 0.3</div>
+      <div class="item-detail">Release pulse after stall. Adjust if hook slips or doesn't settle properly.</div>
+      <div class="item-file">Constants.java → HangerConstants</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P4 — AUTONOMOUS ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p4">
+    <span class="pill p4-pill">P4</span> AUTONOMOUS
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TODO">TODO</span>
+    <div class="item-body">
+      <div class="item-title">Verify PathPlanner auto paths are correct for 2026 field</div>
+      <div class="item-detail">Hub positions (Landmarks.java) and starting positions may need updating once official field survey data is available.</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TODO">TODO</span>
+    <div class="item-body">
+      <div class="item-title">Test "Auto Shoot" named command end-to-end in practice auto</div>
+      <div class="item-detail">Confirm shoot timeout (4.0 s) and long-feed timeout (7.0 s) are appropriate for your cycle time.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P5 — BALL DETECTION ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p5">
+    <span class="pill p5-pill">P5</span> BALL DETECTION &mdash; vision-based intake assist
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">HSV_LOW / HSV_HIGH — must be set for your ball colour</div>
+      <div class="item-detail">
+        1. Point camera at ball under field lighting &nbsp;·&nbsp;
+        2. Capture frame via :1182 MJPEG stream &nbsp;·&nbsp;
+        3. Sample HSV at ball centre &nbsp;·&nbsp;
+        4. LOW=(hue-15, sat-40, val-40), HIGH=(hue+15, 255, 255) &nbsp;·&nbsp;
+        5. Iterate until mask cleanly covers balls.
+      </div>
+      <div class="item-file">pi/ball_detector.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">CAMERA_HFOV_DEG = 68.5</div>
+      <div class="item-detail">Check camera datasheet for horizontal FOV. Affects angle/distance estimates for nearest ball.</div>
+      <div class="item-file">pi/ball_detector.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">MIN_BALL_AREA = 200 px²</div>
+      <div class="item-detail">Raise for false detections on field markings. Lower if balls missed when far from camera.</div>
+      <div class="item-file">pi/ball_detector.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">camera.setExposureManual(50)</div>
+      <div class="item-detail">Adjust for venue lighting. Lower values reduce motion blur at cost of darker image.</div>
+      <div class="item-file">pi/ball_detector.py</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ P5 — APRILTAG CAMERA CALIBRATION ═══════════════ -->
+<div class="section">
+  <div class="section-header bg-p5">
+    <span class="pill p5-pill">P5</span> APRILTAG CAMERA CALIBRATION &mdash; improves Pi pose accuracy
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">CAMERA_FX / FY / CX / CY (camera intrinsics)</div>
+      <div class="item-detail">Default (500 px focal length) is approximate. Calibrate with OpenCV chessboard for accurate pose. Without calibration expect ±15–30 cm error.</div>
+      <div class="item-file">pi/apriltag_vision.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">MIN_DECISION_MARGIN = 35.0</div>
+      <div class="item-detail">Lower if far/small tags are missed. Raise if bad detections pollute pose estimate.</div>
+      <div class="item-file">pi/apriltag_vision.py</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">PIPELINE_LATENCY_SECONDS = 0.10</div>
+      <div class="item-detail">If odometry jumps during Pi-sourced corrections → increase. If correction always lags → decrease.</div>
+      <div class="item-file">PiAprilTagVision.java</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="checkbox"></div>
+    <span class="tag tag-TUNE">TUNE</span>
+    <div class="item-body">
+      <div class="item-title">Pi standard deviations: single tag (0.7, 0.7, 25.0) / multi-tag (0.3, 0.3, 15.0)</div>
+      <div class="item-detail">Compare Pi poses to Limelight poses on stationary robot. Tighten/loosen to reflect actual error.</div>
+      <div class="item-file">PiAprilTagVision.java</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ SESSION ORDER ═══════════════ -->
+<div class="section">
+  <div class="section-header" style="background:#374151;">
+    &#128203; RECOMMENDED TUNING SESSION ORDER
+  </div>
+  <table class="session-table">
+    <thead>
+      <tr><th>#</th><th>Step</th><th>Priority</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Confirm all physical measurements (MEASURE items)</td><td><span class="pill p1-pill">P1</span></td></tr>
+      <tr><td>2</td><td>Confirm game manual values (CONFIRM items)</td><td><span class="pill p1-pill">P1</span></td></tr>
+      <tr><td>3</td><td>Deploy Pi with all 6 scripts and verify NT connections</td><td><span class="pill p2-pill">P2</span></td></tr>
+      <tr><td>4</td><td>Deploy both Limelights; verify rear hostname</td><td><span class="pill p2-pill">P2</span></td></tr>
+      <tr><td>5</td><td>Run ShooterAutoTuner on static robot to converge kP</td><td><span class="pill p2-pill">P2</span></td></tr>
+      <tr><td>6</td><td>Tune kD/kS and ramp rates via ShooterTuner NT keys</td><td><span class="pill p2-pill">P2</span></td></tr>
+      <tr><td>7</td><td>Tune near/far shot offsets with live shots</td><td><span class="pill p2-pill">P2</span></td></tr>
+      <tr><td>8</td><td>Drive over bump while logging all 6 sensor NT keys</td><td><span class="pill p3-pill">P3</span></td></tr>
+      <tr><td>9</td><td>Tune bump thresholds live via BumpTuner NT keys</td><td><span class="pill p3-pill">P3</span></td></tr>
+      <tr><td>10</td><td>Confirm 2-of-3 vote fires reliably; not on flat driving</td><td><span class="pill p3-pill">P3</span></td></tr>
+      <tr><td>11</td><td>Tune Limelight stddevs and kBumpVisionStdDevMultiplier</td><td><span class="pill p3-pill">P3</span></td></tr>
+      <tr><td>12</td><td>Tune intake current threshold with real balls</td><td><span class="pill p3-pill">P3</span></td></tr>
+      <tr><td>13</td><td>Verify Vision/Active Source switches correctly across field</td><td><span class="pill p4-pill">P4</span></td></tr>
+      <tr><td>14</td><td>Run full autonomous and verify heading + odometry</td><td><span class="pill p4-pill">P4</span></td></tr>
+      <tr><td>15</td><td>Tune ball detection HSV under field lighting</td><td><span class="pill p5-pill">P5</span></td></tr>
+      <tr><td>16</td><td>Calibrate AprilTag camera and verify Pi poses</td><td><span class="pill p5-pill">P5</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ═══════════════ NOTES ═══════════════ -->
+<div class="notes-box">
+  <h4>PIT NOTES</h4>
+  <div class="notes-line"></div>
+  <div class="notes-line"></div>
+  <div class="notes-line"></div>
+  <div class="notes-line"></div>
+  <div class="notes-line"></div>
+  <div class="notes-line"></div>
+</div>
+
+</body>
+</html>

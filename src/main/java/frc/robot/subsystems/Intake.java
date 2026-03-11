@@ -91,6 +91,11 @@ public class Intake extends SubsystemBase {
             .pid(Constants.IntakeConstants.kPivotP, Constants.IntakeConstants.kPivotI, Constants.IntakeConstants.kPivotD)
             .outputRange(Constants.IntakeConstants.kPivotOutputRangeMin, Constants.IntakeConstants.kPivotOutputRangeMax);
 
+        // PID uses the absolute encoder; the relative encoder position and velocity are never read.
+        config.signals
+            .primaryEncoderPositionPeriodMs(500)
+            .primaryEncoderVelocityPeriodMs(500);
+
         pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
@@ -106,6 +111,10 @@ public class Intake extends SubsystemBase {
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
             .pid(Constants.IntakeConstants.kRollerP, Constants.IntakeConstants.kRollerI, Constants.IntakeConstants.kRollerD)
             .velocityFF(12.0 / Constants.IntakeConstants.kRollerFreeSpeedRPM);
+
+        // Position is never read on the Rio; velocity and current are needed for ball detection.
+        config.signals
+            .primaryEncoderPositionPeriodMs(500);
 
         rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }

@@ -23,6 +23,8 @@ import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 
+import com.ctre.phoenix6.BaseStatusSignal;
+import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.hardware.Pigeon2;
 
 import edu.wpi.first.wpilibj.DriverStation;
@@ -70,6 +72,13 @@ public class Swerve extends SubsystemBase
   // Retrieved from YAGSL after swerveDrive construction so we share the same Phoenix 6
   // handle that YAGSL owns, rather than creating a second device object with a hardcoded ID.
   private Pigeon2 pigeon2;
+  // Cached signal objects — refreshed together via refreshAll() each cycle to guarantee
+  // all five values come from the same CAN frame before the filters and rolling averages run.
+  private StatusSignal<Double> pigeonAccelX;
+  private StatusSignal<Double> pigeonAccelY;
+  private StatusSignal<Double> pigeonAccelZ;
+  private StatusSignal<Double> pigeonPitch;
+  private StatusSignal<Double> pigeonRoll;
   private final LowPassFilter accelXFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelYFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelZFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
@@ -112,7 +121,12 @@ public class Swerve extends SubsystemBase
       throw new RuntimeException(e);
     }
 
-    pigeon2 = (Pigeon2) swerveDrive.getImu().getIMU();
+    pigeon2      = (Pigeon2) swerveDrive.getImu().getIMU();
+    pigeonAccelX = pigeon2.getAccelerationX();
+    pigeonAccelY = pigeon2.getAccelerationY();
+    pigeonAccelZ = pigeon2.getAccelerationZ();
+    pigeonPitch  = pigeon2.getPitch();
+    pigeonRoll   = pigeon2.getRoll();
 
     swerveDrive.setHeadingCorrection(false); // Heading correction should only be used while controlling the robot via angle.
     swerveDrive.setCosineCompensator(false); // Disables cosine compensation for simulations since it causes discrepancies not seen in real life.
@@ -150,7 +164,12 @@ public class Swerve extends SubsystemBase
                                   Constants.DrivetrainConstants.kMaxSpeed,
                                   new Pose2d(new Translation2d(Meter.of(2), Meter.of(0)),
                                              Rotation2d.fromDegrees(0)));
-    pigeon2 = (Pigeon2) swerveDrive.getImu().getIMU();
+    pigeon2      = (Pigeon2) swerveDrive.getImu().getIMU();
+    pigeonAccelX = pigeon2.getAccelerationX();
+    pigeonAccelY = pigeon2.getAccelerationY();
+    pigeonAccelZ = pigeon2.getAccelerationZ();
+    pigeonPitch  = pigeon2.getPitch();
+    pigeonRoll   = pigeon2.getRoll();
 
     absoluteEncoder_fl = new CANCoderSwerve(9);
     absoluteEncoder_fr = new CANCoderSwerve(12);
@@ -186,26 +205,34 @@ public class Swerve extends SubsystemBase
   {
     field.setRobotPose(swerveDrive.getPose());
 
-    telemetryTable.getEntry("Module FL Absolute Angle").setNumber(absoluteEncoder_fl.getAbsolutePosition());
+    double flPos = absoluteEncoder_fl.getAbsolutePosition();
+    double frPos = absoluteEncoder_fr.getAbsolutePosition();
+    double blPos = absoluteEncoder_bl.getAbsolutePosition();
+    double brPos = absoluteEncoder_br.getAbsolutePosition();
+
+    telemetryTable.getEntry("Module FL Absolute Angle").setNumber(flPos);
     telemetryTable.getEntry("Module FL Relative Angle").setNumber(swerveDrive.getModules()[0].getState().angle.getDegrees());
-    telemetryTable.getEntry("Module FL Drift").setNumber(absoluteEncoder_fl.getAbsolutePosition() - swerveDrive.getModules()[0].getState().angle.getDegrees());
+    telemetryTable.getEntry("Module FL Drift").setNumber(flPos - swerveDrive.getModules()[0].getState().angle.getDegrees());
 
-    telemetryTable.getEntry("Module FR Absolute Angle").setNumber(absoluteEncoder_fr.getAbsolutePosition());
+    telemetryTable.getEntry("Module FR Absolute Angle").setNumber(frPos);
     telemetryTable.getEntry("Module FR Relative Angle").setNumber(swerveDrive.getModules()[1].getState().angle.getDegrees());
-    telemetryTable.getEntry("Module FR Drift").setNumber(absoluteEncoder_fr.getAbsolutePosition() - swerveDrive.getModules()[1].getState().angle.getDegrees());
+    telemetryTable.getEntry("Module FR Drift").setNumber(frPos - swerveDrive.getModules()[1].getState().angle.getDegrees());
 
-    telemetryTable.getEntry("Module BL Absolute Angle").setNumber(absoluteEncoder_bl.getAbsolutePosition());
+    telemetryTable.getEntry("Module BL Absolute Angle").setNumber(blPos);
     telemetryTable.getEntry("Module BL Relative Angle").setNumber(swerveDrive.getModules()[2].getState().angle.getDegrees());
-    telemetryTable.getEntry("Module BL Drift").setNumber(absoluteEncoder_bl.getAbsolutePosition() - swerveDrive.getModules()[2].getState().angle.getDegrees());
+    telemetryTable.getEntry("Module BL Drift").setNumber(blPos - swerveDrive.getModules()[2].getState().angle.getDegrees());
 
-    telemetryTable.getEntry("Module BR Absolute Angle").setNumber(absoluteEncoder_br.getAbsolutePosition());
+    telemetryTable.getEntry("Module BR Absolute Angle").setNumber(brPos);
     telemetryTable.getEntry("Module BR Relative Angle").setNumber(swerveDrive.getModules()[3].getState().angle.getDegrees());
-    telemetryTable.getEntry("Module BR Drift").setNumber(absoluteEncoder_br.getAbsolutePosition() - swerveDrive.getModules()[3].getState().angle.getDegrees());
+    telemetryTable.getEntry("Module BR Drift").setNumber(brPos - swerveDrive.getModules()[3].getState().angle.getDegrees());
 
     // Filtered Pigeon 2 accelerometer — bump spikes are smoothed out.
-    double rawX = pigeon2.getAccelerationX().getValueAsDouble();
-    double rawY = pigeon2.getAccelerationY().getValueAsDouble();
-    double rawZ = pigeon2.getAccelerationZ().getValueAsDouble();
+    // refreshAll() guarantees all five signals come from the same CAN frame before
+    // the low-pass filters and wheel-slip rolling averages consume them.
+    BaseStatusSignal.refreshAll(pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll);
+    double rawX = pigeonAccelX.getValueAsDouble();
+    double rawY = pigeonAccelY.getValueAsDouble();
+    double rawZ = pigeonAccelZ.getValueAsDouble();
     double filtX = accelXFilter.calculate(rawX);
     double filtY = accelYFilter.calculate(rawY);
     double filtZ = accelZFilter.calculate(rawZ);
@@ -232,8 +259,8 @@ public class Swerve extends SubsystemBase
     prevVxMetersPerSecond = currentVel.vxMetersPerSecond;
     prevVyMetersPerSecond = currentVel.vyMetersPerSecond;
 
-    double pitchRad = Math.toRadians(pigeon2.getPitch().getValueAsDouble());
-    double rollRad  = Math.toRadians(pigeon2.getRoll().getValueAsDouble());
+    double pitchRad = Math.toRadians(pigeonPitch.getValueAsDouble());
+    double rollRad  = Math.toRadians(pigeonRoll.getValueAsDouble());
     double imuAccelX = (filtX - Math.sin(pitchRad)) * 9.81; // gravity-compensated, m/s²
     double imuAccelY = (filtY - Math.sin(rollRad))  * 9.81;
 
@@ -644,13 +671,13 @@ public class Swerve extends SubsystemBase
   /** Returns Pigeon 2 pitch in degrees. Positive = nose up. */
   public double getPitchDegrees()
   {
-    return pigeon2.getPitch().getValueAsDouble();
+    return pigeonPitch.getValueAsDouble();
   }
 
   /** Returns Pigeon 2 roll in degrees. Positive = left side up. */
   public double getRollDegrees()
   {
-    return pigeon2.getRoll().getValueAsDouble();
+    return pigeonRoll.getValueAsDouble();
   }
 
   /**
