@@ -1,5 +1,7 @@
 package frc.robot.subsystems;
 
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
 import com.revrobotics.PersistMode;
 import com.revrobotics.RelativeEncoder;
@@ -126,6 +128,7 @@ public class UltraShooter extends SubsystemBase {
     private final NetworkTableEntry   ntHubHeight  = nt.getEntry("Hub Center Height From Floor (in)");
     private final NetworkTableEntry   ntPrimCur    = nt.getEntry("Primary Current");
     private final NetworkTableEntry   ntSecCur     = nt.getEntry("Secondary Current");
+    private final NetworkTableEntry   ntTOF        = nt.getEntry("Time of Flight (s)");
     // ── Trajectory Mechanism2d canvas ─────────────────────────────────────────
     // Draws a side-view of the current shot: robot box, arc, hub box, yellow fuel ball.
     // Published to SmartDashboard as "Shot Trajectory" — add as a Mechanism2d widget
@@ -345,6 +348,63 @@ public class UltraShooter extends SubsystemBase {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Time-of-flight calculator
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Calculates the ball's time of flight (seconds) from hood exit to hub center.
+     * Uses the same physics model as {@link #calculateRequiredVelocityFPS} but
+     * does not require flywheel efficiency — TOF depends only on ball exit speed.
+     *
+     * <p>Analytic (no drag): {@code t = d / (v₀ · cosθ)}<br>
+     * With drag: single forward Euler simulation at 5 ms time-step.
+     *
+     * @param distanceToHubMeters  Odometry distance from robot center to hub (m).
+     * @param dragCoefficient      Aerodynamic drag constant B = 0.5×Cd×ρ×A (kg/m).
+     * @param ballMassLbs          Ball mass (lbs).
+     * @return Time of flight in seconds, or 0 if the shot is physically impossible.
+     */
+    public static double calculateTimeOfFlightSeconds(
+            double distanceToHubMeters,
+            double dragCoefficient,
+            double ballMassLbs) {
+
+        final double angleRad       = Math.toRadians(Constants.UltraShooterConstants.kLaunchAngleDegrees);
+        final double shooterOffsetM = Units.inchesToMeters(Constants.UltraShooterConstants.kShooterCenterlineOffsetInches);
+        final double hoodHeightM    = Units.inchesToMeters(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
+        final double hubHeightM     = Units.inchesToMeters(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
+
+        final double d = distanceToHubMeters - shooterOffsetM;
+        final double h = hubHeightM - hoodHeightM;
+
+        if (d <= 0) return 0;
+
+        if (dragCoefficient <= 0) {
+            // Analytic: horizontal velocity is constant → t = d / vx
+            final double cosTheta = Math.cos(angleRad);
+            final double tanTheta = Math.tan(angleRad);
+            final double denom    = 2.0 * cosTheta * cosTheta * (d * tanTheta - h);
+            if (denom <= 0) return 0;
+            final double v0_mps = d * Math.sqrt(9.81 / denom);
+            return d / (v0_mps * cosTheta);
+        } else {
+            final double ballMassKg  = ballMassLbs * 0.453592;
+            final double dragPerMass = dragCoefficient / Math.max(ballMassKg, 0.001);
+            final double v0_mps      = binarySearchV0(d, h, angleRad, dragPerMass);
+            if (v0_mps <= 0) return 0;
+            return simulateTimeOfFlight(v0_mps, d, angleRad, dragPerMass);
+        }
+    }
+
+    /** Convenience overload using default physics constants. */
+    public static double calculateTimeOfFlightSeconds(double distanceToHubMeters) {
+        return calculateTimeOfFlightSeconds(
+                distanceToHubMeters,
+                Constants.UltraShooterConstants.kDragCoefficient,
+                Constants.UltraShooterConstants.kBallMassLbs);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Numerical solver helpers (drag physics)
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -373,6 +433,31 @@ public class UltraShooter extends SubsystemBase {
             }
         }
         return (lo + hi) * 0.5;
+    }
+
+    /**
+     * Simulates projectile motion with quadratic drag and returns the time (s)
+     * for the ball to reach {@code targetX} meters downrange.
+     * Uses linear interpolation to sub-step accuracy.
+     */
+    private static double simulateTimeOfFlight(
+            double v0Mps, double targetX, double angleRad, double dragPerMass) {
+        final double DT = 0.005;
+        double vx = v0Mps * Math.cos(angleRad);
+        double vy = v0Mps * Math.sin(angleRad);
+        double x = 0, prevX = 0;
+        for (int i = 0; i < 5000; i++) {
+            double speed = Math.sqrt(vx * vx + vy * vy);
+            vx += (-dragPerMass * speed * vx) * DT;
+            vy += (-9.81 - dragPerMass * speed * vy) * DT;
+            prevX = x;
+            x += vx * DT;
+            if (x >= targetX) {
+                double frac = (x - prevX) > 1e-9 ? (targetX - prevX) / (x - prevX) : 0.0;
+                return (i + frac) * DT;
+            }
+        }
+        return 0;
     }
 
     /**
@@ -509,7 +594,23 @@ public class UltraShooter extends SubsystemBase {
                     shooterTuner.getBallMassLbs());
         }
 
-        setTarget(physicsSpeed * (1.0 + offsetFraction));
+        // Radial velocity compensation: if the robot is moving toward the hub,
+        // the ball arrives faster and needs a lower exit speed (and vice versa).
+        // Project field velocity onto the robot→hub unit vector.
+        final ChassisSpeeds fieldVelocity = swerve.getFieldVelocity();
+        final Translation2d robotToHub =
+                Landmarks.hubPosition().minus(swerve.getPose().getTranslation());
+        final double distNorm = robotToHub.getNorm();
+        final double radialVelocityMps = distNorm > 0.1
+                ? (fieldVelocity.vxMetersPerSecond * robotToHub.getX() / distNorm
+                   + fieldVelocity.vyMetersPerSecond * robotToHub.getY() / distNorm)
+                : 0.0;
+        // Convert radial speed to flywheel-surface ft/s (same scaling as physicsSpeed).
+        final double radialCorrectionFps =
+                radialVelocityMps * 3.28084 / Math.max(shooterTuner.getFlywheelEfficiency(), 0.01);
+        final double adjustedSpeed = Math.max(0.0, physicsSpeed - radialCorrectionFps);
+
+        setTarget(adjustedSpeed * (1.0 + offsetFraction));
     }
 
     /**
@@ -700,6 +801,7 @@ public class UltraShooter extends SubsystemBase {
         final double dist    = getAverageDistanceToHub();
         final double physFPS = calculateRequiredVelocityFPS(dist, effic, drag, mass);
         ntPhysics    .setDouble(physFPS);
+        ntTOF        .setDouble(calculateTimeOfFlightSeconds(dist, drag, mass));
         ntDistance   .setDouble(swerve.getDistanceToHub() * 3.28084);
         ntDistanceAvg.setDouble(dist * 3.28084);
         ntAngle     .setDouble(Constants.UltraShooterConstants.kLaunchAngleDegrees);

@@ -11,6 +11,7 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Landmarks;
 import frc.robot.subsystems.Swerve;
+import frc.robot.subsystems.UltraShooter;
 import frc.util.GeometryUtil;
 
 public class AimAndDriveCommand extends Command {
@@ -44,8 +45,17 @@ public class AimAndDriveCommand extends Command {
     private Rotation2d getDirectionToHub() {
         final Translation2d hubPosition = Landmarks.hubPosition();
         final Translation2d robotPosition = swerve.getPose().getTranslation();
-        final Rotation2d hubDirection = hubPosition.minus(robotPosition).getAngle();
-        return hubDirection;
+
+        // Lead the aim point by the ball's time of flight so the hub moves
+        // into the ball's path while the robot is in motion.
+        final double tof = UltraShooter.calculateTimeOfFlightSeconds(swerve.getDistanceToHub());
+        final ChassisSpeeds fieldVelocity = swerve.getFieldVelocity();
+        final Translation2d leadOffset = new Translation2d(
+                fieldVelocity.vxMetersPerSecond * tof,
+                fieldVelocity.vyMetersPerSecond * tof);
+        final Translation2d virtualHub = hubPosition.minus(leadOffset);
+
+        return virtualHub.minus(robotPosition).getAngle();
     }
 
     @Override

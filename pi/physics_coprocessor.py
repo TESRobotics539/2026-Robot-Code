@@ -114,6 +114,62 @@ def _binary_search_v0(
     return (lo + hi) * 0.5
 
 
+# ── Time-of-flight calculator ───────────────────────────────────────────────────
+
+def _simulate_tof(v0: float, target_x: float, angle_rad: float, drag_per_mass: float,
+                  dt: float = 0.005) -> float:
+    """
+    Returns the time (s) for the ball to travel *target_x* metres downrange
+    under quadratic drag.  Uses the same Euler integration as _simulate_y_at_x
+    with linear interpolation to sub-step accuracy.
+    """
+    vx = v0 * math.cos(angle_rad)
+    vy = v0 * math.sin(angle_rad)
+    x, prev_x = 0.0, 0.0
+    for i in range(5000):
+        speed = math.sqrt(vx * vx + vy * vy)
+        vx += (-drag_per_mass * speed * vx) * dt
+        vy += (-9.81 - drag_per_mass * speed * vy) * dt
+        prev_x = x
+        x += vx * dt
+        if x >= target_x:
+            frac = (target_x - prev_x) / (x - prev_x) if (x - prev_x) > 1e-9 else 0.0
+            return (i + frac) * dt
+    return 0.0
+
+
+def calculate_tof_seconds(
+        distance_to_hub_m: float,
+        drag_coeff: float = DEFAULT_DRAG_COEFF,
+        ball_mass_lbs: float = DEFAULT_BALL_MASS_LBS) -> float:
+    """
+    Returns time of flight (s) for the ball to reach the hub.
+    Analytic when drag_coeff == 0; numerical otherwise.
+    """
+    angle_rad = math.radians(LAUNCH_ANGLE_DEG)
+    d = distance_to_hub_m - _in_to_m(SHOOTER_OFFSET_INCHES)
+    h = _in_to_m(HUB_HEIGHT_INCHES) - _in_to_m(HOOD_HEIGHT_INCHES)
+
+    if d <= 0:
+        return 0.0
+
+    if drag_coeff <= 0:
+        cos_t = math.cos(angle_rad)
+        tan_t = math.tan(angle_rad)
+        denom = 2.0 * cos_t * cos_t * (d * tan_t - h)
+        if denom <= 0:
+            return 0.0
+        v0_mps = d * math.sqrt(9.81 / denom)
+        return d / (v0_mps * cos_t)
+    else:
+        ball_mass_kg  = ball_mass_lbs * 0.453592
+        drag_per_mass = drag_coeff / max(ball_mass_kg, 0.001)
+        v0_mps = _binary_search_v0(d, h, angle_rad, drag_per_mass)
+        if v0_mps <= 0:
+            return 0.0
+        return _simulate_tof(v0_mps, d, angle_rad, drag_per_mass)
+
+
 # ── Core velocity calculator ────────────────────────────────────────────────────
 
 def calculate_velocity_fps(
@@ -174,6 +230,7 @@ def run(table: ntcore.NetworkTable) -> None:
 
     dist_sub     = table.getDoubleTopic("Avg Distance to Hub (ft)").subscribe(0.0)
     vel_pub      = table.getDoubleTopic("Pi Physics Velocity ft/s").publish()
+    tof_pub      = table.getDoubleTopic("Pi Time of Flight (s)").publish()
     hb_pub       = table.getIntegerTopic("Pi Heartbeat").publish()
 
     effic_sub    = tuner_params.getDoubleTopic("FlywheelEfficiency").subscribe(DEFAULT_EFFICIENCY)
@@ -188,7 +245,9 @@ def run(table: ntcore.NetworkTable) -> None:
         drag  = drag_sub.get()
         mass  = mass_sub.get()
 
-        vel_pub.set(calculate_velocity_fps(dist_sub.get() / 3.28084, effic, drag, mass))  # mass in lbs
+        dist_m = dist_sub.get() / 3.28084
+        vel_pub.set(calculate_velocity_fps(dist_m, effic, drag, mass))  # mass in lbs
+        tof_pub.set(calculate_tof_seconds(dist_m, drag, mass))
         heartbeat += 1
         hb_pub.set(heartbeat)
         time.sleep(0.02)   # 50 Hz — matches the roboRIO scheduler period
