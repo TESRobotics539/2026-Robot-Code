@@ -3,7 +3,7 @@
   "grid_size": 128,
   "tabs": [
     {
-      "name": "Shooter Tuning",
+      "name": "Shooter Velocity",
       "grid_layout": {
         "layouts": [],
         "containers": [
@@ -11,7 +11,7 @@
             "title": "Velocity ft/s",
             "x": 0.0,
             "y": 0.0,
-            "width": 384.0,
+            "width": 512.0,
             "height": 384.0,
             "type": "Graph",
             "properties": {
@@ -23,25 +23,10 @@
             }
           },
           {
-            "title": "Target ft/s",
-            "x": 384.0,
-            "y": 0.0,
-            "width": 384.0,
-            "height": 384.0,
-            "type": "Graph",
-            "properties": {
-              "topic": "/UltraShooter/Target ft/s",
-              "period": 0.066,
-              "time_displayed": 10.0,
-              "color": 4283215696,
-              "line_width": 2.0
-            }
-          },
-          {
             "title": "Avg Velocity ft/s",
-            "x": 0.0,
-            "y": 384.0,
-            "width": 384.0,
+            "x": 512.0,
+            "y": 0.0,
+            "width": 512.0,
             "height": 384.0,
             "type": "Graph",
             "properties": {
@@ -53,10 +38,25 @@
             }
           },
           {
-            "title": "Ramped Setpoint ft/s",
-            "x": 384.0,
+            "title": "Target ft/s",
+            "x": 0.0,
             "y": 384.0,
-            "width": 384.0,
+            "width": 512.0,
+            "height": 384.0,
+            "type": "Graph",
+            "properties": {
+              "topic": "/UltraShooter/Target ft/s",
+              "period": 0.066,
+              "time_displayed": 10.0,
+              "color": 4283215696,
+              "line_width": 2.0
+            }
+          },
+          {
+            "title": "Ramped Setpoint ft/s",
+            "x": 512.0,
+            "y": 384.0,
+            "width": 512.0,
             "height": 384.0,
             "type": "Graph",
             "properties": {
@@ -69,9 +69,9 @@
           },
           {
             "title": "Shooter Ready",
-            "x": 768.0,
+            "x": 1024.0,
             "y": 0.0,
-            "width": 256.0,
+            "width": 384.0,
             "height": 128.0,
             "type": "Boolean Box",
             "properties": {
@@ -82,10 +82,24 @@
             }
           },
           {
-            "title": "Physics Velocity ft/s",
-            "x": 768.0,
-            "y": 128.0,
+            "title": "Pi Active",
+            "x": 1408.0,
+            "y": 0.0,
             "width": 256.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/UltraShooter/Pi Active",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "Physics Velocity ft/s",
+            "x": 1024.0,
+            "y": 128.0,
+            "width": 384.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
@@ -96,8 +110,8 @@
           },
           {
             "title": "Pi Physics Velocity ft/s",
-            "x": 768.0,
-            "y": 256.0,
+            "x": 1408.0,
+            "y": 128.0,
             "width": 256.0,
             "height": 128.0,
             "type": "Text Display",
@@ -108,8 +122,34 @@
             }
           },
           {
+            "title": "Avg Distance to Hub (ft)",
+            "x": 1024.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Avg Distance to Hub (ft)",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Distance to Hub (ft)",
+            "x": 1408.0,
+            "y": 256.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Distance to Hub (ft)",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          },
+          {
             "title": "Primary Current (A)",
-            "x": 768.0,
+            "x": 1024.0,
             "y": 384.0,
             "width": 256.0,
             "height": 128.0,
@@ -122,8 +162,8 @@
           },
           {
             "title": "Secondary Current (A)",
-            "x": 768.0,
-            "y": 512.0,
+            "x": 1280.0,
+            "y": 384.0,
             "width": 256.0,
             "height": 128.0,
             "type": "Text Display",
@@ -132,45 +172,40 @@
               "period": 0.1,
               "show_submit_button": false
             }
-          },
+          }
+        ]
+      }
+    },
+    {
+      "name": "Shot Tuning",
+      "grid_layout": {
+        "layouts": [],
+        "containers": [
           {
-            "title": "Avg Distance to Hub (ft)",
-            "x": 768.0,
-            "y": 640.0,
-            "width": 256.0,
-            "height": 128.0,
-            "type": "Text Display",
-            "properties": {
-              "topic": "/UltraShooter/Avg Distance to Hub (ft)",
-              "period": 0.1,
-              "show_submit_button": false
-            }
-          },
-          {
-            "title": "kP (live)",
-            "x": 1024.0,
+            "title": "Close Shot Offset %",
+            "x": 0.0,
             "y": 0.0,
             "width": 512.0,
             "height": 128.0,
             "type": "Number Slider",
             "properties": {
-              "topic": "/ShooterTuner/Params/Kp",
+              "topic": "/ShooterTuner/Params/CloseShotOffsetPercent",
               "period": 0.1,
-              "min_value": 0.0,
-              "max_value": 0.02,
-              "divisions": 200,
+              "min_value": -15.0,
+              "max_value": 15.0,
+              "divisions": 150,
               "update_continuously": true
             }
           },
           {
-            "title": "Near Shot Offset %",
-            "x": 1024.0,
+            "title": "Mid Shot Offset %",
+            "x": 0.0,
             "y": 128.0,
             "width": 512.0,
             "height": 128.0,
             "type": "Number Slider",
             "properties": {
-              "topic": "/ShooterTuner/Params/NearShotOffsetPercent",
+              "topic": "/ShooterTuner/Params/MidShotOffsetPercent",
               "period": 0.1,
               "min_value": -15.0,
               "max_value": 15.0,
@@ -180,7 +215,7 @@
           },
           {
             "title": "Far Shot Offset %",
-            "x": 1024.0,
+            "x": 0.0,
             "y": 256.0,
             "width": 512.0,
             "height": 128.0,
@@ -195,9 +230,25 @@
             }
           },
           {
-            "title": "Ready Tolerance (ft/s)",
-            "x": 1024.0,
+            "title": "kP (live)",
+            "x": 0.0,
             "y": 384.0,
+            "width": 512.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/Kp",
+              "period": 0.1,
+              "min_value": 0.0,
+              "max_value": 0.02,
+              "divisions": 200,
+              "update_continuously": true
+            }
+          },
+          {
+            "title": "Ready Tolerance (ft/s)",
+            "x": 0.0,
+            "y": 512.0,
             "width": 512.0,
             "height": 128.0,
             "type": "Number Slider",
@@ -212,8 +263,8 @@
           },
           {
             "title": "Shoot Ready Timeout (s)",
-            "x": 1024.0,
-            "y": 512.0,
+            "x": 0.0,
+            "y": 640.0,
             "width": 512.0,
             "height": 128.0,
             "type": "Number Slider",
@@ -227,9 +278,49 @@
             }
           },
           {
+            "title": "Avg Distance to Hub (ft)",
+            "x": 512.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Avg Distance to Hub (ft)",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Physics Velocity ft/s",
+            "x": 512.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Physics Velocity ft/s",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Shooter Ready",
+            "x": 512.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/UltraShooter/Ready",
+              "period": 0.066,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
             "title": "Save to Pi",
-            "x": 1024.0,
-            "y": 640.0,
+            "x": 512.0,
+            "y": 384.0,
             "width": 256.0,
             "height": 128.0,
             "type": "Toggle Button",
@@ -240,9 +331,9 @@
           },
           {
             "title": "Saved OK",
-            "x": 1280.0,
-            "y": 640.0,
-            "width": 256.0,
+            "x": 768.0,
+            "y": 384.0,
+            "width": 128.0,
             "height": 128.0,
             "type": "Boolean Box",
             "properties": {
@@ -253,10 +344,30 @@
             }
           },
           {
-            "title": "AutoTuner State",
-            "x": 1536.0,
+            "title": "Shot Trajectory",
+            "x": 896.0,
             "y": 0.0,
-            "width": 384.0,
+            "width": 768.0,
+            "height": 512.0,
+            "type": "Mechanism2d",
+            "properties": {
+              "topic": "/SmartDashboard/Shot Trajectory",
+              "period": 0.066
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AutoTuner",
+      "grid_layout": {
+        "layouts": [],
+        "containers": [
+          {
+            "title": "AutoTuner State",
+            "x": 0.0,
+            "y": 0.0,
+            "width": 512.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
@@ -267,9 +378,9 @@
           },
           {
             "title": "Shots Analyzed",
-            "x": 1536.0,
+            "x": 0.0,
             "y": 128.0,
-            "width": 384.0,
+            "width": 512.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
@@ -280,9 +391,9 @@
           },
           {
             "title": "Last Recovery (ms)",
-            "x": 1536.0,
+            "x": 0.0,
             "y": 256.0,
-            "width": 384.0,
+            "width": 512.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
@@ -293,9 +404,9 @@
           },
           {
             "title": "Last kP Action",
-            "x": 1536.0,
+            "x": 0.0,
             "y": 384.0,
-            "width": 384.0,
+            "width": 512.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
@@ -306,9 +417,9 @@
           },
           {
             "title": "Current kP",
-            "x": 1536.0,
+            "x": 0.0,
             "y": 512.0,
-            "width": 384.0,
+            "width": 512.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
@@ -319,9 +430,9 @@
           },
           {
             "title": "Autotuner Enabled",
-            "x": 1536.0,
+            "x": 0.0,
             "y": 640.0,
-            "width": 384.0,
+            "width": 512.0,
             "height": 128.0,
             "type": "Toggle Button",
             "properties": {
