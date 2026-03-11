@@ -14,12 +14,13 @@ import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants;
 import frc.robot.Ports;
 
 public class Feeder extends SubsystemBase {
     public enum Speed {
-        FEED(5500),
-        REVERSE(-5500);
+        FEED(Constants.FeederConstants.kFeedRPM),
+        REVERSE(Constants.FeederConstants.kReverseRPM);
 
         private final double rpm;
 
@@ -41,11 +42,11 @@ public class Feeder extends SubsystemBase {
         SparkMaxConfig config = new SparkMaxConfig();
         config.inverted(true);
         config.idleMode(IdleMode.kCoast);
-        config.smartCurrentLimit(50);
-        
+        config.smartCurrentLimit(Constants.FeederConstants.kSmartCurrentLimit);
+
         config.closedLoop
-            .pid(0.0001, 0, 0)
-            .velocityFF(0.000175);
+            .pid(Constants.FeederConstants.kP, Constants.FeederConstants.kI, Constants.FeederConstants.kD)
+            .velocityFF(Constants.FeederConstants.kVelocityFF);
         
         motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
         

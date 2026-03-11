@@ -15,12 +15,13 @@ import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants;
 import frc.robot.Ports;
 
 public class Floor extends SubsystemBase {
     public enum Speed {
         STOP(0),
-        FEED(0.75);
+        FEED(Constants.FloorConstants.kFeedPercentOutput);
 
         private final double percentOutput;
 

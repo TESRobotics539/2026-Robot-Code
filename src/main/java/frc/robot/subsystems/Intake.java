@@ -88,13 +88,11 @@ public class Intake extends SubsystemBase {
 
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kAbsoluteEncoder)
-            .pid(1.5, 0, 5)
-            .outputRange(-0.15, 0.4);
+            .pid(Constants.IntakeConstants.kPivotP, Constants.IntakeConstants.kPivotI, Constants.IntakeConstants.kPivotD)
+            .outputRange(Constants.IntakeConstants.kPivotOutputRangeMin, Constants.IntakeConstants.kPivotOutputRangeMax);
 
         pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
-
-    private static final double kRollerFreeSpeedRPM = 6784.0;
 
     private void configureRollerMotor() {
         SparkFlexConfig config = new SparkFlexConfig();
@@ -106,8 +104,8 @@ public class Intake extends SubsystemBase {
 
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-            .pid(0.0002, 0.0, 0.0)
-            .velocityFF(12.0 / kRollerFreeSpeedRPM);
+            .pid(Constants.IntakeConstants.kRollerP, Constants.IntakeConstants.kRollerI, Constants.IntakeConstants.kRollerD)
+            .velocityFF(12.0 / Constants.IntakeConstants.kRollerFreeSpeedRPM);
 
         rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }

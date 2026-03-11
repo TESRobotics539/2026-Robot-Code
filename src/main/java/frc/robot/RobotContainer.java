@@ -24,12 +24,13 @@ import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
 import frc.robot.subsystems.BallVision;
 import frc.robot.subsystems.BlinkinLed;
+import frc.robot.subsystems.BumpTuner;
+import frc.robot.subsystems.ShooterTuner;
 import frc.robot.subsystems.PiAprilTagVision;
 import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
 import frc.robot.subsystems.Hanger;
-//import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.Limelight;
 //import frc.robot.subsystems.ShooterOrca; // deprecated — replaced by UltraShooter
 import frc.robot.subsystems.Swerve;
@@ -50,52 +51,39 @@ public class RobotContainer
     private final BallVision       ballVision    = new BallVision();
     private final PiAprilTagVision piAprilTag    = new PiAprilTagVision();
 
+    // BumpTuner must be constructed before Swerve so the reference is ready to pass in.
+    private final BumpTuner bumpTuner = new BumpTuner();
+
     private final Intake intake = new Intake();
     private final Floor floor = new Floor();
     private final Feeder feeder = new Feeder();
-    //private final Hood hood = new Hood();
     private final Hanger hanger = new Hanger();
     private final Limelight limelight     = new Limelight(Ports.kLimelightFront);
     private final Limelight limelightRear = new Limelight(Ports.kLimelightRear);
     private final Field2d field = new Field2d();
-    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
+    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field, bumpTuner);
     //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
-    private final UltraShooter ultraShooter = new UltraShooter(drivebase);
+    private final ShooterTuner shooterTuner = new ShooterTuner();
+    private final UltraShooter ultraShooter = new UltraShooter(drivebase, shooterTuner);
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
     {
         ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand(intake::hasPickedUpFuel));
     }
 
-    // private final Pivot pivot = new Pivot();
-
     final CommandXboxController driverXbox = new CommandXboxController(0);
     private double lastIntakeTriggerPressTime = Double.NEGATIVE_INFINITY;
-    
-    // private final AutoRoutines autoRoutines = new AutoRoutines(
-    //     drivebase,
-    //     intake,
-    //     floor,
-    //     feeder,
-    //     shooter,
-    //     hood,
-    //     hanger,
-    //     limelight
-    // );
 
     private final SubsystemCommands subsystemCommands = new SubsystemCommands(
         drivebase,
-        //intake,
         floor,
         feeder,
-        //shooter, // deprecated
         ultraShooter,
-        //hood,
-        //hanger,
+        shooterTuner,
         () -> -driverXbox.getLeftY(),
         () -> -driverXbox.getLeftX()
     );
-    
+
     // Establish a Sendable Chooser that will be able to be sent to the SmartDashboard, allowing selection of desired auto
     private final SendableChooser<Command> autoChooser;
 
@@ -106,7 +94,7 @@ public class RobotContainer
                                                                   () -> driverXbox.getLeftY() * -1,
                                                                   () -> driverXbox.getLeftX() * -1)
                                                               .withControllerRotationAxis(() -> driverXbox.getRightX() * -1)
-                                                              //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))                                                           
+                                                              //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(1.0)
                                                               .allianceRelativeControl(true);
@@ -122,25 +110,10 @@ public class RobotContainer
 
       limelight.setDefaultCommand(updateVisionCommand());
 
-
       blinkinLed.setDefaultCommand(Commands.run(blinkinLed::setPhasePattern, blinkinLed));
-
 
       SmartDashboard.putData("Auto Chooser", autoChooser);
       SmartDashboard.putData("Field", field);
-
-      // TODO: Uncomment when subsystem commands are implemented
-      //driverXbox.rightBumper().whileTrue(floor.feedCommand());
-      //driverXbox.leftTrigger().whileTrue(feeder.reverseCommand());
-      //driverXbox.leftBumper().whileTrue(Commands.parallel(Commands.sequence(Commands.waitSeconds(2.0), feeder.feedCommand()), shooter.spinUpCommand()));
-
-
-
-        //driverXbox.x().whileTrue(hood.positionCommand(1.5));
-        //driverXbox.a().whileTrue(hood.positionCommand(0.15));
-
-        // Hood tracking: continuously adjust position based on distance to hub
-        //hood.setDefaultCommand(hood.trackHubCommand(drivebase::getPose));
 
         // At autonomous start: enforce brake mode and snapshot the current encoder position
         // as the PID target. If kStowIntakeForMatch is enabled, the pivot is locked to that
@@ -150,7 +123,6 @@ public class RobotContainer
             intake.lockCurrentPositionAsStow();
         }));
 
-        // driverXbox.leftTrigger().whileTrue(subsystemCommands.shootManually());
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
 
         // At teleop start: if auto climb completed during autonomous, run the declimb sequence
@@ -181,66 +153,48 @@ public class RobotContainer
                 return isDoubleTap ? intake.stowCommand() : intake.intakePressCommand();
             }, Set.of(intake)));
         driverXbox.rightBumper().whileTrue(
-            Commands.parallel(
+            Commands.defer(() -> Commands.parallel(
                 ultraShooter.spinUpPhysicsCommand(),
                 intake.agitateCommand(),
                 Commands.waitUntil(ultraShooter::isReady)
-                    .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
-                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
+                    .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
+                    .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
-                        Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
+                        Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())
                     ))
-            ));
+            ), Set.of(ultraShooter, intake, feeder, floor)));
         driverXbox.x().whileTrue(
-            Commands.parallel(
-                ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
+            Commands.defer(() -> Commands.parallel(
+                ultraShooter.startEnd(() -> ultraShooter.setTarget(shooterTuner.getDumpShotFlywheelSpeed()), ultraShooter::stop),
                 Commands.waitUntil(ultraShooter::isReady)
-                    .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
-                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
+                    .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
+                    .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
-                        Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
+                        Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())
                     ))
-            ));
+            ), Set.of(ultraShooter, feeder, floor)));
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
             Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()))
             .onFalse(Commands.parallel(
                 subsystemCommands.holdAimAndSpeedCommand(1.5),
                 intake.runOnce(intake::resetFuelDetection)));
 
-      // ORIGINAL COMMANDS
-      // RobotModeTriggers.autonomous().or(RobotModeTriggers.teleop())
-      //     .onTrue(intake.homingCommand())
-      //     .onTrue(hanger.homingCommand());
-
-      // TODO: Uncomment when shoot commands are implemented
-      //driverXbox.rightTrigger().whileTrue(subsystemCommands.aimAndShoot());
-      //driverXbox.rightBumper().whileTrue(subsystemCommands.shootManually());
-
-      // TODO: Uncomment when intake commands are implemented
-      // driverXbox.leftTrigger().whileTrue(intake.intakeCommand());
-      // driverXbox.leftBumper().onTrue(intake.runOnce(() -> intake.set(Intake.Position.STOWED)));
-
       // D-pad up/down → manual hanger control
       driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
                         .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
       driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
                           .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-      // D-pad left/right → hood fully retracted / fully extended
-      //driverXbox.povLeft().toggleOnTrue(hood.holdPositionCommand(Constants.HoodConstants.kMinPosition));
-      //driverXbox.povRight().toggleOnTrue(hood.holdPositionCommand(Constants.HoodConstants.kMaxPosition));
       driverXbox.a().onTrue(
-          hanger.runOnce(() -> hanger.setPercentOutput(0.5))
-              .andThen(Commands.waitSeconds(0.33))
+          hanger.runOnce(() -> hanger.setPercentOutput(Constants.HangerConstants.kNudgePower))
+              .andThen(Commands.waitSeconds(Constants.HangerConstants.kNudgeSeconds))
               .andThen(hanger.runOnce(() -> hanger.setPercentOutput(0))));
 
       driverXbox.y().onTrue(hanger.autoClimbCommand());
       driverXbox.y()
           .and(() -> DriverStation.isTeleop() && DriverStation.getMatchTime() <= 30)
           .onTrue(ultraShooter.spinDownCommand());
-      // driverXbox.start().onTrue(hanger.positionCommand(Hanger.Position.HOMED));
-      // driverXbox.b().onTrue(hanger.positionCommand(Hanger.Position.HUNG));
     }
 
     private void configureBindings()
@@ -300,9 +254,9 @@ public class RobotContainer
             // from single-sensor vibration or noise.
             boolean pigeonOverBump = drivebase.isOverBump();
             boolean frontOverBump  = Math.abs(limelight.getAccelZ() - 1.0)
-                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
+                > bumpTuner.getLimelightAccelZDeviation();
             boolean rearOverBump   = Math.abs(limelightRear.getAccelZ() - 1.0)
-                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
+                > bumpTuner.getLimelightAccelZDeviation();
             int bumpVotes = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
             boolean overBump = bumpVotes >= 2;
 
@@ -323,6 +277,11 @@ public class RobotContainer
                 m -> m.avgTagArea * m.poseEstimate.tagCount).orElse(0.0);
             double rearConf  = rearMeasurement.map(
                 m -> m.avgTagArea * m.poseEstimate.tagCount).orElse(0.0);
+            double bestConf  = Math.max(frontConf, rearConf);
+
+            // Wheel-slip detection — both signals must agree to avoid false positives.
+            boolean isSlipping = drivebase.isWheelSlipping();
+            boolean highConf   = bestConf >= bumpTuner.getHighConfidenceThreshold();
 
             // Publish for Elastic so drivers can verify which camera is active.
             String activeSource;
@@ -339,14 +298,31 @@ public class RobotContainer
             SmartDashboard.putString("Vision/Active Source", activeSource);
             SmartDashboard.putNumber("Vision/Front Confidence", frontConf);
             SmartDashboard.putNumber("Vision/Rear Confidence",  rearConf);
+            SmartDashboard.putNumber("Vision/Best Confidence",  bestConf);
+            SmartDashboard.putBoolean("Vision/Wheel Slipping",  isSlipping);
+            SmartDashboard.putNumber("Vision/Wheel Slip Score", drivebase.getWheelSlipScore());
 
             if (bestMeasurement.isPresent()) {
                 var m = bestMeasurement.get();
-                // While over the bump the cameras are tilted — inflate stddevs so the
-                // pose estimator heavily discounts this measurement.
-                var stdDevs = overBump
-                    ? m.standardDeviations.times(Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier)
-                    : m.standardDeviations;
+                // Confidence-gated slip handling:
+                //
+                // • Slipping + high confidence → wheels are unreliable, but Limelights have a
+                //   solid tag fix. Shrink stddevs to let vision actively correct the drifted pose.
+                //
+                // • Slipping + low confidence  → neither odometry nor vision is reliable.
+                //   Inflate stddevs so the bad camera pose doesn't corrupt the estimate.
+                //
+                // • Not slipping              → normal stddevs from getMeasurement().
+                double stdDevMultiplier;
+                if (isSlipping && highConf) {
+                    stdDevMultiplier = bumpTuner.getSlipHighConfMultiplier();
+                } else if (isSlipping) {
+                    stdDevMultiplier = bumpTuner.getBumpVisionMultiplier();
+                } else {
+                    stdDevMultiplier = 1.0;
+                }
+                SmartDashboard.putNumber("Vision/StdDev Multiplier", stdDevMultiplier);
+                var stdDevs = m.standardDeviations.times(stdDevMultiplier);
                 drivebase.addVisionMeasurement(
                     m.poseEstimate.pose,
                     m.poseEstimate.timestampSeconds,

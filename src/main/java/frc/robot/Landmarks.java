@@ -44,9 +44,11 @@ public class Landmarks {
     public static Translation2d hubPosition() {
         final Optional<Alliance> alliance = DriverStation.getAlliance();
         if (alliance.isPresent() && alliance.get() == Alliance.Blue) {
-            return new Translation2d(Inches.of(182.105), Inches.of(158.845));
+            // Averaged from Landmarks (182.105 in = 4.625 m) and Swerve (4.597 m)
+            return new Translation2d(4.611, 4.035);
         }
-        return new Translation2d(Inches.of(469.115), Inches.of(158.845));
+        // Averaged from Landmarks (469.115 in = 11.916 m) and Swerve (11.938 m)
+        return new Translation2d(11.927, 4.035);
     }
 
     // Add starting positions once you know them from the game manual

@@ -99,6 +99,10 @@ public class UltraShooter extends SubsystemBase {
 
     private final Swerve swerve;
 
+    // ── ShooterTuner (live-adjustable parameters) ─────────────────────────────
+
+    private final ShooterTuner shooterTuner;
+
     // ── NetworkTable telemetry ────────────────────────────────────────────────
 
     private final NetworkTable        nt           = NetworkTableInstance.getDefault().getTable("UltraShooter");
@@ -137,8 +141,9 @@ public class UltraShooter extends SubsystemBase {
     // Construction
     // ─────────────────────────────────────────────────────────────────────────
 
-    public UltraShooter(Swerve swerve) {
-        this.swerve = swerve;
+    public UltraShooter(Swerve swerve, ShooterTuner shooterTuner) {
+        this.swerve        = swerve;
+        this.shooterTuner  = shooterTuner;
 
         configureMotor(primaryMotor,   /* inverted */ false);
         configureMotor(secondaryMotor, /* inverted */ false);
@@ -235,9 +240,9 @@ public class UltraShooter extends SubsystemBase {
      * @param distanceMeters Distance from shooter to hub (meters).
      * @return Offset as a fraction (e.g. 5.0 % → 0.05).
      */
-    private static double interpolateOffsetFraction(double distanceMeters) {
-        final double nearPct = Constants.UltraShooterConstants.kNearShotOffsetPercent;
-        final double farPct  = Constants.UltraShooterConstants.kFarShotOffsetPercent;
+    private double interpolateOffsetFraction(double distanceMeters) {
+        final double nearPct = shooterTuner.getNearShotOffsetPercent();
+        final double farPct  = shooterTuner.getFarShotOffsetPercent();
         final double t = Math.max(0.0, Math.min(1.0,
                 (distanceMeters - NEAR_DISTANCE_M) / (FAR_DISTANCE_M - NEAR_DISTANCE_M)));
         return (nearPct + t * (farPct - nearPct)) / 100.0;
@@ -338,7 +343,7 @@ public class UltraShooter extends SubsystemBase {
         if (!readyLatch) {
             readyLatch = rampedSetpoint >= velocityTarget
                     && Math.abs(getAverageVelocity() - velocityTarget)
-                            < Constants.UltraShooterConstants.kReadyTolerance;
+                            < shooterTuner.getReadyTolerance();
         }
         return readyLatch;
     }
@@ -370,9 +375,9 @@ public class UltraShooter extends SubsystemBase {
                     && GameData.isHubActiveExpanded(5.0)
                     && Landmarks.isInScoringZone(swerve.getPose())) {
                 double physicsSpeed = calculateRequiredVelocityFPS(swerve.getDistanceToHub());
-                velocityTarget = physicsSpeed * Constants.UltraShooterConstants.kPreSpinFraction;
+                setTarget(physicsSpeed * shooterTuner.getPreSpinFraction());
             } else {
-                velocityTarget = 0;
+                setTarget(0);
             }
         }).withName("PreSpin");
     }

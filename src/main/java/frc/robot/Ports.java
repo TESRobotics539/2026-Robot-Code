@@ -17,9 +17,7 @@ public final class Ports {
     public static final int kShooterRight = 55;
     
 
-    //Servo Hub
     public static final int kHanger = 41;
-    public static final int kPivot = 59;
 
     // REV Servo Hub (CAN)
     public static final int kServoHub = 45;

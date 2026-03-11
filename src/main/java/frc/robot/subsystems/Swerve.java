@@ -32,6 +32,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Config;
 import frc.robot.Constants;
+import frc.robot.Landmarks;
 import frc.util.LowPassFilter;
 
 import java.io.File;
@@ -63,6 +64,7 @@ public class Swerve extends SubsystemBase
   private final SwerveAbsoluteEncoder absoluteEncoder_br;
 
   private final Field2d field;
+  private final BumpTuner bumpTuner;
 
   // Pigeon 2 accelerometer filtering — rejects transient spikes from bump traversal.
   private final Pigeon2 pigeon2 = new Pigeon2(62, "rio");
@@ -70,18 +72,34 @@ public class Swerve extends SubsystemBase
   private final LowPassFilter accelYFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelZFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
 
+  // Wheel-slip detection — compare encoder-derived acceleration to IMU acceleration.
+  // Mismatch indicates wheels are spinning faster than the robot body is moving.
+  private double prevVxMetersPerSecond = 0.0;
+  private double prevVyMetersPerSecond = 0.0;
+  private double wheelSlipScore = 0.0; // rolling-averaged magnitude in m/s², cached for external callers
+
+  // 60 ms (3-cycle) rolling average for the raw slip magnitude.
+  // Differentiation amplifies sample-to-sample encoder noise; averaging over 3 cycles
+  // smooths that noise without meaningfully delaying detection of true wheel slip events.
+  private static final int SLIP_AVG_SAMPLES = 3;
+  private final double[] slipBuffer = new double[SLIP_AVG_SAMPLES];
+  private int    slipBufferIndex = 0;
+  private double slipBufferSum   = 0.0;
+
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
    *
-   * @param directory Directory of swerve drive config files.
-   * @param field Field2d object for visualizing the robot's position on the field.
+   * @param directory  Directory of swerve drive config files.
+   * @param field      Field2d object for visualizing the robot's position on the field.
+   * @param bumpTuner  Live-tunable bump detection parameters (from the Pi).
    */
-  public Swerve(File directory, Field2d field)
-  { 
+  public Swerve(File directory, Field2d field, BumpTuner bumpTuner)
+  {
     // Configure the Telemetry before creating the SwerveDrive to avoid unnecessary objects being created.
     SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
     this.telemetryTable = NetworkTableInstance.getDefault().getTable("AbsoluteEncoders");
     this.field = field;
+    this.bumpTuner = bumpTuner;
 
     try
     {
@@ -114,12 +132,14 @@ public class Swerve extends SubsystemBase
    *
    * @param driveCfg      SwerveDriveConfiguration for the swerve.
    * @param controllerCfg Swerve Controller.
-   * @param field Field2d object for visualizing the robot's position on the field.
+   * @param field         Field2d object for visualizing the robot's position on the field.
+   * @param bumpTuner     Live-tunable bump detection parameters (from the Pi).
    */
-  public Swerve(SwerveDriveConfiguration driveCfg, SwerveControllerConfiguration controllerCfg, Field2d field)
+  public Swerve(SwerveDriveConfiguration driveCfg, SwerveControllerConfiguration controllerCfg, Field2d field, BumpTuner bumpTuner)
   {
     this.telemetryTable = NetworkTableInstance.getDefault().getTable("AbsoluteEncoders");
     this.field = field;
+    this.bumpTuner = bumpTuner;
 
     swerveDrive = new SwerveDrive(driveCfg,
                                   controllerCfg,
@@ -191,6 +211,37 @@ public class Swerve extends SubsystemBase
     telemetryTable.getEntry("Accel X Filtered (g)").setNumber(filtX);
     telemetryTable.getEntry("Accel Y Filtered (g)").setNumber(filtY);
     telemetryTable.getEntry("Accel Z Filtered (g)").setNumber(filtZ);
+
+    // Wheel-slip detection — encoder-derived acceleration vs IMU acceleration.
+    //
+    // When wheels slip over the bump, they spin faster than the robot body moves.
+    // The encoder velocity (and therefore its derivative) spikes while the IMU
+    // measures the actual body motion. The mismatch is the slip signal.
+    //
+    // The Pigeon 2 accelerometer reports body-frame accelerations that include
+    // a gravity component proportional to pitch/roll. Subtract that projection
+    // so only true linear body acceleration remains before comparing.
+    ChassisSpeeds currentVel = swerveDrive.getRobotVelocity();
+    double encoderAccelX = (currentVel.vxMetersPerSecond - prevVxMetersPerSecond) / 0.02; // m/s²
+    double encoderAccelY = (currentVel.vyMetersPerSecond - prevVyMetersPerSecond) / 0.02;
+    prevVxMetersPerSecond = currentVel.vxMetersPerSecond;
+    prevVyMetersPerSecond = currentVel.vyMetersPerSecond;
+
+    double pitchRad = Math.toRadians(pigeon2.getPitch().getValueAsDouble());
+    double rollRad  = Math.toRadians(pigeon2.getRoll().getValueAsDouble());
+    double imuAccelX = (filtX - Math.sin(pitchRad)) * 9.81; // gravity-compensated, m/s²
+    double imuAccelY = (filtY - Math.sin(rollRad))  * 9.81;
+
+    double rawSlip = Math.hypot(encoderAccelX - imuAccelX, encoderAccelY - imuAccelY);
+    slipBufferSum -= slipBuffer[slipBufferIndex];
+    slipBuffer[slipBufferIndex] = rawSlip;
+    slipBufferSum += rawSlip;
+    slipBufferIndex = (slipBufferIndex + 1) % SLIP_AVG_SAMPLES;
+    wheelSlipScore = slipBufferSum / SLIP_AVG_SAMPLES;
+
+    telemetryTable.getEntry("Wheel Slip Score Raw (m/s²)").setNumber(rawSlip);
+    telemetryTable.getEntry("Wheel Slip Score (m/s²)").setNumber(wheelSlipScore);
+    telemetryTable.getEntry("Wheel Slipping").setBoolean(isWheelSlipping());
   }
 
   @Override
@@ -641,18 +692,39 @@ public class Swerve extends SubsystemBase
    * For higher-confidence bump detection, also check the Limelight accelerometer externally.
    */
   public boolean isOverBump() {
-    double pitchDeg = Math.abs(swerveDrive.getPitch().getDegrees());
+    double pitchDeg   = Math.abs(swerveDrive.getPitch().getDegrees());
     double zDeviation = Math.abs(accelZFilter.get() - 1.0);
-    return pitchDeg > Constants.BumpDetectionConstants.kBumpPitchThresholdDegrees
-        || zDeviation > Constants.BumpDetectionConstants.kBumpAccelZDeviationThreshold;
+    return pitchDeg   > bumpTuner.getBumpPitchThresholdDeg()
+        || zDeviation > bumpTuner.getBumpAccelZDeviation();
+  }
+
+  /**
+   * Returns the latest wheel-slip score (m/s²), computed as the magnitude of the
+   * mismatch between encoder-derived acceleration and gravity-compensated IMU
+   * acceleration. Higher values indicate more slip.
+   */
+  public double getWheelSlipScore() {
+    return wheelSlipScore;
+  }
+
+  /**
+   * Returns true when wheel slip is detected.
+   *
+   * <p>Two independent signals must agree before flagging slip, reducing false positives
+   * from differentiation noise:
+   * <ul>
+   *   <li>The encoder-vs-IMU acceleration mismatch exceeds {@code kWheelSlipDetectionThresholdMps2}</li>
+   *   <li>The robot is simultaneously traversing the bump (pitch or Z-accel threshold)</li>
+   * </ul>
+   * Requiring both means flat-ground hard-braking events won't falsely trigger slip mode.
+   */
+  public boolean isWheelSlipping() {
+    return isOverBump()
+        && wheelSlipScore > bumpTuner.getWheelSlipThresholdMps2();
   }
 
   public double getDistanceToHub() {
-    Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
-
-    // Blue hub is near x=4.597m, Red hub is near x=11.938m
-    Translation2d hubTranslation = alliance == Alliance.Red ?
-          new Translation2d(11.938, 4.035) : new Translation2d(4.597, 4.035);
+    Translation2d hubTranslation = Landmarks.hubPosition();
     Translation2d robotTranslation = swerveDrive.getPose().getTranslation();
     return robotTranslation.getDistance(hubTranslation);
   }

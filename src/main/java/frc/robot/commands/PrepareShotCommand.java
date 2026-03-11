@@ -5,8 +5,6 @@ import static edu.wpi.first.units.Units.Meters;
 
 import java.util.function.Supplier;
 
-import com.ctre.phoenix6.Orchestra;
-
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.interpolation.InterpolatingTreeMap;
@@ -16,12 +14,11 @@ import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Landmarks;
-//import frc.robot.subsystems.Hood;
 import frc.robot.subsystems.ShooterOrca;
 
 public class PrepareShotCommand extends Command {
     private static final InterpolatingTreeMap<Distance, Shot> distanceToShotMap = new InterpolatingTreeMap<>(
-        (startValue, endValue, q) -> 
+        (startValue, endValue, q) ->
             InverseInterpolator.forDouble()
                 .inverseInterpolate(startValue.in(Meters), endValue.in(Meters), q.in(Meters)),
         (startValue, endValue, t) ->
@@ -41,22 +38,16 @@ public class PrepareShotCommand extends Command {
     }
 
     private final ShooterOrca shooter;
-    //private final Hood hood;
     private final Supplier<Pose2d> robotPoseSupplier;
 
-    public PrepareShotCommand(ShooterOrca shooter, /*Hood hood,*/ Supplier<Pose2d> robotPoseSupplier) {
+    public PrepareShotCommand(ShooterOrca shooter, Supplier<Pose2d> robotPoseSupplier) {
         this.shooter = shooter;
-        //this.hood = hood;
         this.robotPoseSupplier = robotPoseSupplier;
-        //addRequirements(shooter, hood);
         addRequirements(shooter);
     }
 
     public boolean isReadyToShoot() {
-        // TODO
-        // return shooter.isVelocityWithinTolerance() && hood.isPositionWithinTolerance();
-        //return hood.isPositionWithinTolerance();
-        return true;
+        return shooter.isShooterReady();
     }
 
     private Distance getDistanceToHub() {
@@ -70,7 +61,6 @@ public class PrepareShotCommand extends Command {
         final Distance distanceToHub = getDistanceToHub();
         final Shot shot = distanceToShotMap.get(distanceToHub);
         shooter.setShooterTarget(shot.shooterSpeed);
-        //hood.setPosition(shot.hoodPosition);
         SmartDashboard.putNumber("Distance to Hub (inches)", distanceToHub.in(Inches));
     }
 

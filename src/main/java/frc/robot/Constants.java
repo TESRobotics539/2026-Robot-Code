@@ -59,6 +59,40 @@ public final class Constants {
     public static final double kDeployedPosition = 0.57;
     public static final double kMinPosition       = 0.53;
     public static final double kMaxPosition       = 0.9;
+
+    // Pivot motor closed-loop PID (absolute encoder feedback)
+    public static final double kPivotP              = 1.5;
+    public static final double kPivotI              = 0.0;
+    public static final double kPivotD              = 5.0;
+    public static final double kPivotOutputRangeMin = -0.15;
+    public static final double kPivotOutputRangeMax =  0.4;
+
+    // Roller motor closed-loop PID (velocity control)
+    public static final double kRollerFreeSpeedRPM = 6784.0;
+    public static final double kRollerP             = 0.0002;
+    public static final double kRollerI             = 0.0;
+    public static final double kRollerD             = 0.0;
+  }
+
+  // ── Feeder ────────────────────────────────────────────────────────────────
+  public static class FeederConstants {
+    /** Feed target speed (RPM, positive = forward). */
+    public static final double kFeedRPM    =  5500.0;
+    /** Reverse target speed (RPM, negative = backward). */
+    public static final double kReverseRPM = -5500.0;
+    /** Primary current limit (amps). */
+    public static final int    kSmartCurrentLimit = 50;
+    /** Closed-loop velocity PID gains. */
+    public static final double kP          = 0.0001;
+    public static final double kI          = 0.0;
+    public static final double kD          = 0.0;
+    public static final double kVelocityFF = 0.000175;
+  }
+
+  // ── Floor ─────────────────────────────────────────────────────────────────
+  public static class FloorConstants {
+    /** Percent output (0.0–1.0) when feeding fuel toward the shooter. */
+    public static final double kFeedPercentOutput = 0.75;
   }
 
   // ── Shooter ───────────────────────────────────────────────────────────────
@@ -97,6 +131,14 @@ public final class Constants {
     public static final double kAutoClimbReleasePower = 0.5;
     /** Duration of the release pulse after the auto climb stalls (seconds). */
     public static final double kAutoClimbReleaseSeconds = 0.3;
+    /** Homing percent output (negative = retract toward hard stop). */
+    public static final double kHomingPower = -0.05;
+    /** Current threshold (amps) used to detect the homing hard stop. */
+    public static final double kHomingCurrentThreshold = 7.0;
+    /** Percent output for the driver A-button nudge. */
+    public static final double kNudgePower = 0.5;
+    /** Duration of the A-button nudge (seconds). */
+    public static final double kNudgeSeconds = 0.33;
   }
 
   // ── UltraShooter Physics ──────────────────────────────────────────────────
@@ -113,7 +155,7 @@ public final class Constants {
      * Height of the hub center (scoring target) above the floor (inches).
      * Look this up from the game manual or measure on the field.
      */
-    public static final double kHubCenterHeightFromFloorInches = 96.0; // TODO: confirm from game manual
+    public static final double kHubCenterHeightFromFloorInches = 72.0;
 
     /**
      * Horizontal distance from the robot center to the shooter exit point,
@@ -199,25 +241,36 @@ public final class Constants {
 
     /**
      * Standard-deviation multiplier applied to vision measurements while a
-     * confirmed bump is in progress. Effectively tells the pose estimator to
-     * trust vision far less until the robot is level again.
+     * confirmed bump is in progress AND vision confidence is LOW.
+     * Effectively tells the pose estimator to discount vision when the camera
+     * is tilted and we have no reliable tag fix.
      */
     public static final double kBumpVisionStdDevMultiplier = 10.0;
-  }
 
-  // ── Hood ──────────────────────────────────────────────────────────────────
-  public static class HoodConstants {
-    /** Minimum servo position (0.0–1.0) — prevents over-retraction. */
-    public static final double kMinPosition = 0.06;
-    /** Maximum servo position (0.0–1.0) — prevents over-extension. */
-    public static final double kMaxPosition = 0.95;
-    /** Distance at which hood tracking begins interpolating (meters). */
-    public static final double kTrackingMinDistanceMeters = 1.0;
-    /** Distance at which hood tracking reaches its maximum angle (meters). */
-    public static final double kTrackingMaxDistanceMeters = 5.0;
-    /** Hood position at minimum tracking distance. */
-    public static final double kTrackingMinPosition = 0.05;
-    /** Hood position at maximum tracking distance. */
-    public static final double kTrackingMaxPosition = 0.85;
+    /**
+     * Encoder-vs-IMU linear acceleration mismatch magnitude (m/s²) above
+     * which wheel slip is flagged. During bump traversal a slipping wheel
+     * causes the encoder-derived acceleration to spike while the robot body
+     * (measured by the IMU) barely moves — this difference is the slip signal.
+     * Set conservatively high to avoid false positives from differentiation noise.
+     */
+    public static final double kWheelSlipDetectionThresholdMps2 = 6.0;
+
+    /**
+     * Minimum vision confidence score (avgTagArea × tagCount) required to
+     * bias the pose estimator toward Limelight during detected wheel slip.
+     * A value of ~1.0 corresponds roughly to one AprilTag visible at moderate
+     * range (~10 ft). Below this threshold the low-confidence path is used.
+     */
+    public static final double kHighConfidenceThreshold = 1.0;
+
+    /**
+     * Standard-deviation multiplier applied to vision measurements when
+     * wheel slip is detected AND vision confidence is HIGH.
+     * Values below 1.0 increase trust in vision; 0.5 makes the pose estimator
+     * weight the Limelight fix twice as heavily as normal, actively correcting
+     * the odometry error introduced by the slipping wheels.
+     */
+    public static final double kSlipHighConfStdDevMultiplier = 0.5;
   }
 }

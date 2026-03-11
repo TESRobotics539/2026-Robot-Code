@@ -35,6 +35,8 @@ import ntcore
 import physics_coprocessor
 import ball_detector
 import apriltag_vision
+import bump_tuner
+import shooter_tuner
 
 TEAM_NUMBER = 539
 
@@ -47,9 +49,11 @@ def main() -> None:
     inst.startDSClient()   # also accepts the DS-forwarded address at competitions
 
     # Each module gets its own NT subtable to keep entries organised.
-    physics_table  = inst.getTable("UltraShooter")   # shares the shooter table
-    ball_table     = inst.getTable("BallDetection")
-    apriltag_table = inst.getTable("PiVision")
+    physics_table   = inst.getTable("UltraShooter")   # shares the shooter table
+    ball_table      = inst.getTable("BallDetection")
+    apriltag_table  = inst.getTable("PiVision")
+    bump_tuner_table    = inst.getTable("BumpTuner")
+    shooter_tuner_table = inst.getTable("ShooterTuner")
 
     # ── Launch co-processors in daemon threads ─────────────────────────────────
     # Daemon threads are killed automatically when the main process exits,
@@ -72,6 +76,18 @@ def main() -> None:
             target=apriltag_vision.run,
             args=(apriltag_table,),
             name="apriltag-vision",
+            daemon=True,
+        ),
+        threading.Thread(
+            target=bump_tuner.run,
+            args=(bump_tuner_table,),
+            name="bump-tuner",
+            daemon=True,
+        ),
+        threading.Thread(
+            target=shooter_tuner.run,
+            args=(shooter_tuner_table,),
+            name="shooter-tuner",
             daemon=True,
         ),
     ]

@@ -1,5 +1,6 @@
 package frc.robot.commands;
 
+import java.util.Set;
 import java.util.function.DoubleSupplier;
 
 import frc.robot.Constants;
@@ -8,44 +9,34 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Feeder;
 import frc.robot.subsystems.Floor;
-//import frc.robot.subsystems.Hood;
-//import frc.robot.subsystems.ShooterOrca; // deprecated — replaced by UltraShooter
+import frc.robot.subsystems.ShooterTuner;
 import frc.robot.subsystems.Swerve;
 import frc.robot.subsystems.UltraShooter;
 
 public final class SubsystemCommands {
     private final Swerve swerve;
-    //private final Intake intake;
     private final Floor floor;
     private final Feeder feeder;
-    //private final ShooterOrca shooter; // deprecated
     private final UltraShooter ultraShooter;
-    //private final Hood hood;
-    //private final Hanger hanger;
+    private final ShooterTuner shooterTuner;
 
     private final DoubleSupplier forwardInput;
     private final DoubleSupplier leftInput;
 
     public SubsystemCommands(
         Swerve swerve,
-        //Intake intake,
         Floor floor,
         Feeder feeder,
-        //ShooterOrca shooter, // deprecated
         UltraShooter ultraShooter,
-        //Hood hood,
-        //Hanger hanger,
+        ShooterTuner shooterTuner,
         DoubleSupplier forwardInput,
         DoubleSupplier leftInput
     ) {
         this.swerve = swerve;
-        //this.intake = intake;
         this.floor = floor;
         this.feeder = feeder;
-        //this.shooter = shooter; // deprecated
         this.ultraShooter = ultraShooter;
-        //this.hood = hood;
-        //this.hanger = hanger;
+        this.shooterTuner = shooterTuner;
 
         this.forwardInput = forwardInput;
         this.leftInput = leftInput;
@@ -53,26 +44,12 @@ public final class SubsystemCommands {
 
     public SubsystemCommands(
         Swerve swerve,
-        //Intake intake,
         Floor floor,
         Feeder feeder,
-        //ShooterOrca shooter, // deprecated
-        UltraShooter ultraShooter
-        //Hood hood
-        //Hanger hanger
+        UltraShooter ultraShooter,
+        ShooterTuner shooterTuner
     ) {
-        this(
-            swerve,
-            //intake,
-            floor,
-            feeder,
-            //shooter, // deprecated
-            ultraShooter,
-            //hood,
-            //hanger,
-            () -> 0,
-            () -> 0
-        );
+        this(swerve, floor, feeder, ultraShooter, shooterTuner, () -> 0, () -> 0);
     }
 
     public Command shootManually() {
@@ -94,32 +71,38 @@ public final class SubsystemCommands {
     }
 
     public Command autoShoot() {
-        AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
-        return Commands.parallel(
-            ultraShooter.spinUpPhysicsCommand(),
-            aimCommand,
-            Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
-                .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
-                .andThen(longFeed())
-        ).withTimeout(4.0);
+        return Commands.defer(() -> {
+            AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
+            return Commands.parallel(
+                ultraShooter.spinUpPhysicsCommand(),
+                aimCommand,
+                Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
+                    .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
+                    .andThen(longFeed())
+            ).withTimeout(4.0);
+        }, Set.of(swerve, ultraShooter, feeder, floor));
     }
 
     private Command aimAndFire(Command feedCommand) {
-        AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
-        return Commands.parallel(
-            ultraShooter.spinUpPhysicsCommand(),
-            aimCommand,
-            Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
-                .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
-                .andThen(feedCommand)
-        );
+        return Commands.defer(() -> {
+            AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
+            return Commands.parallel(
+                ultraShooter.spinUpPhysicsCommand(),
+                aimCommand,
+                Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
+                    .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
+                    .andThen(feedCommand)
+            );
+        }, Set.of(swerve, ultraShooter, feeder, floor));
     }
 
     private Command feed() {
         return Commands.parallel(
             feeder.feedCommand(),
-            Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds)
-                .andThen(floor.feedCommand())//.alongWith(intake.agitateCommand()))
+            Commands.defer(
+                () -> Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()),
+                Set.of()
+            ).andThen(floor.feedCommand())
         );
     }
 

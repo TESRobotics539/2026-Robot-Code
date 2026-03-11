@@ -49,10 +49,11 @@ public class ShooterOrca extends SubsystemBase {
         SHOOT(87),   // ~5000 RPM with 4" wheel
         DASHBOARD(0);
 
-        public final double metersPerSecond;
+        /** Surface velocity in ft/s. */
+        public final double feetPerSecond;
 
-        private Speed(double metersPerSecond) {
-            this.metersPerSecond = metersPerSecond;
+        private Speed(double feetPerSecond) {
+            this.feetPerSecond = feetPerSecond;
         }
     }
 
@@ -252,7 +253,7 @@ public class ShooterOrca extends SubsystemBase {
 
     public void setShooterMap() {
         double distanceToHub = m_swerveSubsystem.getDistanceToHub();
-        shooterVelocityTarget = shooterSpeedMap.get(distanceToHub) * 1.0;
+        setShooterTarget(shooterSpeedMap.get(distanceToHub));
     }
 
     /** @return Primary encoder velocity in ft/s (instantaneous) */
@@ -362,9 +363,9 @@ public class ShooterOrca extends SubsystemBase {
                     && Landmarks.isInScoringZone(m_swerveSubsystem.getPose())) {
                 double distanceToHub = m_swerveSubsystem.getDistanceToHub();
                 double mapSpeed = shooterSpeedMap.get(distanceToHub);
-                shooterVelocityTarget = mapSpeed * Constants.ShooterConstants.kPreSpinFraction;
+                setShooterTarget(mapSpeed * Constants.ShooterConstants.kPreSpinFraction);
             } else {
-                shooterVelocityTarget = 0;
+                setShooterTarget(0);
             }
         }).withName("PreSpin");
     }
@@ -378,15 +379,15 @@ public class ShooterOrca extends SubsystemBase {
     }
 
     public Command spinUpCommand() {
-        return startEnd(() -> setShooterTarget(Speed.SHOOT.metersPerSecond), () -> stop());
+        return startEnd(() -> setShooterTarget(Speed.SHOOT.feetPerSecond), () -> stop());
     }
 
     public Command spinUpCommand(Speed speed) {
-        return startEnd(() -> setShooterTarget(speed.metersPerSecond), () -> stop());
+        return startEnd(() -> setShooterTarget(speed.feetPerSecond), () -> stop());
     }
 
     public Command dashboardSpinUpCommand() {
-        return runOnce(() -> setShooterTarget(Speed.SHOOT.metersPerSecond));
+        return runOnce(() -> setShooterTarget(Speed.SHOOT.feetPerSecond));
     }
 
     /**
