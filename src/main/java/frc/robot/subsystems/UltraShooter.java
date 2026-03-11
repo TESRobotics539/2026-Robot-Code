@@ -731,8 +731,22 @@ public class UltraShooter extends SubsystemBase {
         distanceBufferIndex = (distanceBufferIndex + 1) % DISTANCE_AVG_SAMPLES;
     }
 
-    /** @return 1-second rolling average of distance to hub (meters). */
+    /** Speed above which the robot is considered "moving" and the instant distance is used (ft/s). */
+    private static final double MOVING_SPEED_THRESHOLD_FPS = 1.0;
+
+    /**
+     * Returns the best distance estimate for physics calculations.
+     * When the robot is stationary the 1-second rolling average is used to
+     * reject odometry noise.  When moving, the rolling average lags the true
+     * distance by up to ~0.5 s, so the instantaneous distance is used instead.
+     */
     public double getAverageDistanceToHub() {
+        final ChassisSpeeds fieldVel = swerve.getFieldVelocity();
+        final double speedFps = Math.hypot(fieldVel.vxMetersPerSecond, fieldVel.vyMetersPerSecond)
+                * 3.28084;
+        if (speedFps > MOVING_SPEED_THRESHOLD_FPS) {
+            return swerve.getDistanceToHub();
+        }
         return distanceBufferSum / DISTANCE_AVG_SAMPLES;
     }
 
