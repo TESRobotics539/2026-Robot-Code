@@ -67,7 +67,9 @@ public class Swerve extends SubsystemBase
   private final BumpTuner bumpTuner;
 
   // Pigeon 2 accelerometer filtering — rejects transient spikes from bump traversal.
-  private final Pigeon2 pigeon2 = new Pigeon2(62, "rio");
+  // Retrieved from YAGSL after swerveDrive construction so we share the same Phoenix 6
+  // handle that YAGSL owns, rather than creating a second device object with a hardcoded ID.
+  private Pigeon2 pigeon2;
   private final LowPassFilter accelXFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelYFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelZFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
@@ -110,6 +112,8 @@ public class Swerve extends SubsystemBase
       throw new RuntimeException(e);
     }
 
+    pigeon2 = (Pigeon2) swerveDrive.getImu().getIMU();
+
     swerveDrive.setHeadingCorrection(false); // Heading correction should only be used while controlling the robot via angle.
     swerveDrive.setCosineCompensator(false); // Disables cosine compensation for simulations since it causes discrepancies not seen in real life.
     swerveDrive.setAngularVelocityCompensation(true,
@@ -146,6 +150,7 @@ public class Swerve extends SubsystemBase
                                   Constants.DrivetrainConstants.kMaxSpeed,
                                   new Pose2d(new Translation2d(Meter.of(2), Meter.of(0)),
                                              Rotation2d.fromDegrees(0)));
+    pigeon2 = (Pigeon2) swerveDrive.getImu().getIMU();
 
     absoluteEncoder_fl = new CANCoderSwerve(9);
     absoluteEncoder_fr = new CANCoderSwerve(12);
@@ -247,10 +252,10 @@ public class Swerve extends SubsystemBase
   @Override
   public void simulationPeriodic()
   {
+    // YAGSL's SwerveDrive.periodic() already calls updateOdometry() each cycle.
+    // Calling it again here would double-integrate position in simulation.
     Pose2d pose = swerveDrive.getPose();
     field.setRobotPose(pose);
-
-    swerveDrive.updateOdometry(); 
   }
 
   /**
@@ -566,6 +571,16 @@ public class Swerve extends SubsystemBase
                                                         angle.getRadians(),
                                                         getHeading().getRadians(),
                                                         Constants.DrivetrainConstants.kMaxSpeed);
+  }
+
+  /**
+   * Enables or disables YAGSL heading correction.
+   * Should only be active when the robot is being controlled via a target angle
+   * (e.g. during {@link frc.robot.commands.AimAndDriveCommand}).
+   */
+  public void setHeadingCorrection(boolean enabled)
+  {
+    swerveDrive.setHeadingCorrection(enabled);
   }
 
   /**

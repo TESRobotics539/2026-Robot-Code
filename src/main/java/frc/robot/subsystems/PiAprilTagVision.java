@@ -92,7 +92,7 @@ public class PiAprilTagVision extends SubsystemBase {
     // ── Staleness tracking ────────────────────────────────────────────────────
 
     private long lastHeartbeat = Long.MIN_VALUE;
-    private int  staleFrames   = 0;
+    private int  staleFrames   = STALE_THRESHOLD;
 
     // ─────────────────────────────────────────────────────────────────────────
 

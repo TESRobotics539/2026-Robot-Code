@@ -177,7 +177,7 @@ public class UltraShooter extends SubsystemBase {
     /** Last heartbeat counter seen from the Pi. */
     private long piLastHeartbeat = Long.MIN_VALUE;
     /** Cycles since the heartbeat last changed (each cycle = 20 ms). */
-    private int  piStaleFrames   = 0;
+    private int  piStaleFrames   = PI_STALE_THRESHOLD;
     /** A Pi is considered disconnected after this many stale cycles (500 ms). */
     private static final int PI_STALE_THRESHOLD = 25;
 

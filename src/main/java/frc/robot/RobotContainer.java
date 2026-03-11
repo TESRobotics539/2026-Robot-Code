@@ -160,7 +160,7 @@ public class RobotContainer
                 intake.agitateCommand(),
                 Commands.waitUntil(ultraShooter::isReady)
                     .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
-                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
+                    .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
                         Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())
@@ -171,7 +171,7 @@ public class RobotContainer
                 ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
                 Commands.waitUntil(ultraShooter::isReady)
                     .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
-                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
+                    .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
                         Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())

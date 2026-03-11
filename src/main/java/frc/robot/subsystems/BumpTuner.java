@@ -70,7 +70,7 @@ public class BumpTuner extends SubsystemBase {
     private final IntegerSubscriber eHeartbeat;
     private final StringSubscriber  eConfigFile;
     private long lastHeartbeat = Long.MIN_VALUE;
-    private int  staleFrames   = 0;
+    private int  staleFrames   = STALE_THRESHOLD;
 
     // Frozen parameter cache — snapshotted on every robot disable so that
     // accidental dashboard edits during a match never affect in-flight behavior.

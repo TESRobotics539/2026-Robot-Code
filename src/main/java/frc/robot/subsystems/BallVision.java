@@ -33,7 +33,7 @@ public class BallVision extends SubsystemBase {
     private final NetworkTableEntry   ntConnected  = nt.getEntry("Pi Connected");
 
     private long lastHeartbeat  = Long.MIN_VALUE;
-    private int  staleFrames    = 0;
+    private int  staleFrames    = STALE_THRESHOLD;
 
     public BallVision() {
         SmartDashboard.putData(this);

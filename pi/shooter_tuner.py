@@ -11,10 +11,12 @@ during practice without recompiling the Java code.
 
 NetworkTables layout  (table: "ShooterTuner")
 ----------------------------------------------
-  Params/NearShotOffsetPercent    double  — percent offset applied to flywheel speed for near shots
-  Params/FarShotOffsetPercent     double  — percent offset applied to flywheel speed for far shots
+  Params/CloseShotOffsetPercent   double  — percent offset applied to flywheel speed for close shots (~3 ft)
+  Params/MidShotOffsetPercent     double  — percent offset applied to flywheel speed for mid shots (~13 ft)
+  Params/FarShotOffsetPercent     double  — percent offset applied to flywheel speed for far shots (~23 ft)
   Params/ReadyTolerance           double  — ft/s tolerance band around target speed to consider shooter ready
   Params/ShootReadyTimeoutSeconds double  — seconds to wait for shooter to reach ready speed before giving up
+  Params/ShootWaitSeconds         double  — seconds to wait after reaching ready speed before releasing feeder
   Params/FloorFeedDelaySeconds    double  — seconds to delay floor roller engagement after feeder starts
   Params/Kp                       double  — flywheel proportional gain (written by ShooterAutoTuner)
   Params/FlywheelEfficiency       double  — ball-to-flywheel velocity ratio (0–1); tune to match field data
@@ -46,6 +48,7 @@ DEFAULTS: dict[str, float] = {
     "FarShotOffsetPercent":     0.0,     # parabolic anchor at 7 m
     "ReadyTolerance":           1.745,   # ft/s — 100 RPM converted
     "ShootReadyTimeoutSeconds": 1.33,
+    "ShootWaitSeconds":         0.5,
     "FloorFeedDelaySeconds":    0.25,
     "Kp":                       0.003,   # flywheel proportional gain (autotuned)
     "FlywheelEfficiency":       0.43,    # ball exit speed / flywheel surface speed (0–1); calibrated vs ShooterOrca at 2 m

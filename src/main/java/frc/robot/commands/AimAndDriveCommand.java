@@ -60,8 +60,7 @@ public class AimAndDriveCommand extends Command {
 
     @Override
     public void initialize() {
-        // Enable heading correction for this command
-        swerve.getSwerveDrive().setHeadingCorrection(true);
+        swerve.setHeadingCorrection(true);
     }
 
     @Override
@@ -94,7 +93,6 @@ public class AimAndDriveCommand extends Command {
 
     @Override
     public void end(boolean interrupted) {
-        // Disable heading correction when command ends
-        swerve.getSwerveDrive().setHeadingCorrection(false);
+        swerve.setHeadingCorrection(false);
     }
 }

@@ -1,8 +1,11 @@
 package frc.robot.subsystems;
 
+import edu.wpi.first.networktables.BooleanEntry;
+import edu.wpi.first.networktables.DoubleEntry;
+import edu.wpi.first.networktables.IntegerEntry;
 import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.StringEntry;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
@@ -84,13 +87,13 @@ public class ShooterAutoTuner extends SubsystemBase {
 
     // ── Telemetry ─────────────────────────────────────────────────────────────
 
-    private final NetworkTable        nt             = NetworkTableInstance.getDefault().getTable("ShooterAutoTuner");
-    private final NetworkTableEntry   ntState        = nt.getEntry("State");
-    private final NetworkTableEntry   ntShotsTotal   = nt.getEntry("Shots Analyzed");
-    private final NetworkTableEntry   ntLastRecovery = nt.getEntry("Last Recovery (ms)");
-    private final NetworkTableEntry   ntLastAction   = nt.getEntry("Last Action");
-    private final NetworkTableEntry   ntCurrentKp    = nt.getEntry("Current kP");
-    private final NetworkTableEntry   ntEnabled      = nt.getEntry("Autotuner Enabled");
+    private final NetworkTable  nt             = NetworkTableInstance.getDefault().getTable("ShooterAutoTuner");
+    private final StringEntry   ntState        = nt.getStringTopic("State").getEntry("IDLE");
+    private final IntegerEntry  ntShotsTotal   = nt.getIntegerTopic("Shots Analyzed").getEntry(0);
+    private final DoubleEntry   ntLastRecovery = nt.getDoubleTopic("Last Recovery (ms)").getEntry(0.0);
+    private final StringEntry   ntLastAction   = nt.getStringTopic("Last Action").getEntry("(no shots yet)");
+    private final DoubleEntry   ntCurrentKp    = nt.getDoubleTopic("Current kP").getEntry(0.0);
+    private final BooleanEntry  ntEnabled      = nt.getBooleanTopic("Autotuner Enabled").getEntry(true);
 
     private int shotsAnalyzed = 0;
 
@@ -100,10 +103,10 @@ public class ShooterAutoTuner extends SubsystemBase {
         this.ultraShooter = ultraShooter;
         this.shooterTuner = shooterTuner;
 
-        ntEnabled.setBoolean(true);
-        ntLastAction.setString("(no shots yet)");
-        ntLastRecovery.setDouble(0);
-        ntShotsTotal.setInteger(0);
+        ntEnabled.set(true);
+        ntLastAction.set("(no shots yet)");
+        ntLastRecovery.set(0.0);
+        ntShotsTotal.set(0);
 
         SmartDashboard.putData(this);
     }
@@ -112,7 +115,7 @@ public class ShooterAutoTuner extends SubsystemBase {
 
     @Override
     public void periodic() {
-        boolean enabled = ntEnabled.getBoolean(true);
+        boolean enabled = ntEnabled.get();
 
         double avgVelocity = ultraShooter.getAverageVelocity();
         double target      = ultraShooter.getTarget();
@@ -120,8 +123,8 @@ public class ShooterAutoTuner extends SubsystemBase {
         double tolerance   = shooterTuner.getReadyTolerance();
 
         // Publish current kP regardless of state
-        ntCurrentKp.setDouble(shooterTuner.getLiveKp());
-        ntState.setString(state.name());
+        ntCurrentKp.set(shooterTuner.getLiveKp());
+        ntState.set(state.name());
 
         // Reset if disabled, autotuner turned off, or target cleared
         if (!DriverStation.isEnabled() || !enabled || target <= 0) {
@@ -156,7 +159,7 @@ public class ShooterAutoTuner extends SubsystemBase {
             case DIP_ACTIVE:
                 if (now - dipDetectedTime > RECOVERY_TIMEOUT_SECS) {
                     // Took too long — skip this shot and reset
-                    ntLastAction.setString("Timeout in dip — skipped");
+                    ntLastAction.set("Timeout in dip — skipped");
                     state = State.IDLE;
                     break;
                 }
@@ -176,8 +179,8 @@ public class ShooterAutoTuner extends SubsystemBase {
                     // Still not recovered — kP is far too low; bump it more aggressively
                     double kp = Math.min(KP_MAX, shooterTuner.getLiveKp() + KP_STEP * 3);
                     shooterTuner.setLiveKp(kp);
-                    ntLastAction.setString("kP increased ×3 (recovery timeout)");
-                    ntShotsTotal.setInteger(++shotsAnalyzed);
+                    ntLastAction.set("kP increased ×3 (recovery timeout)");
+                    ntShotsTotal.set(++shotsAnalyzed);
                     state = State.IDLE;
                     break;
                 }
@@ -185,8 +188,8 @@ public class ShooterAutoTuner extends SubsystemBase {
                 if (Math.abs(avgVelocity - target) < tolerance) {
                     // Fully recovered — analyze and adjust
                     double recoveryMs = (now - dipDetectedTime) * 1000.0;
-                    ntLastRecovery.setDouble(recoveryMs);
-                    ntShotsTotal.setInteger(++shotsAnalyzed);
+                    ntLastRecovery.set(recoveryMs);
+                    ntShotsTotal.set(++shotsAnalyzed);
                     adjustKp(now - dipDetectedTime);
                     state = State.WATCHING; // watch for next shot immediately
                 }
@@ -213,7 +216,7 @@ public class ShooterAutoTuner extends SubsystemBase {
             action = String.format("kP OK %.5f (%.0fms)", currentKp, recoveryTimeSecs * 1000);
         }
 
-        ntLastAction.setString(action);
+        ntLastAction.set(action);
         if (newKp != currentKp) {
             shooterTuner.setLiveKp(newKp);
         }
@@ -224,12 +227,12 @@ public class ShooterAutoTuner extends SubsystemBase {
     @Override
     public void initSendable(SendableBuilder builder) {
         super.initSendable(builder);
-        builder.addStringProperty("State",            ntState::getString,          null);
-        builder.addBooleanProperty("Enabled",         () -> ntEnabled.getBoolean(true), v -> ntEnabled.setBoolean(v));
-        builder.addDoubleProperty("Current kP",       shooterTuner::getLiveKp,     null);
-        builder.addDoubleProperty("Active kP",        shooterTuner::getKp,         null);
-        builder.addDoubleProperty("Last Recovery(ms)",ntLastRecovery::getDouble,   null);
-        builder.addStringProperty("Last Action",      ntLastAction::getString,     null);
-        builder.addIntegerProperty("Shots Analyzed",  () -> shotsAnalyzed,         null);
+        builder.addStringProperty("State",            ntState::get,            null);
+        builder.addBooleanProperty("Enabled",         ntEnabled::get,          ntEnabled::set);
+        builder.addDoubleProperty("Current kP",       shooterTuner::getLiveKp, null);
+        builder.addDoubleProperty("Active kP",        shooterTuner::getKp,     null);
+        builder.addDoubleProperty("Last Recovery(ms)",ntLastRecovery::get,     null);
+        builder.addStringProperty("Last Action",      ntLastAction::get,       null);
+        builder.addIntegerProperty("Shots Analyzed",  () -> shotsAnalyzed,     null);
     }
 }
