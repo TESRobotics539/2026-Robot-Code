@@ -134,14 +134,14 @@
             }
           },
           {
-            "title": "Avg Distance to Hub (m)",
+            "title": "Avg Distance to Hub (ft)",
             "x": 768.0,
             "y": 640.0,
             "width": 256.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
-              "topic": "/UltraShooter/Avg Distance to Hub (m)",
+              "topic": "/UltraShooter/Avg Distance to Hub (ft)",
               "period": 0.1,
               "show_submit_button": false
             }

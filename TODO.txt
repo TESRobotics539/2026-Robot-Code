@@ -17,7 +17,7 @@ Items marked [TODO]    are general tasks.
   SECTION 1 — PHYSICS / SHOOTER (Constants.java → UltraShooterConstants)
 ────────────────────────────────────────────────────────────────────────────────
 
-[CONFIRM]  kHubCenterHeightFromFloorInches = 96.0
+[CONFIRM]  kHubCenterHeightFromFloorInches = 72.0
            Verify against the 2026 game manual.
            File: Constants.java
 

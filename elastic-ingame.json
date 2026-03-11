@@ -66,14 +66,14 @@
             }
           },
           {
-            "title": "Avg Distance to Hub (m)",
+            "title": "Avg Distance to Hub (ft)",
             "x": 1536.0,
             "y": 0.0,
             "width": 384.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
-              "topic": "/UltraShooter/Avg Distance to Hub (m)",
+              "topic": "/UltraShooter/Avg Distance to Hub (ft)",
               "period": 0.1,
               "show_submit_button": false
             }
@@ -167,14 +167,14 @@
             }
           },
           {
-            "title": "Avg Distance to Hub (m)",
+            "title": "Avg Distance to Hub (ft)",
             "x": 896.0,
             "y": 0.0,
             "width": 384.0,
             "height": 128.0,
             "type": "Text Display",
             "properties": {
-              "topic": "/UltraShooter/Avg Distance to Hub (m)",
+              "topic": "/UltraShooter/Avg Distance to Hub (ft)",
               "period": 0.066,
               "show_submit_button": false
             }
@@ -274,7 +274,7 @@
             }
           },
           {
-            "title": "Close Shot Offset (%, 1 m)",
+            "title": "Close Shot Offset (%, 3 ft)",
             "x": 0.0,
             "y": 512.0,
             "width": 512.0,
@@ -289,7 +289,7 @@
             }
           },
           {
-            "title": "Mid Shot Offset (%, 4 m)",
+            "title": "Mid Shot Offset (%, 13 ft)",
             "x": 512.0,
             "y": 512.0,
             "width": 512.0,
@@ -304,7 +304,7 @@
             }
           },
           {
-            "title": "Far Shot Offset (%, 7 m)",
+            "title": "Far Shot Offset (%, 23 ft)",
             "x": 1024.0,
             "y": 512.0,
             "width": 640.0,

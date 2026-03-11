@@ -28,7 +28,7 @@ NetworkTables read
   UltraShooter/Pi Active                          — whether Pi physics is live
   ShooterTuner/Params/FlywheelEfficiency          — efficiency (0–1)
   ShooterTuner/Params/DragCoefficient             — drag constant (kg/m)
-  ShooterTuner/Params/BallMassKg                  — ball mass (kg)
+  ShooterTuner/Params/BallMassLbs                 — ball mass (lbs)
 """
 
 import math
@@ -128,12 +128,13 @@ def _simulate_trajectory(v0_mps: float, angle_rad: float,
 
 def _draw_frame(distance_m: float, v_flywheel_fps: float, angle_deg: float,
                 hood_h_m: float, hub_h_m: float,
-                efficiency: float, drag_coeff: float, ball_mass_kg: float,
+                efficiency: float, drag_coeff: float, ball_mass_lbs: float,
                 pi_active: bool) -> bytes:
     """
     Renders one trajectory frame and returns JPEG bytes.
     """
     angle_rad     = math.radians(angle_deg)
+    ball_mass_kg  = ball_mass_lbs * 0.453592
     drag_per_mass = drag_coeff / max(ball_mass_kg, 0.001) if drag_coeff > 0 else 0.0
     v0_ball_mps   = (v_flywheel_fps / 3.28084) * efficiency
 
@@ -223,7 +224,7 @@ def _draw_frame(distance_m: float, v_flywheel_fps: float, angle_deg: float,
     # ── Info overlay (top-left of plot area) ─────────────────────────────────
     src = "Pi" if pi_active else "RIO"
     info_lines = [
-        (f"Dist:   {distance_m:.2f} m  ({distance_m / 0.0254:.0f}\")", _TEXT_COLOR),
+        (f"Dist:   {distance_m * 3.28084:.1f} ft  ({distance_m / 0.0254:.0f}\")", _TEXT_COLOR),
         (f"Speed:  {v_flywheel_fps:.1f} ft/s  (flywheel)",              _TEXT_COLOR),
         (f"Angle:  {angle_deg:.1f}\u00b0  Hood: {hood_h_m * 39.37:.0f}\" "
          f" Hub: {hub_h_m * 39.37:.0f}\"",                              _TEXT_COLOR),
@@ -260,7 +261,7 @@ def run(table: ntcore.NetworkTable) -> None:
     inst         = table.getInstance()
     tuner_params = inst.getTable("ShooterTuner").getSubTable("Params")
 
-    dist_sub     = table.getDoubleTopic("Avg Distance to Hub (m)").subscribe(0.0)
+    dist_sub     = table.getDoubleTopic("Avg Distance to Hub (ft)").subscribe(0.0)
     target_sub   = table.getDoubleTopic("Target ft/s").subscribe(0.0)
     physics_sub  = table.getDoubleTopic("Physics Velocity ft/s").subscribe(0.0)
     angle_sub    = table.getDoubleTopic("Launch Angle (deg)").subscribe(75.0)
@@ -270,7 +271,7 @@ def run(table: ntcore.NetworkTable) -> None:
 
     effic_sub    = tuner_params.getDoubleTopic("FlywheelEfficiency").subscribe(0.85)
     drag_sub     = tuner_params.getDoubleTopic("DragCoefficient").subscribe(0.0132)
-    mass_sub     = tuner_params.getDoubleTopic("BallMassKg").subscribe(0.270)
+    mass_sub     = tuner_params.getDoubleTopic("BallMassLbs").subscribe(0.595)
 
     # Start HTTP server in a background thread
     threading.Thread(target=_start_server, daemon=True,
@@ -279,7 +280,7 @@ def run(table: ntcore.NetworkTable) -> None:
           f"→ http://10.5.39.XX:{STREAM_PORT}/stream.mjpg")
 
     while True:
-        d       = dist_sub.get()
+        d       = dist_sub.get() / 3.28084   # ft → m for physics/canvas
         v_fps   = target_sub.get()
         angle   = angle_sub.get()
         hood_h  = hood_sub.get() * 0.0254    # inches → metres

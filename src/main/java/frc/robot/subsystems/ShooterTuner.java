@@ -63,7 +63,7 @@ public class ShooterTuner extends SubsystemBase {
     private final DoubleEntry eKp;
     private final DoubleEntry eFlywheelEfficiency;
     private final DoubleEntry eDragCoefficient;
-    private final DoubleEntry eBallMassKg;
+    private final DoubleEntry eBallMassLbs;
 
     // Live-tuning toggle — when true the frozen cache is refreshed every cycle so
     // dashboard edits take effect immediately during a match.
@@ -92,7 +92,7 @@ public class ShooterTuner extends SubsystemBase {
     private double cachedKp;
     private double cachedFlywheelEfficiency;
     private double cachedDragCoefficient;
-    private double cachedBallMassKg;
+    private double cachedBallMassLbs;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -123,8 +123,8 @@ public class ShooterTuner extends SubsystemBase {
                                           .getEntry(Constants.UltraShooterConstants.kFlywheelEfficiency);
         eDragCoefficient          = params.getDoubleTopic("DragCoefficient")
                                           .getEntry(Constants.UltraShooterConstants.kDragCoefficient);
-        eBallMassKg               = params.getDoubleTopic("BallMassKg")
-                                          .getEntry(Constants.UltraShooterConstants.kBallMassKg);
+        eBallMassLbs              = params.getDoubleTopic("BallMassLbs")
+                                          .getEntry(Constants.UltraShooterConstants.kBallMassLbs);
         eLiveTuningEnabled        = params.getBooleanTopic("LiveTuningEnabled")
                                           .getEntry(false);
 
@@ -156,7 +156,7 @@ public class ShooterTuner extends SubsystemBase {
         cachedKp                       = eKp.get();
         cachedFlywheelEfficiency       = eFlywheelEfficiency.get();
         cachedDragCoefficient          = eDragCoefficient.get();
-        cachedBallMassKg               = eBallMassKg.get();
+        cachedBallMassLbs              = eBallMassLbs.get();
     }
 
     // ── Parameter getters ──────────────────────────────────────────────────────
@@ -200,8 +200,8 @@ public class ShooterTuner extends SubsystemBase {
     /** Active aerodynamic drag constant B (kg/m). Set to 0 to disable drag compensation. */
     public double getDragCoefficient()           { return cachedDragCoefficient; }
 
-    /** Active ball mass (kg). Used in drag deceleration term B/m. */
-    public double getBallMassKg()                { return cachedBallMassKg; }
+    /** Active ball mass (lbs). Used in drag deceleration term B/m (converted to kg internally). */
+    public double getBallMassLbs()               { return cachedBallMassLbs; }
 
     /** Returns {@code true} when live-tuning mode is active (dashboard edits take effect immediately). */
     public boolean isLiveTuningEnabled()         { return eLiveTuningEnabled.get(); }
@@ -281,7 +281,7 @@ public class ShooterTuner extends SubsystemBase {
         builder.addDoubleProperty("Live/kP",                        eKp::get,                       null);
         builder.addDoubleProperty("Live/Flywheel Efficiency",       eFlywheelEfficiency::get,       null);
         builder.addDoubleProperty("Live/Drag Coefficient (kg/m)",   eDragCoefficient::get,          null);
-        builder.addDoubleProperty("Live/Ball Mass (kg)",            eBallMassKg::get,               null);
+        builder.addDoubleProperty("Live/Ball Mass (lbs)",           eBallMassLbs::get,              null);
 
         builder.addDoubleProperty("Active/Close Shot Offset (%)",   this::getCloseShotOffsetPercent,   null);
         builder.addDoubleProperty("Active/Mid Shot Offset (%)",     this::getMidShotOffsetPercent,     null);
@@ -292,6 +292,6 @@ public class ShooterTuner extends SubsystemBase {
         builder.addDoubleProperty("Active/kP",                      this::getKp,                       null);
         builder.addDoubleProperty("Active/Flywheel Efficiency",     this::getFlywheelEfficiency,       null);
         builder.addDoubleProperty("Active/Drag Coefficient (kg/m)", this::getDragCoefficient,          null);
-        builder.addDoubleProperty("Active/Ball Mass (kg)",          this::getBallMassKg,               null);
+        builder.addDoubleProperty("Active/Ball Mass (lbs)",         this::getBallMassLbs,              null);
     }
 }

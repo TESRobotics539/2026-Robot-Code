@@ -198,21 +198,21 @@ public final class Constants {
     // Three anchor points define a parabola (Lagrange quadratic) that is
     // added on top of the physics-calculated flywheel speed as a percentage.
     // Tune close/mid/far independently on the field; the parabola fills in
-    // smoothly between anchors.  Distance is clamped to [1 m, 7 m].
+    // smoothly between anchors.  Distance is clamped to [3 ft, 23 ft].
     // Positive = spin faster, negative = spin slower.
 
-    /** Distance (m) of the close anchor. */
-    public static final double kCloseShotAnchorMeters = 1.0;
-    /** Distance (m) of the mid anchor. */
-    public static final double kMidShotAnchorMeters   = 4.0;
-    /** Distance (m) of the far anchor. */
-    public static final double kFarShotAnchorMeters   = 7.0;
+    /** Distance (ft) of the close anchor. */
+    public static final double kCloseShotAnchorFeet = 3.0;
+    /** Distance (ft) of the mid anchor. */
+    public static final double kMidShotAnchorFeet   = 13.0;
+    /** Distance (ft) of the far anchor. */
+    public static final double kFarShotAnchorFeet   = 23.0;
 
-    /** Speed offset (%) applied at the close anchor (1 m). */
+    /** Speed offset (%) applied at the close anchor (3 ft). */
     public static final double kCloseShotOffsetPercent = 0.0; // tune me
-    /** Speed offset (%) applied at the mid anchor (4 m). */
+    /** Speed offset (%) applied at the mid anchor (13 ft). */
     public static final double kMidShotOffsetPercent   = 0.0; // tune me
-    /** Speed offset (%) applied at the far anchor (7 m). */
+    /** Speed offset (%) applied at the far anchor (23 ft). */
     public static final double kFarShotOffsetPercent   = 0.0; // tune me
 
     // ── Aerodynamics & efficiency ──────────────────────────────────────────
@@ -220,18 +220,19 @@ public final class Constants {
     /**
      * Flywheel-to-ball velocity transfer efficiency (0–1).
      * Accounts for energy lost in wheel compression and slip during contact.
-     * Calibrated against ShooterOrca empirical map (2–5 m range): implied η
-     * averaged 0.43–0.55 across tested distances; midpoint ≈ 0.49.
+     * Calibrated against ShooterOrca empirical map at 2 m (primary test distance):
+     * implied η = 0.85 × (25.2 ft/s physics / 50.0 ft/s empirical) ≈ 0.43.
      * Tune on the field via ShooterTuner/Params/FlywheelEfficiency.
      * Applied as: ball_exit_speed = flywheel_surface_speed × efficiency.
      */
-    public static final double kFlywheelEfficiency = 0.49;
+    public static final double kFlywheelEfficiency = 0.43;
 
     /**
-     * Ball mass (kg).  Used in the aerodynamic drag term (B / m).
+     * Ball mass (lbs).  Used in the aerodynamic drag term (B / m).
      * 2026 game piece: adjust once the game manual publishes the spec.
+     * Internally converted to kg for SI physics calculations.
      */
-    public static final double kBallMassKg = 0.270;
+    public static final double kBallMassLbs = 0.595;
 
     /**
      * Aerodynamic drag constant B = 0.5 × Cd × ρ_air × A_cross  (kg/m).

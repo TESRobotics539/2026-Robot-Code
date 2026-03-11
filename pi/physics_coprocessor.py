@@ -43,15 +43,15 @@ import ntcore
 # ── Geometry — mirror Constants.java UltraShooterConstants ────────────────────
 
 HOOD_HEIGHT_INCHES    = 27.0   # kHoodHeightFromFloorInches
-HUB_HEIGHT_INCHES     = 96.0   # kHubCenterHeightFromFloorInches
+HUB_HEIGHT_INCHES     = 72.0   # kHubCenterHeightFromFloorInches
 SHOOTER_OFFSET_INCHES = 8.0    # kShooterCenterlineOffsetInches
 LAUNCH_ANGLE_DEG      = 75.0   # kLaunchAngleDegrees
 
 # ── Physics defaults (overridden by ShooterTuner NT values each cycle) ────────
 
-DEFAULT_EFFICIENCY     = 0.49    # FlywheelEfficiency — calibrated vs ShooterOrca 2–5 m data
+DEFAULT_EFFICIENCY     = 0.43    # FlywheelEfficiency — calibrated vs ShooterOrca at 2 m
 DEFAULT_DRAG_COEFF     = 0.0132  # DragCoefficient (kg/m)
-DEFAULT_BALL_MASS_KG   = 0.270   # BallMassKg
+DEFAULT_BALL_MASS_LBS  = 0.595   # BallMassLbs
 
 # ── Unit helpers ───────────────────────────────────────────────────────────────
 
@@ -120,7 +120,7 @@ def calculate_velocity_fps(
         distance_to_hub_m: float,
         flywheel_efficiency: float = DEFAULT_EFFICIENCY,
         drag_coeff: float = DEFAULT_DRAG_COEFF,
-        ball_mass_kg: float = DEFAULT_BALL_MASS_KG) -> float:
+        ball_mass_lbs: float = DEFAULT_BALL_MASS_LBS) -> float:
     """
     Returns required flywheel surface velocity (ft/s) for the given
     robot-center-to-hub distance, or 0.0 if the shot is physically impossible.
@@ -130,7 +130,7 @@ def calculate_velocity_fps(
     distance_to_hub_m   : odometry robot-center → hub-center distance (m)
     flywheel_efficiency : ball exit speed / flywheel surface speed  (0–1)
     drag_coeff          : aerodynamic B = 0.5·Cd·ρ·A  (kg/m); 0 = no drag
-    ball_mass_kg        : ball mass (kg)
+    ball_mass_lbs       : ball mass (lbs); converted to kg internally
     """
     angle_rad = math.radians(LAUNCH_ANGLE_DEG)
     d = distance_to_hub_m - _in_to_m(SHOOTER_OFFSET_INCHES)
@@ -149,6 +149,7 @@ def calculate_velocity_fps(
         v0_mps = d * math.sqrt(9.81 / denom)
     else:
         # ── Numerical solution with quadratic drag ────────────────────────────
+        ball_mass_kg  = ball_mass_lbs * 0.453592
         drag_per_mass = drag_coeff / max(ball_mass_kg, 0.001)
         v0_mps = _binary_search_v0(d, h, angle_rad, drag_per_mass)
         if v0_mps <= 0:
@@ -171,13 +172,13 @@ def run(table: ntcore.NetworkTable) -> None:
     inst         = table.getInstance()
     tuner_params = inst.getTable("ShooterTuner").getSubTable("Params")
 
-    dist_sub     = table.getDoubleTopic("Avg Distance to Hub (m)").subscribe(0.0)
+    dist_sub     = table.getDoubleTopic("Avg Distance to Hub (ft)").subscribe(0.0)
     vel_pub      = table.getDoubleTopic("Pi Physics Velocity ft/s").publish()
     hb_pub       = table.getIntegerTopic("Pi Heartbeat").publish()
 
     effic_sub    = tuner_params.getDoubleTopic("FlywheelEfficiency").subscribe(DEFAULT_EFFICIENCY)
     drag_sub     = tuner_params.getDoubleTopic("DragCoefficient").subscribe(DEFAULT_DRAG_COEFF)
-    mass_sub     = tuner_params.getDoubleTopic("BallMassKg").subscribe(DEFAULT_BALL_MASS_KG)
+    mass_sub     = tuner_params.getDoubleTopic("BallMassLbs").subscribe(DEFAULT_BALL_MASS_LBS)
 
     heartbeat: int = 0
     print("Physics co-processor: running at 50 Hz (drag-aware).")
@@ -187,7 +188,7 @@ def run(table: ntcore.NetworkTable) -> None:
         drag  = drag_sub.get()
         mass  = mass_sub.get()
 
-        vel_pub.set(calculate_velocity_fps(dist_sub.get(), effic, drag, mass))
+        vel_pub.set(calculate_velocity_fps(dist_sub.get() / 3.28084, effic, drag, mass))  # mass in lbs
         heartbeat += 1
         hb_pub.set(heartbeat)
         time.sleep(0.02)   # 50 Hz — matches the roboRIO scheduler period

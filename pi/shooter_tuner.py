@@ -19,7 +19,7 @@ NetworkTables layout  (table: "ShooterTuner")
   Params/Kp                       double  — flywheel proportional gain (written by ShooterAutoTuner)
   Params/FlywheelEfficiency       double  — ball-to-flywheel velocity ratio (0–1); tune to match field data
   Params/DragCoefficient          double  — aero drag constant B = 0.5×Cd×rho×A (kg/m); 0 disables drag
-  Params/BallMassKg               double  — ball mass (kg); used in drag deceleration term B/m
+  Params/BallMassLbs              double  — ball mass (lbs); used in drag deceleration term B/m (converted to kg internally)
   Cmd/Save                        boolean — Java sets True → Pi saves current values + resets
   Status/Heartbeat                integer — increments every loop for staleness detection
   Status/SavedOk                  boolean — True after the most recent save succeeded
@@ -48,9 +48,9 @@ DEFAULTS: dict[str, float] = {
     "ShootReadyTimeoutSeconds": 1.33,
     "FloorFeedDelaySeconds":    0.25,
     "Kp":                       0.003,   # flywheel proportional gain (autotuned)
-    "FlywheelEfficiency":       0.49,    # ball exit speed / flywheel surface speed (0–1); calibrated vs ShooterOrca 2–5 m
+    "FlywheelEfficiency":       0.43,    # ball exit speed / flywheel surface speed (0–1); calibrated vs ShooterOrca at 2 m
     "DragCoefficient":          0.0132,  # B = 0.5×Cd×rho×A (kg/m); 0 = disable drag
-    "BallMassKg":               0.270,   # ball mass (kg) for drag term B/m
+    "BallMassLbs":              0.595,   # ball mass (lbs) for drag term B/m (converted to kg internally)
 }
 
 
