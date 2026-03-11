@@ -194,22 +194,54 @@ public final class Constants {
     /** Fraction of the physics-calculated speed used for pre-spin (0.0–1.0). */
     public static final double kPreSpinFraction = 0.60;
 
-    // ── Fine-tune offsets ──────────────────────────────────────────────────
-    // Added on top of the physics-calculated flywheel speed as a percentage.
-    // The offset is linearly blended between the near (20 in) and far (120 in)
-    // reference distances. Positive = spin faster, negative = spin slower.
-    //
-    // Example: kNearShotOffsetPercent = 5.0, kFarShotOffsetPercent = 10.0
-    //   → +5 % added at 20 in
-    //   → +7.5 % added at 70 in  (midpoint)
-    //   → +10 % added at 120 in
-    // The offset is clamped — distances outside 20–120 in use the nearest value.
+    // ── Parabolic fine-tune offsets ────────────────────────────────────────
+    // Three anchor points define a parabola (Lagrange quadratic) that is
+    // added on top of the physics-calculated flywheel speed as a percentage.
+    // Tune close/mid/far independently on the field; the parabola fills in
+    // smoothly between anchors.  Distance is clamped to [1 m, 7 m].
+    // Positive = spin faster, negative = spin slower.
 
-    /** Speed offset (%) applied at the near reference distance (20 in). */
-    public static final double kNearShotOffsetPercent = 0.0; // tune me
+    /** Distance (m) of the close anchor. */
+    public static final double kCloseShotAnchorMeters = 1.0;
+    /** Distance (m) of the mid anchor. */
+    public static final double kMidShotAnchorMeters   = 4.0;
+    /** Distance (m) of the far anchor. */
+    public static final double kFarShotAnchorMeters   = 7.0;
 
-    /** Speed offset (%) applied at the far reference distance (120 in). */
-    public static final double kFarShotOffsetPercent  = 0.0; // tune me
+    /** Speed offset (%) applied at the close anchor (1 m). */
+    public static final double kCloseShotOffsetPercent = 0.0; // tune me
+    /** Speed offset (%) applied at the mid anchor (4 m). */
+    public static final double kMidShotOffsetPercent   = 0.0; // tune me
+    /** Speed offset (%) applied at the far anchor (7 m). */
+    public static final double kFarShotOffsetPercent   = 0.0; // tune me
+
+    // ── Aerodynamics & efficiency ──────────────────────────────────────────
+
+    /**
+     * Flywheel-to-ball velocity transfer efficiency (0–1).
+     * Accounts for energy lost in wheel compression and slip during contact.
+     * Calibrated against ShooterOrca empirical map (2–5 m range): implied η
+     * averaged 0.43–0.55 across tested distances; midpoint ≈ 0.49.
+     * Tune on the field via ShooterTuner/Params/FlywheelEfficiency.
+     * Applied as: ball_exit_speed = flywheel_surface_speed × efficiency.
+     */
+    public static final double kFlywheelEfficiency = 0.49;
+
+    /**
+     * Ball mass (kg).  Used in the aerodynamic drag term (B / m).
+     * 2026 game piece: adjust once the game manual publishes the spec.
+     */
+    public static final double kBallMassKg = 0.270;
+
+    /**
+     * Aerodynamic drag constant B = 0.5 × Cd × ρ_air × A_cross  (kg/m).
+     * For a 9.5-inch-diameter foam sphere:
+     *   Cd ≈ 0.47,  ρ = 1.225 kg/m³,  A = π×(0.1207)² ≈ 0.0458 m²
+     *   → B ≈ 0.0132 kg/m
+     * Set to 0.0 to disable drag compensation and fall back to the
+     * analytic (vacuum) projectile formula.
+     */
+    public static final double kDragCoefficient = 0.0132;
   }
 
   // ── Drivetrain IMU / Bump Detection ───────────────────────────────────────

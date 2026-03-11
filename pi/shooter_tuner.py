@@ -17,6 +17,9 @@ NetworkTables layout  (table: "ShooterTuner")
   Params/ShootReadyTimeoutSeconds double  — seconds to wait for shooter to reach ready speed before giving up
   Params/FloorFeedDelaySeconds    double  — seconds to delay floor roller engagement after feeder starts
   Params/Kp                       double  — flywheel proportional gain (written by ShooterAutoTuner)
+  Params/FlywheelEfficiency       double  — ball-to-flywheel velocity ratio (0–1); tune to match field data
+  Params/DragCoefficient          double  — aero drag constant B = 0.5×Cd×rho×A (kg/m); 0 disables drag
+  Params/BallMassKg               double  — ball mass (kg); used in drag deceleration term B/m
   Cmd/Save                        boolean — Java sets True → Pi saves current values + resets
   Status/Heartbeat                integer — increments every loop for staleness detection
   Status/SavedOk                  boolean — True after the most recent save succeeded
@@ -38,12 +41,16 @@ CONFIG_FILE = "/home/pi/shooter_tuner.json"
 # ── Default parameter values (mirrors Java Constants.ShooterConstants /
 #                              Constants.UltraShooterConstants) ──────────────
 DEFAULTS: dict[str, float] = {
-    "NearShotOffsetPercent":    0.0,
-    "FarShotOffsetPercent":     0.0,
+    "CloseShotOffsetPercent":   0.0,     # parabolic anchor at 1 m
+    "MidShotOffsetPercent":     0.0,     # parabolic anchor at 4 m
+    "FarShotOffsetPercent":     0.0,     # parabolic anchor at 7 m
     "ReadyTolerance":           1.745,   # ft/s — 100 RPM converted
     "ShootReadyTimeoutSeconds": 1.33,
     "FloorFeedDelaySeconds":    0.25,
     "Kp":                       0.003,   # flywheel proportional gain (autotuned)
+    "FlywheelEfficiency":       0.49,    # ball exit speed / flywheel surface speed (0–1); calibrated vs ShooterOrca 2–5 m
+    "DragCoefficient":          0.0132,  # B = 0.5×Cd×rho×A (kg/m); 0 = disable drag
+    "BallMassKg":               0.270,   # ball mass (kg) for drag term B/m
 }
 
 

@@ -38,7 +38,7 @@ import frc.robot.Constants;
  * {@code Constants.ShooterConstants.kX} reference with the equivalent getter:
  *
  * <pre>
- *   shooterTuner.getNearShotOffsetPercent()
+ *   shooterTuner.getCloseShotOffsetPercent()
  *   shooterTuner.getReadyTolerance()
  *   // etc.
  * </pre>
@@ -54,12 +54,21 @@ public class ShooterTuner extends SubsystemBase {
 
     // Parameter entries — each is a read/write entry so Elastic can modify them
     // and the Java code reads the current (possibly Pi-updated) value each cycle.
-    private final DoubleEntry eNearShotOffsetPercent;
+    private final DoubleEntry eCloseShotOffsetPercent;
+    private final DoubleEntry eMidShotOffsetPercent;
     private final DoubleEntry eFarShotOffsetPercent;
     private final DoubleEntry eReadyTolerance;
     private final DoubleEntry eShootReadyTimeoutSeconds;
     private final DoubleEntry eFloorFeedDelaySeconds;
     private final DoubleEntry eKp;
+    private final DoubleEntry eFlywheelEfficiency;
+    private final DoubleEntry eDragCoefficient;
+    private final DoubleEntry eBallMassKg;
+
+    // Live-tuning toggle — when true the frozen cache is refreshed every cycle so
+    // dashboard edits take effect immediately during a match.
+    // This entry is intentionally NOT subject to the frozen cache itself.
+    private final BooleanEntry eLiveTuningEnabled;
 
     // Save handshake
     private final BooleanEntry eSaveCmd;
@@ -74,12 +83,16 @@ public class ShooterTuner extends SubsystemBase {
     // Frozen parameter cache — snapshotted on every robot disable so that
     // accidental dashboard edits during a match never affect in-flight behavior.
     // All getters read from this cache, not directly from NT.
-    private double cachedNearShotOffsetPercent;
+    private double cachedCloseShotOffsetPercent;
+    private double cachedMidShotOffsetPercent;
     private double cachedFarShotOffsetPercent;
     private double cachedReadyTolerance;
     private double cachedShootReadyTimeoutSeconds;
     private double cachedFloorFeedDelaySeconds;
     private double cachedKp;
+    private double cachedFlywheelEfficiency;
+    private double cachedDragCoefficient;
+    private double cachedBallMassKg;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -92,8 +105,10 @@ public class ShooterTuner extends SubsystemBase {
 
         // Parameter entries — defaults come from Constants so the robot works
         // correctly if the Pi hasn't published yet or is not connected.
-        eNearShotOffsetPercent    = params.getDoubleTopic("NearShotOffsetPercent")
-                                          .getEntry(Constants.UltraShooterConstants.kNearShotOffsetPercent);
+        eCloseShotOffsetPercent   = params.getDoubleTopic("CloseShotOffsetPercent")
+                                          .getEntry(Constants.UltraShooterConstants.kCloseShotOffsetPercent);
+        eMidShotOffsetPercent     = params.getDoubleTopic("MidShotOffsetPercent")
+                                          .getEntry(Constants.UltraShooterConstants.kMidShotOffsetPercent);
         eFarShotOffsetPercent     = params.getDoubleTopic("FarShotOffsetPercent")
                                           .getEntry(Constants.UltraShooterConstants.kFarShotOffsetPercent);
         eReadyTolerance           = params.getDoubleTopic("ReadyTolerance")
@@ -104,6 +119,14 @@ public class ShooterTuner extends SubsystemBase {
                                           .getEntry(Constants.ShooterConstants.kFloorFeedDelaySeconds);
         eKp                       = params.getDoubleTopic("Kp")
                                           .getEntry(Constants.UltraShooterConstants.kP);
+        eFlywheelEfficiency       = params.getDoubleTopic("FlywheelEfficiency")
+                                          .getEntry(Constants.UltraShooterConstants.kFlywheelEfficiency);
+        eDragCoefficient          = params.getDoubleTopic("DragCoefficient")
+                                          .getEntry(Constants.UltraShooterConstants.kDragCoefficient);
+        eBallMassKg               = params.getDoubleTopic("BallMassKg")
+                                          .getEntry(Constants.UltraShooterConstants.kBallMassKg);
+        eLiveTuningEnabled        = params.getBooleanTopic("LiveTuningEnabled")
+                                          .getEntry(false);
 
         eSaveCmd    = cmd.getBooleanTopic("Save").getEntry(false);
         eSavedOk    = status.getBooleanTopic("SavedOk").subscribe(false);
@@ -121,14 +144,19 @@ public class ShooterTuner extends SubsystemBase {
             runOnce(this::saveToPi).withName("SaveShooterConfig").ignoringDisable(true));
     }
 
-    /** Copies all live NT values into the frozen cache. Called on every disable. */
+    /** Copies all live NT values into the frozen cache. Called on every disable (and every
+     *  cycle when {@code LiveTuningEnabled} is set in the dashboard). */
     private void snapshotCache() {
-        cachedNearShotOffsetPercent    = eNearShotOffsetPercent.get();
+        cachedCloseShotOffsetPercent   = eCloseShotOffsetPercent.get();
+        cachedMidShotOffsetPercent     = eMidShotOffsetPercent.get();
         cachedFarShotOffsetPercent     = eFarShotOffsetPercent.get();
         cachedReadyTolerance           = eReadyTolerance.get();
         cachedShootReadyTimeoutSeconds = eShootReadyTimeoutSeconds.get();
         cachedFloorFeedDelaySeconds    = eFloorFeedDelaySeconds.get();
         cachedKp                       = eKp.get();
+        cachedFlywheelEfficiency       = eFlywheelEfficiency.get();
+        cachedDragCoefficient          = eDragCoefficient.get();
+        cachedBallMassKg               = eBallMassKg.get();
     }
 
     // ── Parameter getters ──────────────────────────────────────────────────────
@@ -136,10 +164,13 @@ public class ShooterTuner extends SubsystemBase {
     // robot disable.  This means dashboard edits take effect at the next disable,
     // never mid-match.
 
-    /** Percent offset applied to flywheel speed for near shots. */
-    public double getNearShotOffsetPercent()    { return cachedNearShotOffsetPercent; }
+    /** Percent offset at the close anchor (1 m). */
+    public double getCloseShotOffsetPercent()   { return cachedCloseShotOffsetPercent; }
 
-    /** Percent offset applied to flywheel speed for far shots. */
+    /** Percent offset at the mid anchor (4 m). */
+    public double getMidShotOffsetPercent()     { return cachedMidShotOffsetPercent; }
+
+    /** Percent offset at the far anchor (7 m). */
     public double getFarShotOffsetPercent()     { return cachedFarShotOffsetPercent; }
 
     /** ft/s tolerance band around target speed to consider the shooter ready. */
@@ -162,6 +193,18 @@ public class ShooterTuner extends SubsystemBase {
      * Use this to read the autotuner's current recommendation before the next disable.
      */
     public double getLiveKp()                   { return eKp.get(); }
+
+    /** Active flywheel efficiency fraction (0–1). Frozen at last disable (or live if enabled). */
+    public double getFlywheelEfficiency()        { return cachedFlywheelEfficiency; }
+
+    /** Active aerodynamic drag constant B (kg/m). Set to 0 to disable drag compensation. */
+    public double getDragCoefficient()           { return cachedDragCoefficient; }
+
+    /** Active ball mass (kg). Used in drag deceleration term B/m. */
+    public double getBallMassKg()                { return cachedBallMassKg; }
+
+    /** Returns {@code true} when live-tuning mode is active (dashboard edits take effect immediately). */
+    public boolean isLiveTuningEnabled()         { return eLiveTuningEnabled.get(); }
 
     /**
      * Writes a new kP to the live NT entry.  Called by {@link ShooterAutoTuner}
@@ -207,9 +250,10 @@ public class ShooterTuner extends SubsystemBase {
         }
 
         // Snapshot live NT values into the frozen cache whenever the robot is
-        // disabled.  Changes made in Elastic take effect at the next disable,
-        // not immediately, so accidental mid-match edits are harmless.
-        if (DriverStation.isDisabled()) {
+        // disabled OR when LiveTuningEnabled is set from the dashboard.
+        // Live-tuning mode lets engineers adjust shot parameters mid-match in Elastic;
+        // leave it off in competition to prevent accidental edits.
+        if (DriverStation.isDisabled() || eLiveTuningEnabled.get()) {
             snapshotCache();
         }
     }
@@ -225,18 +269,29 @@ public class ShooterTuner extends SubsystemBase {
 
         // "Live" entries reflect the current NT value — edit these in Elastic.
         // "Active" entries show what the robot is actually using (frozen at last disable).
-        builder.addDoubleProperty("Live/Near Shot Offset (%)",      eNearShotOffsetPercent::get,    null);
+        builder.addBooleanProperty("Live Tuning Enabled",              eLiveTuningEnabled::get,
+                                                                       eLiveTuningEnabled::set);
+
+        builder.addDoubleProperty("Live/Close Shot Offset (%)",     eCloseShotOffsetPercent::get,   null);
+        builder.addDoubleProperty("Live/Mid Shot Offset (%)",       eMidShotOffsetPercent::get,     null);
         builder.addDoubleProperty("Live/Far Shot Offset (%)",       eFarShotOffsetPercent::get,     null);
         builder.addDoubleProperty("Live/Ready Tolerance (ft/s)",    eReadyTolerance::get,           null);
         builder.addDoubleProperty("Live/Shoot Ready Timeout (s)",   eShootReadyTimeoutSeconds::get, null);
         builder.addDoubleProperty("Live/Floor Feed Delay (s)",      eFloorFeedDelaySeconds::get,    null);
         builder.addDoubleProperty("Live/kP",                        eKp::get,                       null);
+        builder.addDoubleProperty("Live/Flywheel Efficiency",       eFlywheelEfficiency::get,       null);
+        builder.addDoubleProperty("Live/Drag Coefficient (kg/m)",   eDragCoefficient::get,          null);
+        builder.addDoubleProperty("Live/Ball Mass (kg)",            eBallMassKg::get,               null);
 
-        builder.addDoubleProperty("Active/Near Shot Offset (%)",    this::getNearShotOffsetPercent,    null);
+        builder.addDoubleProperty("Active/Close Shot Offset (%)",   this::getCloseShotOffsetPercent,   null);
+        builder.addDoubleProperty("Active/Mid Shot Offset (%)",     this::getMidShotOffsetPercent,     null);
         builder.addDoubleProperty("Active/Far Shot Offset (%)",     this::getFarShotOffsetPercent,     null);
         builder.addDoubleProperty("Active/Ready Tolerance (ft/s)",  this::getReadyTolerance,           null);
         builder.addDoubleProperty("Active/Shoot Ready Timeout (s)", this::getShootReadyTimeoutSeconds, null);
         builder.addDoubleProperty("Active/Floor Feed Delay (s)",    this::getFloorFeedDelaySeconds,    null);
         builder.addDoubleProperty("Active/kP",                      this::getKp,                       null);
+        builder.addDoubleProperty("Active/Flywheel Efficiency",     this::getFlywheelEfficiency,       null);
+        builder.addDoubleProperty("Active/Drag Coefficient (kg/m)", this::getDragCoefficient,          null);
+        builder.addDoubleProperty("Active/Ball Mass (kg)",          this::getBallMassKg,               null);
     }
 }

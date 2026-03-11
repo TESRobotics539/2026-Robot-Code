@@ -148,6 +148,195 @@
           }
         ]
       }
+    },
+    {
+      "name": "Shot Trajectory",
+      "grid_layout": {
+        "layouts": [],
+        "containers": [
+          {
+            "title": "Shot Trajectory",
+            "x": 0.0,
+            "y": 0.0,
+            "width": 896.0,
+            "height": 512.0,
+            "type": "Mechanism2d",
+            "properties": {
+              "topic": "/SmartDashboard/Shot Trajectory",
+              "period": 0.066
+            }
+          },
+          {
+            "title": "Avg Distance to Hub (m)",
+            "x": 896.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Avg Distance to Hub (m)",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Physics Velocity (ft/s)",
+            "x": 896.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Physics Velocity ft/s",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Target Velocity (ft/s)",
+            "x": 896.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Target ft/s",
+              "period": 0.066,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Shooter Ready",
+            "x": 896.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/UltraShooter/Ready",
+              "period": 0.066,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "Pi Active (Physics)",
+            "x": 1280.0,
+            "y": 0.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/UltraShooter/Pi Active",
+              "period": 0.1,
+              "true_color": 4278255360,
+              "false_color": 4294901760
+            }
+          },
+          {
+            "title": "Flywheel Efficiency",
+            "x": 1280.0,
+            "y": 128.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/ShooterTuner/Params/FlywheelEfficiency",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Drag Coefficient (kg/m)",
+            "x": 1280.0,
+            "y": 256.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/ShooterTuner/Params/DragCoefficient",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Live Tuning Enabled",
+            "x": 1280.0,
+            "y": 384.0,
+            "width": 384.0,
+            "height": 128.0,
+            "type": "Boolean Box",
+            "properties": {
+              "topic": "/ShooterTuner/Params/LiveTuningEnabled",
+              "period": 0.1,
+              "true_color": 4294923520,
+              "false_color": 4278255360
+            }
+          },
+          {
+            "title": "Close Shot Offset (%, 1 m)",
+            "x": 0.0,
+            "y": 512.0,
+            "width": 512.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/CloseShotOffsetPercent",
+              "period": 0.1,
+              "min": -20.0,
+              "max": 20.0,
+              "block_increment": 0.5
+            }
+          },
+          {
+            "title": "Mid Shot Offset (%, 4 m)",
+            "x": 512.0,
+            "y": 512.0,
+            "width": 512.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/MidShotOffsetPercent",
+              "period": 0.1,
+              "min": -20.0,
+              "max": 20.0,
+              "block_increment": 0.5
+            }
+          },
+          {
+            "title": "Far Shot Offset (%, 7 m)",
+            "x": 1024.0,
+            "y": 512.0,
+            "width": 640.0,
+            "height": 128.0,
+            "type": "Number Slider",
+            "properties": {
+              "topic": "/ShooterTuner/Params/FarShotOffsetPercent",
+              "period": 0.1,
+              "min": -20.0,
+              "max": 20.0,
+              "block_increment": 0.5
+            }
+          },
+          {
+            "title": "Velocity Graph",
+            "x": 0.0,
+            "y": 640.0,
+            "width": 1664.0,
+            "height": 256.0,
+            "type": "Graph",
+            "properties": {
+              "topics": [
+                "/UltraShooter/Avg Velocity ft/s",
+                "/UltraShooter/Target ft/s",
+                "/UltraShooter/Physics Velocity ft/s"
+              ],
+              "period": 0.066,
+              "visible_time": 10.0
+            }
+          }
+        ]
+      }
     }
   ]
 }

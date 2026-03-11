@@ -13,6 +13,7 @@ import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
 
+import java.util.Arrays;
 import java.util.function.BooleanSupplier;
 
 import edu.wpi.first.networktables.NetworkTable;
@@ -20,7 +21,12 @@ import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
+import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
+import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.util.Color;
+import edu.wpi.first.wpilibj.util.Color8Bit;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
@@ -120,6 +126,36 @@ public class UltraShooter extends SubsystemBase {
     private final NetworkTableEntry   ntHubHeight  = nt.getEntry("Hub Center Height From Floor (in)");
     private final NetworkTableEntry   ntPrimCur    = nt.getEntry("Primary Current");
     private final NetworkTableEntry   ntSecCur     = nt.getEntry("Secondary Current");
+    // ── Trajectory Mechanism2d canvas ─────────────────────────────────────────
+    // Draws a side-view of the current shot: robot box, arc, hub box, yellow fuel ball.
+    // Published to SmartDashboard as "Shot Trajectory" — add as a Mechanism2d widget
+    // in Elastic.
+
+    private static final double TRAJ_CANVAS_W_M  = 6.5;   // canvas width  (m)
+    private static final double TRAJ_CANVAS_H_M  = 3.2;   // canvas height (m)
+    private static final double VIZ_HUB_W_M      = 0.22;  // hub box depth (m)
+    private static final double VIZ_HUB_OPEN_M   = 0.26;  // hub opening height (m)
+    private static final int    TRAJ_SEG_COUNT    = 60;    // trajectory ligament segments
+
+    private final Mechanism2d         trajCanvas;
+
+    // Roots — the three hub/fuel roots are repositioned every cycle.
+    private final MechanismRoot2d     trajShooterRoot;
+    private final MechanismRoot2d     trajHubBoxRoot;   // bottom-left of hub opening
+    private final MechanismRoot2d     trajHubStandRoot; // base of hub stand
+    private final MechanismRoot2d     trajFuelRoot;     // fuel ball centre
+
+    // Trajectory arc — a chain of ligaments from trajShooterRoot
+    private final MechanismLigament2d[] trajSegs = new MechanismLigament2d[TRAJ_SEG_COUNT];
+
+    // Hub structure: stand (grey) + 3-sided open box (white, open toward shooter)
+    private final MechanismLigament2d trajHubStand;
+    private final MechanismLigament2d trajHubBottom;
+    private final MechanismLigament2d trajHubBack;
+    private final MechanismLigament2d trajHubTop;
+
+    // Fuel ball: short, thick, yellow ligament that reads as a dot
+    private final MechanismLigament2d trajFuelDot;
 
     // ── Pi co-processor integration ───────────────────────────────────────────
     // physics_coprocessor.py (on WPILibPi) publishes raw physics velocity and a
@@ -153,6 +189,56 @@ public class UltraShooter extends SubsystemBase {
         configureMotor(secondaryMotor, /* inverted */ false);
         configureMotor(tertiaryMotor,  /* inverted */ true);
 
+        // ── Mechanism2d trajectory canvas ─────────────────────────────────────
+        final double hoodH = Units.inchesToMeters(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
+        final double hubH  = Units.inchesToMeters(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
+
+        trajCanvas = new Mechanism2d(TRAJ_CANVAS_W_M, TRAJ_CANVAS_H_M);
+
+        // ── Robot: a vertical grey line representing the shooter-side wall ─────
+        MechanismRoot2d robotRoot = trajCanvas.getRoot("Robot", 0.0, 0.0);
+        robotRoot.append(new MechanismLigament2d(
+                "wall", hoodH + 0.06, 90.0, 4, new Color8Bit(Color.kGray)));
+
+        // ── Shooter exit: short green arrow at launch angle ───────────────────
+        trajShooterRoot = trajCanvas.getRoot("ShooterExit", 0.0, hoodH);
+        trajShooterRoot.append(new MechanismLigament2d(
+                "arrow", 0.18,
+                Constants.UltraShooterConstants.kLaunchAngleDegrees,
+                3, new Color8Bit(Color.kGreen)));
+
+        // ── Trajectory arc: chain of white ligaments ─────────────────────────
+        trajSegs[0] = trajShooterRoot.append(new MechanismLigament2d(
+                "seg_0", 0.05,
+                Constants.UltraShooterConstants.kLaunchAngleDegrees,
+                2, new Color8Bit(Color.kWhite)));
+        for (int i = 1; i < TRAJ_SEG_COUNT; i++) {
+            trajSegs[i] = trajSegs[i - 1].append(new MechanismLigament2d(
+                    "seg_" + i, 0.05, 0.0, 2, new Color8Bit(Color.kWhite)));
+        }
+
+        // ── Hub stand: grey vertical line from floor to bottom of opening ─────
+        trajHubStandRoot = trajCanvas.getRoot("HubStand", 2.0, 0.0);
+        trajHubStand     = trajHubStandRoot.append(new MechanismLigament2d(
+                "stand", hubH - VIZ_HUB_OPEN_M / 2,
+                90.0, 2, new Color8Bit(Color.kGray)));
+
+        // ── Hub box: 3-sided (bottom → back → top), open toward shooter ──────
+        // Root at bottom-left corner of the opening (shooter-facing side).
+        trajHubBoxRoot = trajCanvas.getRoot("HubBox", 2.0, hubH - VIZ_HUB_OPEN_M / 2);
+        trajHubBottom  = trajHubBoxRoot.append(new MechanismLigament2d(
+                "bottom", VIZ_HUB_W_M, 0.0, 3, new Color8Bit(Color.kWhite)));
+        trajHubBack    = trajHubBottom.append(new MechanismLigament2d(
+                "back", VIZ_HUB_OPEN_M, 90.0, 3, new Color8Bit(Color.kWhite)));
+        trajHubTop     = trajHubBack.append(new MechanismLigament2d(
+                "top", VIZ_HUB_W_M, 90.0, 3, new Color8Bit(Color.kWhite)));
+
+        // ── Fuel ball: thick short yellow ligament ≈ dot ─────────────────────
+        trajFuelRoot = trajCanvas.getRoot("Fuel", 2.0, hubH);
+        trajFuelDot  = trajFuelRoot.append(new MechanismLigament2d(
+                "ball", 0.001, 0.0, 14, new Color8Bit(Color.kYellow)));
+
+        SmartDashboard.putData("Shot Trajectory", trajCanvas);
         SmartDashboard.putData(this);
     }
 
@@ -183,73 +269,185 @@ public class UltraShooter extends SubsystemBase {
      * Calculates the required flywheel surface velocity (ft/s) to arc a ball into
      * the hub from the given robot-center-to-hub distance.
      *
-     * <p>Physics derivation — range equation solved for initial speed:
-     * <pre>
-     *   Horizontal:  x(t) = v₀·cosθ·t
-     *   Vertical:    y(t) = v₀·sinθ·t − ½·g·t²
+     * <p>When drag is non-zero a numerical binary search is used (60 bisection
+     * steps at 5 ms time-step); otherwise the closed-form analytic solution is used.
+     * Flywheel speed = ball exit speed / efficiency.
      *
-     *   At impact: x = d,  y = h
-     *   → v₀ = d · √( g / (2·cos²θ·(d·tanθ − h)) )
-     * </pre>
-     *
-     * @param distanceToHubMeters  Odometry distance from <em>robot center</em> to hub
-     *                             center (meters).
-     * @return Required flywheel surface velocity in ft/s, or 0 if the geometry
-     *         makes the shot physically impossible.
+     * @param distanceToHubMeters  Odometry distance from robot center to hub (m).
+     * @param flywheelEfficiency   Ball-to-flywheel velocity ratio (0–1).
+     * @param dragCoefficient      Aerodynamic drag constant B = 0.5×Cd×ρ×A (kg/m).
+     * @param ballMassKg           Ball mass (kg), used in drag term B/m.
+     * @return Required flywheel surface velocity in ft/s, or 0 if impossible.
+     */
+    public static double calculateRequiredVelocityFPS(
+            double distanceToHubMeters,
+            double flywheelEfficiency,
+            double dragCoefficient,
+            double ballMassKg) {
+
+        final double angleRad       = Math.toRadians(Constants.UltraShooterConstants.kLaunchAngleDegrees);
+        final double shooterOffsetM = Units.inchesToMeters(Constants.UltraShooterConstants.kShooterCenterlineOffsetInches);
+        final double hoodHeightM    = Units.inchesToMeters(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
+        final double hubHeightM     = Units.inchesToMeters(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
+
+        final double d = distanceToHubMeters - shooterOffsetM;  // true horizontal distance
+        final double h = hubHeightM - hoodHeightM;              // net vertical rise
+
+        if (d <= 0 || flywheelEfficiency <= 0) return 0;
+
+        double v0_mps;
+
+        if (dragCoefficient <= 0) {
+            // ── Analytic vacuum solution ─────────────────────────────────────────
+            final double cosTheta = Math.cos(angleRad);
+            final double tanTheta = Math.tan(angleRad);
+            final double denom    = 2.0 * cosTheta * cosTheta * (d * tanTheta - h);
+            if (denom <= 0) return 0;
+            v0_mps = d * Math.sqrt(9.81 / denom);
+        } else {
+            // ── Numerical solution with quadratic aerodynamic drag ───────────────
+            final double dragPerMass = dragCoefficient / Math.max(ballMassKg, 0.001);
+            v0_mps = binarySearchV0(d, h, angleRad, dragPerMass);
+            if (v0_mps <= 0) return 0;
+        }
+
+        // flywheel surface speed = ball exit speed / efficiency, then m/s → ft/s
+        return (v0_mps / flywheelEfficiency) * 3.28084;
+    }
+
+    /**
+     * Convenience overload that uses the default physics constants from
+     * {@link Constants.UltraShooterConstants}.  Suitable for static contexts
+     * (e.g. {@link #initSendable}) where a {@link ShooterTuner} is not available.
      */
     public static double calculateRequiredVelocityFPS(double distanceToHubMeters) {
-        final double angleRad = Math.toRadians(Constants.UltraShooterConstants.kLaunchAngleDegrees);
+        return calculateRequiredVelocityFPS(
+                distanceToHubMeters,
+                Constants.UltraShooterConstants.kFlywheelEfficiency,
+                Constants.UltraShooterConstants.kDragCoefficient,
+                Constants.UltraShooterConstants.kBallMassKg);
+    }
 
-        // Convert inch-based geometry constants to meters for SI physics.
-        final double shooterOffsetM = Units.inchesToMeters(
-                Constants.UltraShooterConstants.kShooterCenterlineOffsetInches);
-        final double hoodHeightM = Units.inchesToMeters(
-                Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
-        final double hubHeightM  = Units.inchesToMeters(
-                Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
+    // ─────────────────────────────────────────────────────────────────────────
+    // Numerical solver helpers (drag physics)
+    // ─────────────────────────────────────────────────────────────────────────
 
-        // True horizontal distance: subtract shooter-exit offset from odometry distance.
-        final double d = distanceToHubMeters - shooterOffsetM;
+    /**
+     * Binary-searches for the ball exit speed v₀ (m/s) such that the
+     * simulated trajectory lands at horizontal distance {@code d} and
+     * vertical rise {@code h}, subject to quadratic air resistance.
+     *
+     * @return v₀ in m/s, or 0 if the shot is physically impossible.
+     */
+    private static double binarySearchV0(double d, double h, double angleRad, double dragPerMass) {
+        final double DT     = 0.005;   // 5 ms simulation time-step
+        final double LO_MPS = 0.5;
+        final double HI_MPS = 40.0;
 
-        // Net vertical rise the ball must travel (positive = hub is above hood exit).
-        final double h = hubHeightM - hoodHeightM;
+        // Feasibility check: even at max speed can the ball reach hub height?
+        if (simulateYAtX(HI_MPS, d, h, angleRad, dragPerMass, DT) < h) return 0;
 
-        if (d <= 0) return 0; // degenerate — shooter is behind/at the hub
+        double lo = LO_MPS, hi = HI_MPS;
+        for (int i = 0; i < 60; i++) {
+            double mid = (lo + hi) * 0.5;
+            if (simulateYAtX(mid, d, h, angleRad, dragPerMass, DT) < h) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        return (lo + hi) * 0.5;
+    }
 
-        final double cosTheta = Math.cos(angleRad);
-        final double tanTheta = Math.tan(angleRad);
+    /**
+     * Simulates projectile motion with quadratic drag and returns the ball's
+     * height (m, relative to hood exit) when it crosses {@code targetX} meters
+     * downrange.  Uses a simple Euler integration at fixed time-step {@code dt}.
+     */
+    private static double simulateYAtX(
+            double v0, double targetX, double h,
+            double angleRad, double dragPerMass, double dt) {
+        double vx = v0 * Math.cos(angleRad);
+        double vy = v0 * Math.sin(angleRad);
+        double x  = 0, y = 0, prevX = 0, prevY = 0;
+        for (int i = 0; i < 5000; i++) {
+            double speed = Math.sqrt(vx * vx + vy * vy);
+            vx += (-dragPerMass * speed * vx) * dt;
+            vy += (-9.81 - dragPerMass * speed * vy) * dt;
+            prevX = x;  prevY = y;
+            x += vx * dt;
+            y += vy * dt;
+            if (x >= targetX) {
+                // Linear interpolation to exact x = targetX
+                double t = (x - prevX) > 1e-9 ? (targetX - prevX) / (x - prevX) : 0;
+                return prevY + t * (y - prevY);
+            }
+            if (y < -2.0) break;  // ball hit the floor
+        }
+        return y;
+    }
 
-        // The denominator is 2·cos²θ·(d·tanθ − h).
-        // If d·tanθ ≤ h the ball cannot reach the hub at this angle — return 0.
-        final double denom = 2.0 * cosTheta * cosTheta * (d * tanTheta - h);
-        if (denom <= 0) return 0;
-
-        final double v0_mps = d * Math.sqrt(9.81 / denom);
-
-        // Convert m/s → ft/s (1 m = 3.28084 ft)
-        return v0_mps * 3.28084;
+    /**
+     * Computes the full trajectory as a list of (x, y) world-space points
+     * (meters) starting at the hood exit, for use by NT-based visualizers.
+     *
+     * @param v0BallMps     Ball exit speed (m/s) — not flywheel speed.
+     * @param angleRad      Launch angle (radians).
+     * @param dragPerMass   Drag per unit mass B/m (m⁻¹).
+     * @param maxPoints     Maximum number of points to return.
+     * @return Flat array [x0, y0, x1, y1, ...] in meters.
+     */
+    static double[] computeTrajectoryPoints(
+            double v0BallMps, double angleRad, double dragPerMass, int maxPoints) {
+        final double DT = 0.005;
+        double vx = v0BallMps * Math.cos(angleRad);
+        double vy = v0BallMps * Math.sin(angleRad);
+        double x  = 0, y = 0;
+        double[] pts = new double[maxPoints * 2];
+        int n = 0;
+        while (n / 2 < maxPoints) {
+            pts[n++] = x;
+            pts[n++] = y;
+            double speed = Math.sqrt(vx * vx + vy * vy);
+            vx += (-dragPerMass * speed * vx) * DT;
+            vy += (-9.81 - dragPerMass * speed * vy) * DT;
+            x  += vx * DT;
+            y  += vy * DT;
+            if (y < -2.0 || x > 20.0) break;
+        }
+        return Arrays.copyOf(pts, n);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Fine-tune offset interpolation
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static final double NEAR_DISTANCE_M = Units.inchesToMeters(20.0);
-    private static final double FAR_DISTANCE_M  = Units.inchesToMeters(120.0);
+    private static final double CLOSE_ANCHOR_M = Constants.UltraShooterConstants.kCloseShotAnchorMeters;
+    private static final double MID_ANCHOR_M   = Constants.UltraShooterConstants.kMidShotAnchorMeters;
+    private static final double FAR_ANCHOR_M   = Constants.UltraShooterConstants.kFarShotAnchorMeters;
 
     /**
-     * Linearly interpolates the fine-tune speed offset (%) between the near (20 in)
-     * and far (120 in) reference distances, then clamps to the defined range.
+     * Parabolic (Lagrange quadratic) interpolation of the fine-tune speed offset (%)
+     * through three anchor points (close / mid / far).  Distance is clamped to the
+     * [close, far] anchor range before evaluation so the parabola never extrapolates
+     * wildly outside the tuned region.
      *
      * @param distanceMeters Distance from shooter to hub (meters).
      * @return Offset as a fraction (e.g. 5.0 % → 0.05).
      */
     private double interpolateOffsetFraction(double distanceMeters) {
-        final double nearPct = shooterTuner.getNearShotOffsetPercent();
-        final double farPct  = shooterTuner.getFarShotOffsetPercent();
-        final double t = Math.max(0.0, Math.min(1.0,
-                (distanceMeters - NEAR_DISTANCE_M) / (FAR_DISTANCE_M - NEAR_DISTANCE_M)));
-        return (nearPct + t * (farPct - nearPct)) / 100.0;
+        final double d  = Math.max(CLOSE_ANCHOR_M, Math.min(FAR_ANCHOR_M, distanceMeters));
+        final double p0 = shooterTuner.getCloseShotOffsetPercent();
+        final double p1 = shooterTuner.getMidShotOffsetPercent();
+        final double p2 = shooterTuner.getFarShotOffsetPercent();
+        // Lagrange basis polynomials evaluated at d
+        final double l0 = (d - MID_ANCHOR_M) * (d - FAR_ANCHOR_M)
+                        / ((CLOSE_ANCHOR_M - MID_ANCHOR_M) * (CLOSE_ANCHOR_M - FAR_ANCHOR_M));
+        final double l1 = (d - CLOSE_ANCHOR_M) * (d - FAR_ANCHOR_M)
+                        / ((MID_ANCHOR_M - CLOSE_ANCHOR_M) * (MID_ANCHOR_M - FAR_ANCHOR_M));
+        final double l2 = (d - CLOSE_ANCHOR_M) * (d - MID_ANCHOR_M)
+                        / ((FAR_ANCHOR_M - CLOSE_ANCHOR_M) * (FAR_ANCHOR_M - MID_ANCHOR_M));
+        return (p0 * l0 + p1 * l1 + p2 * l2) / 100.0;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -288,7 +486,11 @@ public class UltraShooter extends SubsystemBase {
         if (isPiResultFresh()) {
             physicsSpeed = ntPiPhysics.getDouble(0.0);
         } else {
-            physicsSpeed = calculateRequiredVelocityFPS(distance);
+            physicsSpeed = calculateRequiredVelocityFPS(
+                    distance,
+                    shooterTuner.getFlywheelEfficiency(),
+                    shooterTuner.getDragCoefficient(),
+                    shooterTuner.getBallMassKg());
         }
 
         setTarget(physicsSpeed * (1.0 + offsetFraction));
@@ -378,7 +580,11 @@ public class UltraShooter extends SubsystemBase {
             if (fuelReady.getAsBoolean()
                     && GameData.isHubActiveExpanded(5.0)
                     && Landmarks.isInScoringZone(swerve.getPose())) {
-                double physicsSpeed = calculateRequiredVelocityFPS(swerve.getDistanceToHub());
+                double physicsSpeed = calculateRequiredVelocityFPS(
+                        swerve.getDistanceToHub(),
+                        shooterTuner.getFlywheelEfficiency(),
+                        shooterTuner.getDragCoefficient(),
+                        shooterTuner.getBallMassKg());
                 setTarget(physicsSpeed * Constants.UltraShooterConstants.kPreSpinFraction);
             } else {
                 setTarget(0);
@@ -472,15 +678,75 @@ public class UltraShooter extends SubsystemBase {
         ntRamped     .setDouble(rampedSetpoint);
         ntAvg        .setDouble(getAverageVelocity());
         ntReady      .setBoolean(isReady());
-        ntPhysics    .setDouble(calculateRequiredVelocityFPS(getAverageDistanceToHub()));
+        final double effic   = shooterTuner.getFlywheelEfficiency();
+        final double drag    = shooterTuner.getDragCoefficient();
+        final double mass    = shooterTuner.getBallMassKg();
+        final double dist    = getAverageDistanceToHub();
+        final double physFPS = calculateRequiredVelocityFPS(dist, effic, drag, mass);
+        ntPhysics    .setDouble(physFPS);
         ntDistance   .setDouble(swerve.getDistanceToHub());
-        ntDistanceAvg.setDouble(getAverageDistanceToHub());
+        ntDistanceAvg.setDouble(dist);
         ntAngle     .setDouble(Constants.UltraShooterConstants.kLaunchAngleDegrees);
         ntHoodHeight.setDouble(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
         ntHubHeight .setDouble(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
         ntPrimCur   .setDouble(primaryMotor.getOutputCurrent());
         ntSecCur    .setDouble(secondaryMotor.getOutputCurrent());
         ntPiActive  .setBoolean(isPiResultFresh());
+
+        // Update the Mechanism2d trajectory canvas.
+        final double v0BallMps = physFPS > 0 ? (physFPS / 3.28084) * effic : 0;
+        final double dpm       = drag > 0 ? drag / Math.max(mass, 0.001) : 0;
+        updateTrajectoryVisualization(dist, v0BallMps, dpm);
+    }
+
+    /**
+     * Repositions the hub/fuel roots and redraws the trajectory arc inside
+     * {@link #trajCanvas} using the current shot geometry.
+     *
+     * <p>The trajectory is a chain of ligaments whose angles are updated each
+     * cycle so the arc always reflects the live physics calculation.
+     */
+    private void updateTrajectoryVisualization(double distM, double v0BallMps, double dragPerMass) {
+        final double hubH = Units.inchesToMeters(
+                Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
+
+        // Reposition the hub box, stand, and fuel roots based on current distance.
+        trajHubStandRoot.setPosition(distM, 0.0);
+        trajHubBoxRoot  .setPosition(distM, hubH - VIZ_HUB_OPEN_M / 2.0);
+        trajFuelRoot    .setPosition(distM, hubH);
+
+        // Update stand height to stay flush with the hub box bottom.
+        trajHubStand.setLength(Math.max(0.01, hubH - VIZ_HUB_OPEN_M / 2.0));
+
+        if (v0BallMps < 0.5 || distM < 0.1) {
+            // No valid shot — hide the trajectory arc.
+            for (MechanismLigament2d seg : trajSegs) seg.setLength(0);
+            return;
+        }
+
+        // Compute trajectory points and set each ligament's relative angle + length.
+        final double angleRad = Math.toRadians(Constants.UltraShooterConstants.kLaunchAngleDegrees);
+        final double[] pts    = computeTrajectoryPoints(v0BallMps, angleRad, dragPerMass, TRAJ_SEG_COUNT + 1);
+
+        double prevWorldDeg = Constants.UltraShooterConstants.kLaunchAngleDegrees;
+        for (int i = 0; i < TRAJ_SEG_COUNT; i++) {
+            final int base = i * 2;
+            final int next = base + 2;
+            if (next + 1 >= pts.length) {
+                trajSegs[i].setLength(0);
+                continue;
+            }
+            final double dx  = pts[next]     - pts[base];
+            final double dy  = pts[next + 1] - pts[base + 1];
+            final double len = Math.sqrt(dx * dx + dy * dy);
+            // World angle of this segment (degrees, CCW from +x).
+            final double worldDeg = Math.toDegrees(Math.atan2(dy, dx));
+            // Ligament angle is relative to its parent's world direction.
+            final double relDeg   = (i == 0) ? worldDeg : worldDeg - prevWorldDeg;
+            trajSegs[i].setAngle(relDeg);
+            trajSegs[i].setLength(len);
+            prevWorldDeg = worldDeg;
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
