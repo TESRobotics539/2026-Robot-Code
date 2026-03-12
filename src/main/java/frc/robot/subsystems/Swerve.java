@@ -19,6 +19,7 @@ import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.config.ModuleConfig;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
@@ -27,6 +28,7 @@ import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.hardware.Pigeon2;
 
+import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
@@ -36,6 +38,10 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Config;
 import frc.robot.Constants;
 import frc.robot.Landmarks;
 import frc.util.LowPassFilter;
+import frc.util.MetricTracker;
+import frc.util.SwerveSetpoint;
+import frc.util.SwerveSetpointGenerator;
+import frc.util.SwerveSetpointGenerator.KinematicLimits;
 
 import java.io.File;
 import java.util.Arrays;
@@ -43,11 +49,11 @@ import java.util.Optional;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
+import edu.wpi.first.math.kinematics.SwerveModuleState;
+
 import swervelib.SwerveController;
 import swervelib.SwerveDrive;
 import swervelib.SwerveDriveTest;
-import swervelib.encoders.CANCoderSwerve;
-import swervelib.encoders.SwerveAbsoluteEncoder;
 import swervelib.math.SwerveMath;
 import swervelib.parser.SwerveControllerConfiguration;
 import swervelib.parser.SwerveDriveConfiguration;
@@ -59,11 +65,6 @@ public class Swerve extends SubsystemBase
 {
   private final SwerveDrive swerveDrive;
   private final NetworkTable telemetryTable;
-
-  private final SwerveAbsoluteEncoder absoluteEncoder_fl;
-  private final SwerveAbsoluteEncoder absoluteEncoder_fr;
-  private final SwerveAbsoluteEncoder absoluteEncoder_bl;
-  private final SwerveAbsoluteEncoder absoluteEncoder_br;
 
   private final Field2d field;
   private final BumpTuner bumpTuner;
@@ -97,6 +98,33 @@ public class Swerve extends SubsystemBase
   private int    slipBufferIndex = 0;
   private double slipBufferSum   = 0.0;
 
+  // Setpoint generator — enforces kinematic limits (max accel, max steering velocity)
+  // on robot-relative ChassisSpeeds before passing to YAGSL. Adapted from frc5687/2023-robot
+  // (originally Team 254). Prevents wheel scrub and motor torque violations on rapid inputs.
+  private static final double MODULE_OFFSET_M = 0.276225; // 10.875 in from center
+  private static final KinematicLimits KINEMATIC_LIMITS = new KinematicLimits(
+      Constants.DrivetrainConstants.kMaxSpeed,
+      Constants.DrivetrainConstants.kMaxAccelerationMps2,
+      Constants.DrivetrainConstants.kMaxSteeringVelocityRadPerSec);
+  private SwerveSetpointGenerator setpointGenerator;
+  private SwerveSetpoint          currentSetpoint;
+
+  // MetricTracker column indices — registered once in constructor, used every periodic().
+  private int metricWheelSlip;
+  private int metricOverBump;
+  private int metricWheelSlipping;
+
+  // Cached NT entries — initialized once in initTelemetryEntries().
+  // getEntry() does a HashMap string lookup; calling it 18× per 20 ms cycle allocates
+  // objects under GC pressure and adds latency. Cache once, set every cycle.
+  private NetworkTableEntry ntFlAbsAngle, ntFlRelAngle, ntFlDrift;
+  private NetworkTableEntry ntFrAbsAngle, ntFrRelAngle, ntFrDrift;
+  private NetworkTableEntry ntBlAbsAngle, ntBlRelAngle, ntBlDrift;
+  private NetworkTableEntry ntBrAbsAngle, ntBrRelAngle, ntBrDrift;
+  private NetworkTableEntry ntAccelXRaw,  ntAccelYRaw,  ntAccelZRaw;
+  private NetworkTableEntry ntAccelXFilt, ntAccelYFilt, ntAccelZFilt;
+  private NetworkTableEntry ntSlipRaw,    ntSlipAvg,    ntSlipping;
+
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
    *
@@ -127,22 +155,22 @@ public class Swerve extends SubsystemBase
     pigeonAccelZ = pigeon2.getAccelerationZ();
     pigeonPitch  = pigeon2.getPitch();
     pigeonRoll   = pigeon2.getRoll();
+    BaseStatusSignal.setUpdateFrequencyForAll(50.0,
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll);
 
     swerveDrive.setHeadingCorrection(false); // Heading correction should only be used while controlling the robot via angle.
     swerveDrive.setCosineCompensator(false); // Disables cosine compensation for simulations since it causes discrepancies not seen in real life.
     swerveDrive.setAngularVelocityCompensation(true,
                                                true,
                                                0.1); // Correct for skew that gets worse as angular velocity increases. Start with a coefficient of 0.1.
-    swerveDrive.setModuleEncoderAutoSynchronize(false, 
+    swerveDrive.setModuleEncoderAutoSynchronize(false,
                                                 1); // Enable if you want to resynchronize your absolute encoders and motor encoders periodically when they are not moving.
     // swerveDrive.pushOffsetsToEncoders(); // Set the absolute encoder to be used over the internal encoder and push the offsets onto it. Throws warning if not possible
 
-    absoluteEncoder_fl = new CANCoderSwerve(9);
-    absoluteEncoder_fr = new CANCoderSwerve(12);
-    absoluteEncoder_bl = new CANCoderSwerve(6);
-    absoluteEncoder_br = new CANCoderSwerve(3);
-
     setupAutoBuilder();
+    initSetpointGenerator();
+    initMetricColumns();
+    initTelemetryEntries();
   }
 
   /**
@@ -170,34 +198,93 @@ public class Swerve extends SubsystemBase
     pigeonAccelZ = pigeon2.getAccelerationZ();
     pigeonPitch  = pigeon2.getPitch();
     pigeonRoll   = pigeon2.getRoll();
-
-    absoluteEncoder_fl = new CANCoderSwerve(9);
-    absoluteEncoder_fr = new CANCoderSwerve(12);
-    absoluteEncoder_bl = new CANCoderSwerve(6);
-    absoluteEncoder_br = new CANCoderSwerve(3);
+    BaseStatusSignal.setUpdateFrequencyForAll(50.0,
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll);
 
     setupAutoBuilder();
+    initSetpointGenerator();
+    initMetricColumns();
+    initTelemetryEntries();
+  }
+
+  private void initSetpointGenerator() {
+    Translation2d[] modulePositions = {
+        new Translation2d( MODULE_OFFSET_M,  MODULE_OFFSET_M),
+        new Translation2d( MODULE_OFFSET_M, -MODULE_OFFSET_M),
+        new Translation2d(-MODULE_OFFSET_M,  MODULE_OFFSET_M),
+        new Translation2d(-MODULE_OFFSET_M, -MODULE_OFFSET_M),
+    };
+    setpointGenerator = new SwerveSetpointGenerator(swerveDrive.kinematics, modulePositions);
+    SwerveModuleState[] initStates = {
+        new SwerveModuleState(), new SwerveModuleState(),
+        new SwerveModuleState(), new SwerveModuleState()
+    };
+    currentSetpoint = new SwerveSetpoint(new ChassisSpeeds(), initStates);
+  }
+
+  private void initMetricColumns() {
+    metricWheelSlip     = MetricTracker.getInstance().addColumn("WheelSlipScore (m/s^2)");
+    metricOverBump      = MetricTracker.getInstance().addColumn("IsOverBump");
+    metricWheelSlipping = MetricTracker.getInstance().addColumn("IsWheelSlipping");
+  }
+
+  private void initTelemetryEntries() {
+    ntFlAbsAngle = telemetryTable.getEntry("Module FL Absolute Angle");
+    ntFlRelAngle = telemetryTable.getEntry("Module FL Relative Angle");
+    ntFlDrift    = telemetryTable.getEntry("Module FL Drift");
+    ntFrAbsAngle = telemetryTable.getEntry("Module FR Absolute Angle");
+    ntFrRelAngle = telemetryTable.getEntry("Module FR Relative Angle");
+    ntFrDrift    = telemetryTable.getEntry("Module FR Drift");
+    ntBlAbsAngle = telemetryTable.getEntry("Module BL Absolute Angle");
+    ntBlRelAngle = telemetryTable.getEntry("Module BL Relative Angle");
+    ntBlDrift    = telemetryTable.getEntry("Module BL Drift");
+    ntBrAbsAngle = telemetryTable.getEntry("Module BR Absolute Angle");
+    ntBrRelAngle = telemetryTable.getEntry("Module BR Relative Angle");
+    ntBrDrift    = telemetryTable.getEntry("Module BR Drift");
+    ntAccelXRaw  = telemetryTable.getEntry("Accel X Raw (g)");
+    ntAccelYRaw  = telemetryTable.getEntry("Accel Y Raw (g)");
+    ntAccelZRaw  = telemetryTable.getEntry("Accel Z Raw (g)");
+    ntAccelXFilt = telemetryTable.getEntry("Accel X Filtered (g)");
+    ntAccelYFilt = telemetryTable.getEntry("Accel Y Filtered (g)");
+    ntAccelZFilt = telemetryTable.getEntry("Accel Z Filtered (g)");
+    ntSlipRaw    = telemetryTable.getEntry("Wheel Slip Score Raw (m/s\u00b2)");
+    ntSlipAvg    = telemetryTable.getEntry("Wheel Slip Score (m/s\u00b2)");
+    ntSlipping   = telemetryTable.getEntry("Wheel Slipping");
   }
 
   private void setupAutoBuilder() {
-    try {
-      RobotConfig config = RobotConfig.fromGUISettings();
-      AutoBuilder.configure(
-          this::getPose,
-          this::resetOdometry,
-          this::getRobotVelocity,
-          (speeds, feedforwards) -> drive(speeds),
-          new PPHolonomicDriveController(
-              new PIDConstants(5.0, 0.0, 0.0), // translation
-              new PIDConstants(5.0, 0.0, 0.0)  // rotation
-          ),
-          config,
-          () -> DriverStation.getAlliance().map(a -> a == Alliance.Red).orElse(false),
-          this
-      );
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to load PathPlanner RobotConfig", e);
-    }
+    // RobotConfig values sourced from:
+    //   mass/MOI/module positions — pathplanner/settings.json
+    //   wheel radius/gear ratio/COF/current limit — swerve/modules/physicalproperties.json
+    RobotConfig config = new RobotConfig(
+        74.088, // robot mass (kg)
+        6.883,  // moment of inertia (kg·m²)
+        new ModuleConfig(
+            0.0508,                                   // wheel radius: 4" wheel → 2" = 0.0508 m
+            5.45,                                     // max drive speed (m/s)
+            1.19,                                     // wheel COF
+            DCMotor.getNeoVortex(1).withReduction(6.12), // SparkFlex + NEO Vortex, L? gearing
+            40.0,                                     // drive current limit (A)
+            1                                         // motors per module
+        ),
+        new Translation2d( 0.273,  0.273), // FL
+        new Translation2d( 0.273, -0.273), // FR
+        new Translation2d(-0.273,  0.273), // BL
+        new Translation2d(-0.273, -0.273)  // BR
+    );
+    AutoBuilder.configure(
+        this::getPose,
+        this::resetOdometry,
+        this::getRobotVelocity,
+        (speeds, feedforwards) -> drive(speeds),
+        new PPHolonomicDriveController(
+            new PIDConstants(5.0, 0.0, 0.0), // translation
+            new PIDConstants(5.0, 0.0, 0.0)  // rotation
+        ),
+        config,
+        () -> DriverStation.getAlliance().map(a -> a == Alliance.Red).orElse(false),
+        this
+    );
   }
 
   @Override
@@ -205,26 +292,26 @@ public class Swerve extends SubsystemBase
   {
     field.setRobotPose(swerveDrive.getPose());
 
-    double flPos = absoluteEncoder_fl.getAbsolutePosition();
-    double frPos = absoluteEncoder_fr.getAbsolutePosition();
-    double blPos = absoluteEncoder_bl.getAbsolutePosition();
-    double brPos = absoluteEncoder_br.getAbsolutePosition();
+    double flPos = swerveDrive.getModules()[0].getAbsoluteEncoder().getAbsolutePosition();
+    double frPos = swerveDrive.getModules()[1].getAbsoluteEncoder().getAbsolutePosition();
+    double blPos = swerveDrive.getModules()[2].getAbsoluteEncoder().getAbsolutePosition();
+    double brPos = swerveDrive.getModules()[3].getAbsoluteEncoder().getAbsolutePosition();
 
-    telemetryTable.getEntry("Module FL Absolute Angle").setNumber(flPos);
-    telemetryTable.getEntry("Module FL Relative Angle").setNumber(swerveDrive.getModules()[0].getState().angle.getDegrees());
-    telemetryTable.getEntry("Module FL Drift").setNumber(flPos - swerveDrive.getModules()[0].getState().angle.getDegrees());
+    ntFlAbsAngle.setNumber(flPos);
+    ntFlRelAngle.setNumber(swerveDrive.getModules()[0].getState().angle.getDegrees());
+    ntFlDrift   .setNumber(flPos - swerveDrive.getModules()[0].getState().angle.getDegrees());
 
-    telemetryTable.getEntry("Module FR Absolute Angle").setNumber(frPos);
-    telemetryTable.getEntry("Module FR Relative Angle").setNumber(swerveDrive.getModules()[1].getState().angle.getDegrees());
-    telemetryTable.getEntry("Module FR Drift").setNumber(frPos - swerveDrive.getModules()[1].getState().angle.getDegrees());
+    ntFrAbsAngle.setNumber(frPos);
+    ntFrRelAngle.setNumber(swerveDrive.getModules()[1].getState().angle.getDegrees());
+    ntFrDrift   .setNumber(frPos - swerveDrive.getModules()[1].getState().angle.getDegrees());
 
-    telemetryTable.getEntry("Module BL Absolute Angle").setNumber(blPos);
-    telemetryTable.getEntry("Module BL Relative Angle").setNumber(swerveDrive.getModules()[2].getState().angle.getDegrees());
-    telemetryTable.getEntry("Module BL Drift").setNumber(blPos - swerveDrive.getModules()[2].getState().angle.getDegrees());
+    ntBlAbsAngle.setNumber(blPos);
+    ntBlRelAngle.setNumber(swerveDrive.getModules()[2].getState().angle.getDegrees());
+    ntBlDrift   .setNumber(blPos - swerveDrive.getModules()[2].getState().angle.getDegrees());
 
-    telemetryTable.getEntry("Module BR Absolute Angle").setNumber(brPos);
-    telemetryTable.getEntry("Module BR Relative Angle").setNumber(swerveDrive.getModules()[3].getState().angle.getDegrees());
-    telemetryTable.getEntry("Module BR Drift").setNumber(brPos - swerveDrive.getModules()[3].getState().angle.getDegrees());
+    ntBrAbsAngle.setNumber(brPos);
+    ntBrRelAngle.setNumber(swerveDrive.getModules()[3].getState().angle.getDegrees());
+    ntBrDrift   .setNumber(brPos - swerveDrive.getModules()[3].getState().angle.getDegrees());
 
     // Filtered Pigeon 2 accelerometer — bump spikes are smoothed out.
     // refreshAll() guarantees all five signals come from the same CAN frame before
@@ -237,12 +324,12 @@ public class Swerve extends SubsystemBase
     double filtY = accelYFilter.calculate(rawY);
     double filtZ = accelZFilter.calculate(rawZ);
 
-    telemetryTable.getEntry("Accel X Raw (g)").setNumber(rawX);
-    telemetryTable.getEntry("Accel Y Raw (g)").setNumber(rawY);
-    telemetryTable.getEntry("Accel Z Raw (g)").setNumber(rawZ);
-    telemetryTable.getEntry("Accel X Filtered (g)").setNumber(filtX);
-    telemetryTable.getEntry("Accel Y Filtered (g)").setNumber(filtY);
-    telemetryTable.getEntry("Accel Z Filtered (g)").setNumber(filtZ);
+    ntAccelXRaw .setNumber(rawX);
+    ntAccelYRaw .setNumber(rawY);
+    ntAccelZRaw .setNumber(rawZ);
+    ntAccelXFilt.setNumber(filtX);
+    ntAccelYFilt.setNumber(filtY);
+    ntAccelZFilt.setNumber(filtZ);
 
     // Wheel-slip detection — encoder-derived acceleration vs IMU acceleration.
     //
@@ -271,9 +358,14 @@ public class Swerve extends SubsystemBase
     slipBufferIndex = (slipBufferIndex + 1) % SLIP_AVG_SAMPLES;
     wheelSlipScore = slipBufferSum / SLIP_AVG_SAMPLES;
 
-    telemetryTable.getEntry("Wheel Slip Score Raw (m/s²)").setNumber(rawSlip);
-    telemetryTable.getEntry("Wheel Slip Score (m/s²)").setNumber(wheelSlipScore);
-    telemetryTable.getEntry("Wheel Slipping").setBoolean(isWheelSlipping());
+    ntSlipRaw .setNumber(rawSlip);
+    ntSlipAvg .setNumber(wheelSlipScore);
+    ntSlipping.setBoolean(isWheelSlipping());
+
+    MetricTracker.getInstance().newRow();
+    MetricTracker.getInstance().set(metricWheelSlip,     wheelSlipScore);
+    MetricTracker.getInstance().set(metricOverBump,      isOverBump() ? 1.0 : 0.0);
+    MetricTracker.getInstance().set(metricWheelSlipping, isWheelSlipping() ? 1.0 : 0.0);
   }
 
   @Override
@@ -442,11 +534,16 @@ public class Swerve extends SubsystemBase
   /**
    * Drive according to the chassis robot oriented velocity.
    *
+   * <p>Runs the requested speeds through the {@link SwerveSetpointGenerator} before commanding
+   * YAGSL, enforcing per-module acceleration and steering-rate limits to reduce wheel scrub
+   * and protect motor controllers during rapid direction changes. (Adapted from frc5687/2023-robot.)
+   *
    * @param velocity Robot oriented {@link ChassisSpeeds}
    */
   public void drive(ChassisSpeeds velocity)
   {
-    swerveDrive.drive(velocity);
+    currentSetpoint = setpointGenerator.generateSetpoint(KINEMATIC_LIMITS, currentSetpoint, velocity, 0.02);
+    swerveDrive.drive(currentSetpoint.chassisSpeeds);
   }
 
   /**

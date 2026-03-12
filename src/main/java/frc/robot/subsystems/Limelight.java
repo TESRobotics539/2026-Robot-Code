@@ -17,6 +17,14 @@ import frc.robot.LimelightHelpers.PoseEstimate;
 
 public class Limelight extends SubsystemBase {
 
+    /**
+     * Measurements older than this threshold are rejected before fusing into the pose estimator.
+     * High latency means the image was captured when the robot was in a meaningfully different
+     * position, which can corrupt the estimate rather than improve it.
+     * (Adapted from frc5687/2025-robot VisionSubsystem: MAX_LATENCY_MS = 100 ms.)
+     */
+    private static final double MAX_MEASUREMENT_LATENCY_MS = 100.0;
+
     private final String name;
     private final NetworkTable telemetryTable;
     private final StructPublisher<Pose2d> posePublisher;
@@ -71,11 +79,19 @@ public class Limelight extends SubsystemBase {
         final PoseEstimate poseEstimate_MegaTag1 = LimelightHelpers.getBotPoseEstimate_wpiBlue(name);
         final PoseEstimate poseEstimate_MegaTag2 = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(name);
         if (
-            poseEstimate_MegaTag1 == null 
+            poseEstimate_MegaTag1 == null
                 || poseEstimate_MegaTag2 == null
                 || poseEstimate_MegaTag1.tagCount == 0
                 || poseEstimate_MegaTag2.tagCount == 0
         ) {
+            return Optional.empty();
+        }
+
+        // Reject stale frames. A frame captured >100 ms ago depicts the robot at a position
+        // that may be significantly different from its current location. Fusing such a
+        // measurement actively harms pose estimate accuracy.
+        // (Adapted from frc5687/2025-robot VisionSubsystem.)
+        if (poseEstimate_MegaTag2.latency > MAX_MEASUREMENT_LATENCY_MS) {
             return Optional.empty();
         }
 
@@ -86,7 +102,21 @@ public class Limelight extends SubsystemBase {
             poseEstimate_MegaTag2.pose.getTranslation(),
             poseEstimate_MegaTag1.pose.getRotation()
         );
-        final Matrix<N3, N1> standardDeviations = VecBuilder.fill(0.1, 0.1, 10.0);
+
+        // Dynamic XY std devs — scale trust with how much of the image the tags occupy.
+        // avgTagArea is a percentage (0–100); a larger area means the robot is closer to the
+        // tags and the projection error is smaller. Rotation stays at 10.0 because MegaTag2
+        // relies on the gyro for heading and does not independently constrain rotation.
+        // Formula (adapted from frc5687/2025-robot VisionSTDFilter):
+        //   xyStdDev = 0.1 / max(0.01, avgTagArea)
+        //   → at area 1% (≈10–15 ft): 0.10 m
+        //   → at area 5% (≈5–7 ft) : 0.02 m (clamped to 0.03)
+        //   → at area 0.1% (≈25 ft): 1.00 m
+        // Multi-tag sightings halve the std dev (more geometric constraints).
+        double avgTagArea = poseEstimate_MegaTag2.avgTagArea;
+        double xyStdDev   = Math.max(0.03, Math.min(3.0, 0.1 / Math.max(0.01, avgTagArea)));
+        if (poseEstimate_MegaTag2.tagCount > 1) xyStdDev *= 0.5;
+        final Matrix<N3, N1> standardDeviations = VecBuilder.fill(xyStdDev, xyStdDev, 10.0);
 
         posePublisher.set(poseEstimate_MegaTag2.pose);
 
@@ -103,30 +133,7 @@ public class Limelight extends SubsystemBase {
             this.standardDeviations = standardDeviations;
             this.avgTagArea = avgTagArea;
         }
-    }
-
-
-
-
-    public Optional<Pose2d> getPoseEstimateMT2() {
-        LimelightHelpers.PoseEstimate megaTag2Pose = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(name);
-
-        if (megaTag2Pose != null && megaTag2Pose.tagCount > 0)
-            return Optional.of(megaTag2Pose.pose);
-
-        return Optional.empty();
-    }
-
-    public Optional<Pose2d> getPoseEstimateMT1() {
-        LimelightHelpers.PoseEstimate megaTag1Pose = LimelightHelpers.getBotPoseEstimate_wpiBlue(name);
-
-        if (megaTag1Pose != null && megaTag1Pose.tagCount > 0)
-            return Optional.of(megaTag1Pose.pose);
-
-        return Optional.empty();
-    }
-
-    public double getYawStdDev() {
+    }    public double getYawStdDev() {
         double[] stddevs = NetworkTableInstance.getDefault().getTable(name)
                           .getEntry("stddevs").getDoubleArray(new double[12]);
         return stddevs[5];

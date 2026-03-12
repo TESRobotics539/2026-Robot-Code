@@ -10,10 +10,12 @@ import java.util.OptionalInt;
 
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.util.MetricTracker;
 
 /**
  * The methods in this class are called automatically corresponding to each mode, as described in
@@ -49,9 +51,16 @@ public class Robot extends TimedRobot {
         // commands, running already-scheduled commands, removing finished or interrupted commands,
         // and running subsystem periodic() methods.  This must be called from the robot's periodic
         // block in order for anything in the Command-based framework to work.
+        double loopStart = Timer.getFPGATimestamp();
         CommandScheduler.getInstance().run();
+        SmartDashboard.putNumber("Loop Time ms", (Timer.getFPGATimestamp() - loopStart) * 1000.0);
         SmartDashboard.putBoolean("Hub Active", GameData.isHubActive());
         SmartDashboard.putBoolean("Hub Active (Expanded)", GameData.isHubActiveExpanded(5.0));
+    }
+
+    @Override
+    public void disabledInit() {
+        MetricTracker.getInstance().flush();
     }
 
     @Override

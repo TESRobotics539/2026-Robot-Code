@@ -1,5 +1,6 @@
 package frc.robot.subsystems;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
@@ -96,10 +97,13 @@ public class UltraShooter extends SubsystemBase {
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    /** Primary encoder velocity sampled once per periodic() cycle (ft/s). */
+    /** Average of all three encoder velocities sampled once per periodic() cycle (ft/s). */
     private double cachedVelocity = 0;
     /** Final velocity target set by commands (ft/s). */
     private double velocityTarget = 0;
+    /** Accumulated feedforward voltage correction (V). Absorbs friction, battery sag, and
+     *  KV calibration error. Only integrates after the ramp has reached target; resets on stop. */
+    private double voltageBias = 0.0;
     /** Ramped setpoint currently fed to the PID controllers (ft/s). */
     private double rampedSetpoint = 0;
     /** Latches true once the flywheel first reaches target; cleared on target change. */
@@ -143,7 +147,9 @@ public class UltraShooter extends SubsystemBase {
     private final NetworkTableEntry   ntHubHeight  = nt.getEntry("Hub Center Height From Floor (in)");
     private final NetworkTableEntry   ntPrimCur    = nt.getEntry("Primary Current");
     private final NetworkTableEntry   ntSecCur     = nt.getEntry("Secondary Current");
+    private final NetworkTableEntry   ntTerCur     = nt.getEntry("Tertiary Current");
     private final NetworkTableEntry   ntTOF        = nt.getEntry("Time of Flight (s)");
+    private final NetworkTableEntry   ntVoltageBias = nt.getEntry("Voltage Bias V");
     // ── Trajectory Mechanism2d canvas ─────────────────────────────────────────
     // Draws a side-view of the current shot: robot box, arc, hub box, yellow fuel ball.
     // Published to SmartDashboard as "Shot Trajectory" — add as a Mechanism2d widget
@@ -809,12 +815,22 @@ public class UltraShooter extends SubsystemBase {
     }
 
     private void applyPID() {
-        double ff = Constants.UltraShooterConstants.kS + rampedSetpoint * KV;
         if (Math.abs(rampedSetpoint) > 3.0) {
+            // Accumulate voltage bias only once the ramp has reached target.
+            // Integrating during ramp-up would fight the ramp and cause overshoot.
+            if (rampedSetpoint >= velocityTarget) {
+                double error = rampedSetpoint - cachedVelocity;
+                voltageBias += Constants.UltraShooterConstants.kVoltageBiasRate * error;
+                voltageBias  = MathUtil.clamp(voltageBias,
+                                              -Constants.UltraShooterConstants.kMaxVoltageBias,
+                                               Constants.UltraShooterConstants.kMaxVoltageBias);
+            }
+            double ff = Constants.UltraShooterConstants.kS + rampedSetpoint * KV + voltageBias;
             primaryPID  .setSetpoint(rampedSetpoint, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
             secondaryPID.setSetpoint(rampedSetpoint, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
             tertiaryPID .setSetpoint(rampedSetpoint, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
         } else {
+            voltageBias = 0.0;  // Reset on stop — fresh calibration every shot.
             primaryMotor  .set(0);
             secondaryMotor.set(0);
             tertiaryMotor .set(0);
@@ -827,6 +843,7 @@ public class UltraShooter extends SubsystemBase {
         ntRamped     .setDouble(rampedSetpoint);
         ntAvg        .setDouble(getAverageVelocity());
         ntReady      .setBoolean(isReady());
+        ntVoltageBias.setDouble(voltageBias);
         final double effic   = shooterTuner.getFlywheelEfficiency();
         final double drag    = shooterTuner.getDragCoefficient();
         final double mass    = shooterTuner.getBallMassLbs();
@@ -856,6 +873,7 @@ public class UltraShooter extends SubsystemBase {
         ntHubHeight .setDouble(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
         ntPrimCur   .setDouble(primaryMotor.getOutputCurrent());
         ntSecCur    .setDouble(secondaryMotor.getOutputCurrent());
+        ntTerCur    .setDouble(tertiaryMotor.getOutputCurrent());
         ntPiActive  .setBoolean(isPiResultFresh());
 
         // Trajectory visualization at ~10 Hz (every 5 cycles) — display-only, no need for 50 Hz.
@@ -935,7 +953,9 @@ public class UltraShooter extends SubsystemBase {
 
     @Override
     public void periodic() {
-        cachedVelocity = primaryEncoder.getVelocity();
+        cachedVelocity = (primaryEncoder.getVelocity()
+                        + secondaryEncoder.getVelocity()
+                        + tertiaryEncoder.getVelocity()) / 3.0;
         updatePiStaleness();
         updateDistanceBuffer();
         updateVelocityBuffer();

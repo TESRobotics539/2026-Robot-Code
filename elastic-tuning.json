@@ -172,6 +172,32 @@
               "period": 0.1,
               "show_submit_button": false
             }
+          },
+          {
+            "title": "Loop Time (ms)",
+            "x": 1408.0,
+            "y": 384.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Loop Time ms",
+              "period": 0.1,
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Voltage Bias (V)",
+            "x": 1408.0,
+            "y": 512.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/UltraShooter/Voltage Bias V",
+              "period": 0.1,
+              "show_submit_button": false
+            }
           }
         ]
       }

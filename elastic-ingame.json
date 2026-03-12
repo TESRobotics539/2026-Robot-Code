@@ -145,6 +145,19 @@
               "true_color": 4278255360,
               "false_color": 4294901760
             }
+          },
+          {
+            "title": "Loop Time (ms)",
+            "x": 1920.0,
+            "y": 0.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Loop Time ms",
+              "period": 0.1,
+              "show_submit_button": false
+            }
           }
         ]
       }

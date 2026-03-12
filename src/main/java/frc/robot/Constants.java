@@ -21,6 +21,20 @@ public final class Constants {
   public static class DrivetrainConstants {
     /** Maximum drivetrain translation speed (meters per second). */
     public static final double kMaxSpeed = Units.feetToMeters(17);
+
+    /**
+     * Maximum drive wheel linear acceleration used by the setpoint generator (m/s²).
+     * Limits how aggressively modules accelerate between cycles to prevent wheel slip
+     * and excessive current draw during rapid direction changes.
+     */
+    public static final double kMaxAccelerationMps2 = 15.0;
+
+    /**
+     * Maximum module azimuth angular velocity used by the setpoint generator (rad/s).
+     * NEO at 5676 RPM through 21.43:1 steering gear → ~27.7 rad/s theoretical;
+     * 75% of theoretical used as a practical cap to protect the steering motor.
+     */
+    public static final double kMaxSteeringVelocityRadPerSec = 20.0;
   }
 
   // ── Intake ────────────────────────────────────────────────────────────────
@@ -217,6 +231,13 @@ public final class Constants {
     public static final double kReadyTolerance = 100.0 * (Math.PI * (4.0 / 12.0) / 60.0);
     /** Fraction of the physics-calculated speed used for pre-spin (0.0–1.0). */
     public static final double kPreSpinFraction = 0.60;
+
+    // ── Voltage bias (971-style integral flywheel) ────────────────────────
+    /** Volts added to feedforward per ft/s of velocity error, per 20 ms cycle.
+     *  Accumulates only after the ramp has reached target — no spinup windup. */
+    public static final double kVoltageBiasRate = 0.001;
+    /** Maximum absolute feedforward voltage bias (V). Caps the integrator. */
+    public static final double kMaxVoltageBias  = 1.5;
 
     // ── Parabolic fine-tune offsets ───────────────────────────────────────
     // Three anchor points define a parabola (Lagrange quadratic) that is
