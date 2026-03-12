@@ -307,8 +307,9 @@ public final class Constants {
 
     // ── Detection thresholds ─────────────────────────────────────────────
     /**
-     * Robot pitch (degrees) above which a bump is considered in progress.
-     * The Pigeon 2 reports positive pitch as nose-up.
+     * Absolute robot pitch (degrees) above which a bump is considered in progress.
+     * Compared against |pitch|, so both nose-up (front-first) and nose-down
+     * (back-first) traversals are detected equally.
      */
     public static final double kBumpPitchThresholdDegrees = 8.0;
 
