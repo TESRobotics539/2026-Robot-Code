@@ -71,6 +71,17 @@ public class UltraShooter extends SubsystemBase {
     /** kV in V/(ft/s), derived from physics-based FF: 12 V / free-speed. */
     private static final double KV = 12.0 / NEO_VORTEX_FREE_SPEED_FPS;
 
+    // ── Cached physics constants (derived from Constants at class-load time) ──
+    // Avoids calling Math.toRadians / Units.inchesToMeters on every solver call.
+    private static final double LAUNCH_ANGLE_RAD =
+            Math.toRadians(Constants.UltraShooterConstants.kLaunchAngleDegrees);
+    private static final double SHOOTER_OFFSET_M =
+            Units.inchesToMeters(Constants.UltraShooterConstants.kShooterCenterlineOffsetInches);
+    private static final double HOOD_HEIGHT_M =
+            Units.inchesToMeters(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
+    private static final double HUB_HEIGHT_M =
+            Units.inchesToMeters(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
+
     private final SparkFlex primaryMotor   = new SparkFlex(Ports.kShooterLeft,   MotorType.kBrushless);
     private final SparkFlex secondaryMotor = new SparkFlex(Ports.kShooterMiddle, MotorType.kBrushless);
     private final SparkFlex tertiaryMotor  = new SparkFlex(Ports.kShooterRight,  MotorType.kBrushless);
@@ -93,6 +104,8 @@ public class UltraShooter extends SubsystemBase {
     private double rampedSetpoint = 0;
     /** Latches true once the flywheel first reaches target; cleared on target change. */
     private boolean readyLatch = false;
+    /** Throttles trajectory visualization to ~10 Hz (every 5 cycles at 50 Hz). */
+    private int vizSkipCounter = 0;
 
     /** Circular buffer for rolling-average velocity filtering. */
     private final double[] velocityBuffer =
@@ -307,34 +320,9 @@ public class UltraShooter extends SubsystemBase {
             double flywheelEfficiency,
             double dragCoefficient,
             double ballMassLbs) {
-
-        final double angleRad       = Math.toRadians(Constants.UltraShooterConstants.kLaunchAngleDegrees);
-        final double shooterOffsetM = Units.inchesToMeters(Constants.UltraShooterConstants.kShooterCenterlineOffsetInches);
-        final double hoodHeightM    = Units.inchesToMeters(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
-        final double hubHeightM     = Units.inchesToMeters(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
-
-        final double d = distanceToHubMeters - shooterOffsetM;  // true horizontal distance
-        final double h = hubHeightM - hoodHeightM;              // net vertical rise
-
-        if (d <= 0 || flywheelEfficiency <= 0) return 0;
-
-        double v0_mps;
-
-        if (dragCoefficient <= 0) {
-            // ── Analytic vacuum solution ─────────────────────────────────────────
-            final double cosTheta = Math.cos(angleRad);
-            final double tanTheta = Math.tan(angleRad);
-            final double denom    = 2.0 * cosTheta * cosTheta * (d * tanTheta - h);
-            if (denom <= 0) return 0;
-            v0_mps = d * Math.sqrt(9.81 / denom);
-        } else {
-            // ── Numerical solution with quadratic aerodynamic drag ───────────────
-            final double ballMassKg  = ballMassLbs * 0.453592;
-            final double dragPerMass = dragCoefficient / Math.max(ballMassKg, 0.001);
-            v0_mps = binarySearchV0(d, h, angleRad, dragPerMass);
-            if (v0_mps <= 0) return 0;
-        }
-
+        if (flywheelEfficiency <= 0) return 0;
+        final double v0_mps = calcBallExitSpeedMps(distanceToHubMeters, dragCoefficient, ballMassLbs);
+        if (v0_mps <= 0) return 0;
         // flywheel surface speed = ball exit speed / efficiency, then m/s → ft/s
         return (v0_mps / flywheelEfficiency) * 3.28084;
     }
@@ -373,31 +361,17 @@ public class UltraShooter extends SubsystemBase {
             double distanceToHubMeters,
             double dragCoefficient,
             double ballMassLbs) {
-
-        final double angleRad       = Math.toRadians(Constants.UltraShooterConstants.kLaunchAngleDegrees);
-        final double shooterOffsetM = Units.inchesToMeters(Constants.UltraShooterConstants.kShooterCenterlineOffsetInches);
-        final double hoodHeightM    = Units.inchesToMeters(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
-        final double hubHeightM     = Units.inchesToMeters(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
-
-        final double d = distanceToHubMeters - shooterOffsetM;
-        final double h = hubHeightM - hoodHeightM;
-
+        final double d      = distanceToHubMeters + SHOOTER_OFFSET_M;
         if (d <= 0) return 0;
-
+        final double v0_mps = calcBallExitSpeedMps(distanceToHubMeters, dragCoefficient, ballMassLbs);
+        if (v0_mps <= 0) return 0;
         if (dragCoefficient <= 0) {
             // Analytic: horizontal velocity is constant → t = d / vx
-            final double cosTheta = Math.cos(angleRad);
-            final double tanTheta = Math.tan(angleRad);
-            final double denom    = 2.0 * cosTheta * cosTheta * (d * tanTheta - h);
-            if (denom <= 0) return 0;
-            final double v0_mps = d * Math.sqrt(9.81 / denom);
-            return d / (v0_mps * cosTheta);
+            return d / (v0_mps * Math.cos(LAUNCH_ANGLE_RAD));
         } else {
             final double ballMassKg  = ballMassLbs * 0.453592;
             final double dragPerMass = dragCoefficient / Math.max(ballMassKg, 0.001);
-            final double v0_mps      = binarySearchV0(d, h, angleRad, dragPerMass);
-            if (v0_mps <= 0) return 0;
-            return simulateTimeOfFlight(v0_mps, d, angleRad, dragPerMass);
+            return simulateTimeOfFlight(v0_mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
         }
     }
 
@@ -412,6 +386,35 @@ public class UltraShooter extends SubsystemBase {
     // ─────────────────────────────────────────────────────────────────────────
     // Numerical solver helpers (drag physics)
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Core solver: returns the ball exit speed (m/s) needed to reach the hub
+     * from {@code distanceToHubMeters}.  Handles both the analytic (no-drag)
+     * and numerical (drag) cases.  All callers that previously duplicated this
+     * logic now delegate here so the binary search runs at most once per call
+     * site instead of once per derived quantity.
+     *
+     * @return Ball exit speed v₀ in m/s, or 0 if the shot is physically impossible.
+     */
+    private static double calcBallExitSpeedMps(
+            double distanceToHubMeters,
+            double dragCoefficient,
+            double ballMassLbs) {
+        final double d = distanceToHubMeters + SHOOTER_OFFSET_M;
+        final double h = HUB_HEIGHT_M - HOOD_HEIGHT_M;
+        if (d <= 0) return 0;
+        if (dragCoefficient <= 0) {
+            final double cosTheta = Math.cos(LAUNCH_ANGLE_RAD);
+            final double tanTheta = Math.tan(LAUNCH_ANGLE_RAD);
+            final double denom    = 2.0 * cosTheta * cosTheta * (d * tanTheta - h);
+            if (denom <= 0) return 0;
+            return d * Math.sqrt(9.81 / denom);
+        } else {
+            final double ballMassKg  = ballMassLbs * 0.453592;
+            final double dragPerMass = dragCoefficient / Math.max(ballMassKg, 0.001);
+            return binarySearchV0(d, h, LAUNCH_ANGLE_RAD, dragPerMass);
+        }
+    }
 
     /**
      * Binary-searches for the ball exit speed v₀ (m/s) such that the
@@ -532,6 +535,14 @@ public class UltraShooter extends SubsystemBase {
     private static final double MID_ANCHOR_FT   = Constants.UltraShooterConstants.kMidShotAnchorFeet;
     private static final double FAR_ANCHOR_FT   = Constants.UltraShooterConstants.kFarShotAnchorFeet;
 
+    // Precomputed Lagrange quadratic denominators — constant for fixed anchor distances.
+    private static final double LAGRANGE_D0 =
+            (CLOSE_ANCHOR_FT - MID_ANCHOR_FT) * (CLOSE_ANCHOR_FT - FAR_ANCHOR_FT);
+    private static final double LAGRANGE_D1 =
+            (MID_ANCHOR_FT - CLOSE_ANCHOR_FT) * (MID_ANCHOR_FT - FAR_ANCHOR_FT);
+    private static final double LAGRANGE_D2 =
+            (FAR_ANCHOR_FT - CLOSE_ANCHOR_FT) * (FAR_ANCHOR_FT - MID_ANCHOR_FT);
+
     /**
      * Parabolic (Lagrange quadratic) interpolation of the fine-tune speed offset (%)
      * through three anchor points (close / mid / far).  Distance is converted to feet
@@ -546,13 +557,10 @@ public class UltraShooter extends SubsystemBase {
         final double p0 = shooterTuner.getCloseShotOffsetPercent();
         final double p1 = shooterTuner.getMidShotOffsetPercent();
         final double p2 = shooterTuner.getFarShotOffsetPercent();
-        // Lagrange basis polynomials evaluated at d (ft)
-        final double l0 = (d - MID_ANCHOR_FT) * (d - FAR_ANCHOR_FT)
-                        / ((CLOSE_ANCHOR_FT - MID_ANCHOR_FT) * (CLOSE_ANCHOR_FT - FAR_ANCHOR_FT));
-        final double l1 = (d - CLOSE_ANCHOR_FT) * (d - FAR_ANCHOR_FT)
-                        / ((MID_ANCHOR_FT - CLOSE_ANCHOR_FT) * (MID_ANCHOR_FT - FAR_ANCHOR_FT));
-        final double l2 = (d - CLOSE_ANCHOR_FT) * (d - MID_ANCHOR_FT)
-                        / ((FAR_ANCHOR_FT - CLOSE_ANCHOR_FT) * (FAR_ANCHOR_FT - MID_ANCHOR_FT));
+        // Lagrange basis polynomials evaluated at d (ft) — denominators precomputed.
+        final double l0 = (d - MID_ANCHOR_FT) * (d - FAR_ANCHOR_FT) / LAGRANGE_D0;
+        final double l1 = (d - CLOSE_ANCHOR_FT) * (d - FAR_ANCHOR_FT) / LAGRANGE_D1;
+        final double l2 = (d - CLOSE_ANCHOR_FT) * (d - MID_ANCHOR_FT) / LAGRANGE_D2;
         return (p0 * l0 + p1 * l1 + p2 * l2) / 100.0;
     }
 
@@ -585,7 +593,9 @@ public class UltraShooter extends SubsystemBase {
      * fallback is automatic and transparent.
      */
     public void setPhysicsTarget() {
-        final double distance       = getAverageDistanceToHub();
+        // Cache field velocity once — reused for both distance selection and radial correction.
+        final ChassisSpeeds fieldVelocity = swerve.getFieldVelocity();
+        final double distance       = getAverageDistanceToHub(fieldVelocity);
         final double offsetFraction = interpolateOffsetFraction(distance);
 
         final double physicsSpeed;
@@ -602,7 +612,6 @@ public class UltraShooter extends SubsystemBase {
         // Radial velocity compensation: if the robot is moving toward the hub,
         // the ball arrives faster and needs a lower exit speed (and vice versa).
         // Project field velocity onto the robot→hub unit vector.
-        final ChassisSpeeds fieldVelocity = swerve.getFieldVelocity();
         final Translation2d robotToHub =
                 Landmarks.hubPosition().minus(swerve.getPose().getTranslation());
         final double distNorm = robotToHub.getNorm();
@@ -746,7 +755,12 @@ public class UltraShooter extends SubsystemBase {
      * distance by up to ~0.5 s, so the instantaneous distance is used instead.
      */
     public double getAverageDistanceToHub() {
-        final ChassisSpeeds fieldVel = swerve.getFieldVelocity();
+        return getAverageDistanceToHub(swerve.getFieldVelocity());
+    }
+
+    /** Overload that accepts a pre-fetched {@link ChassisSpeeds} to avoid a
+     *  redundant {@code getFieldVelocity()} call when the caller already has it. */
+    private double getAverageDistanceToHub(ChassisSpeeds fieldVel) {
         final double speedFps = Math.hypot(fieldVel.vxMetersPerSecond, fieldVel.vyMetersPerSecond)
                 * 3.28084;
         if (speedFps > MOVING_SPEED_THRESHOLD_FPS) {
@@ -817,9 +831,24 @@ public class UltraShooter extends SubsystemBase {
         final double drag    = shooterTuner.getDragCoefficient();
         final double mass    = shooterTuner.getBallMassLbs();
         final double dist    = getAverageDistanceToHub();
-        final double physFPS = calculateRequiredVelocityFPS(dist, effic, drag, mass);
+
+        // Solve once — derive physFPS, TOF, and visualization v0 from a single binary search.
+        final double v0Mps   = calcBallExitSpeedMps(dist, drag, mass);
+        final double physFPS = v0Mps > 0 ? (v0Mps / Math.max(effic, 0.001)) * 3.28084 : 0;
+        final double tof;
+        if (v0Mps <= 0) {
+            tof = 0;
+        } else if (drag <= 0) {
+            final double d = dist + SHOOTER_OFFSET_M;
+            tof = d > 0 ? d / (v0Mps * Math.cos(LAUNCH_ANGLE_RAD)) : 0;
+        } else {
+            final double ballMassKg  = mass * 0.453592;
+            final double dragPerMass = drag / Math.max(ballMassKg, 0.001);
+            final double d           = dist + SHOOTER_OFFSET_M;
+            tof = simulateTimeOfFlight(v0Mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
+        }
         ntPhysics    .setDouble(physFPS);
-        ntTOF        .setDouble(calculateTimeOfFlightSeconds(dist, drag, mass));
+        ntTOF        .setDouble(tof);
         ntDistance   .setDouble(swerve.getDistanceToHub() * 3.28084);
         ntDistanceAvg.setDouble(dist * 3.28084);
         ntAngle     .setDouble(Constants.UltraShooterConstants.kLaunchAngleDegrees);
@@ -829,14 +858,13 @@ public class UltraShooter extends SubsystemBase {
         ntSecCur    .setDouble(secondaryMotor.getOutputCurrent());
         ntPiActive  .setBoolean(isPiResultFresh());
 
-        // Update the Mechanism2d trajectory canvas.
-        // Ideal v0: efficiency=1 so flywheel speed == ball speed (pure physics, no losses).
-        final double idealFPS  = calculateRequiredVelocityFPS(dist, 1.0, drag, mass);
-        final double v0Ideal   = idealFPS / 3.28084;                          // m/s
-        // Tuned v0: ideal ball speed scaled by parabolic offset (no efficiency).
-        final double v0Tuned   = v0Ideal * (1.0 + interpolateOffsetFraction(dist));
-        final double dpm       = drag > 0 ? drag / Math.max(mass, 0.001) : 0;
-        updateTrajectoryVisualization(dist, v0Ideal, v0Tuned, dpm);
+        // Trajectory visualization at ~10 Hz (every 5 cycles) — display-only, no need for 50 Hz.
+        // v0Mps is the ideal ball speed (efficiency = 1); tuned arc scales it by the offset.
+        if (++vizSkipCounter % 5 == 0) {
+            final double v0Tuned = v0Mps * (1.0 + interpolateOffsetFraction(dist));
+            final double dpm     = drag > 0 ? drag / Math.max(mass, 0.001) : 0;
+            updateTrajectoryVisualization(dist, v0Mps, v0Tuned, dpm);
+        }
     }
 
     /**
@@ -859,8 +887,6 @@ public class UltraShooter extends SubsystemBase {
         trajFuelRoot    .setPosition(distFt, hubH);
         trajHubStand.setLength(Math.max(0.033, hubH - VIZ_HUB_OPEN_FT / 2.0));
 
-        final double angleRad = Math.toRadians(Constants.UltraShooterConstants.kLaunchAngleDegrees);
-
         if (v0IdealMps < 0.5 || distM < 0.1) {
             for (MechanismLigament2d seg : trajSegs)      seg.setLength(0);
             for (MechanismLigament2d seg : trajTunedSegs) seg.setLength(0);
@@ -869,12 +895,12 @@ public class UltraShooter extends SubsystemBase {
 
         // Draw the ideal (white) arc.
         applyTrajectoryToSegments(
-                trajSegs, v0IdealMps, angleRad, dragPerMass);
+                trajSegs, v0IdealMps, LAUNCH_ANGLE_RAD, dragPerMass);
 
         // Draw the tuned (red) arc — only visible when offset is non-zero.
         if (Math.abs(v0TunedMps - v0IdealMps) > 0.05) {
             applyTrajectoryToSegments(
-                    trajTunedSegs, v0TunedMps, angleRad, dragPerMass);
+                    trajTunedSegs, v0TunedMps, LAUNCH_ANGLE_RAD, dragPerMass);
         } else {
             for (MechanismLigament2d seg : trajTunedSegs) seg.setLength(0);
         }

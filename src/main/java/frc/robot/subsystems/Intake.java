@@ -103,7 +103,7 @@ public class Intake extends SubsystemBase {
         SparkFlexConfig config = new SparkFlexConfig();
 
         config.inverted(true);
-        config.idleMode(IdleMode.kCoast);
+        config.idleMode(Constants.IntakeConstants.kRollerIdleMode);
         config.smartCurrentLimit(80);
         config.secondaryCurrentLimit(120);
 

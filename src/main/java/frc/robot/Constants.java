@@ -1,5 +1,6 @@
 package frc.robot;
 
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import edu.wpi.first.math.util.Units;
 
 /**
@@ -24,27 +25,51 @@ public final class Constants {
 
   // ── Intake ────────────────────────────────────────────────────────────────
   public static class IntakeConstants {
+
+    // ── General ──────────────────────────────────────────────────────────
     /** If true, the intake is locked stowed from the start of autonomous through the end of the match. */
     public static final boolean kStowIntakeForMatch = false;
-
     /** Maximum seconds between two trigger pulls to count as a double-tap. */
     public static final double kDoubleTapWindowSeconds = 0.4;
+    /** Seconds the roller can run without a load spike before being automatically cut off. */
+    public static final double kRollerNoLoadTimeoutSeconds = 15.0;
+
+    // ── Roller ───────────────────────────────────────────────────────────
+    public static final IdleMode kRollerIdleMode = IdleMode.kCoast;
     /** Roller target speed when running (RPM). */
     public static final double kRollerRPM = 6500.0;
     /** Roller current (amps) threshold that indicates a fuel pickup spike. */
     public static final double kRollerLoadCurrentThreshold = 25.0;
     /** Number of current spikes required before flywheel pre-spin is enabled in teleop. */
     public static final int kRollerFuelSpikeCount = 4;
-    /** Seconds the roller can run without a load spike before being automatically cut off. */
-    public static final double kRollerNoLoadTimeoutSeconds = 15.0;
+    /** Free-spin RPM of the roller motor (used for FF calculation). */
+    public static final double kRollerFreeSpeedRPM = 6784.0;
+    /** Roller closed-loop PID gains. */
+    public static final double kRollerP = 0.0002;
+    public static final double kRollerI = 0.0;
+    public static final double kRollerD = 0.0;
+
+    // ── Pivot ────────────────────────────────────────────────────────────
     /** Pivot motor current (amps) that indicates the intake has reached the deployed hard stop. */
     public static final double kPivotDeployedCurrentThreshold = 30.0;
     /** Minimum encoder travel (rotations) before the deployed hard-stop current spike is checked. */
     public static final double kPivotDeployedTravelThreshold = 0.2;
     /** Seconds the current must stay above threshold to confirm the deployed hard stop (debounce). */
     public static final double kPivotDeployedCurrentDebounceSeconds = 0.08;
+    /** Pivot closed-loop PID gains (absolute encoder feedback). */
+    public static final double kPivotP              = 1.5;
+    public static final double kPivotI              = 0.0;
+    public static final double kPivotD              = 5.0;
+    public static final double kPivotOutputRangeMin = -0.15;
+    public static final double kPivotOutputRangeMax =  0.4;
 
-    // Agitation pattern during shooting
+    // ── Pivot positions (absolute encoder, 0.0–1.0) ──────────────────────
+    public static final double kStowedPosition   = 0.8;
+    public static final double kDeployedPosition = 0.57;
+    public static final double kMinPosition       = 0.53;
+    public static final double kMaxPosition       = 0.9;
+
+    // ── Agitation (pivot motion during shooting to settle fuel) ──────────
     /** Pivot percent output going up during agitation. */
     public static final double kAgitateUpPower = 0.25;
     /** Duration of the upward agitation pulse (seconds). */
@@ -53,36 +78,23 @@ public final class Constants {
     public static final double kAgitateDownPower = -0.05;
     /** Duration of the downward agitation pulse (seconds). */
     public static final double kAgitateDownSeconds = 0.2;
-
-    // Pivot positions (absolute encoder, 0.0–1.0)
-    public static final double kStowedPosition   = 0.8;
-    public static final double kDeployedPosition = 0.57;
-    public static final double kMinPosition       = 0.53;
-    public static final double kMaxPosition       = 0.9;
-
-    // Pivot motor closed-loop PID (absolute encoder feedback)
-    public static final double kPivotP              = 1.5;
-    public static final double kPivotI              = 0.0;
-    public static final double kPivotD              = 5.0;
-    public static final double kPivotOutputRangeMin = -0.15;
-    public static final double kPivotOutputRangeMax =  0.4;
-
-    // Roller motor closed-loop PID (velocity control)
-    public static final double kRollerFreeSpeedRPM = 6784.0;
-    public static final double kRollerP             = 0.0002;
-    public static final double kRollerI             = 0.0;
-    public static final double kRollerD             = 0.0;
   }
 
   // ── Feeder ────────────────────────────────────────────────────────────────
   public static class FeederConstants {
+
+    // ── Motor ────────────────────────────────────────────────────────────
+    /** Primary current limit (amps). */
+    public static final int kSmartCurrentLimit = 50;
+    public static final IdleMode kIdleMode = IdleMode.kCoast;
+
+    // ── Setpoints ────────────────────────────────────────────────────────
     /** Feed target speed (RPM, positive = forward). */
     public static final double kFeedRPM    =  5500.0;
     /** Reverse target speed (RPM, negative = backward). */
     public static final double kReverseRPM = -5500.0;
-    /** Primary current limit (amps). */
-    public static final int    kSmartCurrentLimit = 50;
-    /** Closed-loop velocity PID gains. */
+
+    // ── PID ──────────────────────────────────────────────────────────────
     public static final double kP          = 0.0001;
     public static final double kI          = 0.0;
     public static final double kD          = 0.0;
@@ -93,10 +105,13 @@ public final class Constants {
   public static class FloorConstants {
     /** Percent output (0.0–1.0) when feeding fuel toward the shooter. */
     public static final double kFeedPercentOutput = 0.75;
+    public static final IdleMode kIdleMode = IdleMode.kCoast;
   }
 
   // ── Shooter ───────────────────────────────────────────────────────────────
   public static class ShooterConstants {
+
+    // ── Timing ───────────────────────────────────────────────────────────
     /** Seconds to wait after shooter reaches speed (and aim is confirmed) before feeding the fuel. */
     public static final double kShootWaitSeconds = 0.5;
     /** Maximum seconds to wait for the shooter to reach speed before giving up and feeding anyway. */
@@ -104,23 +119,34 @@ public final class Constants {
     /** Delay before floor motor starts feeding, so the feeder gets the fuel first. */
     public static final double kFloorFeedDelaySeconds = 0.25;
 
+    // ── Setpoints ────────────────────────────────────────────────────────
     /** Fraction of the distance-based map speed to hold during pre-spin (0.0–1.0). */
     public static final double kPreSpinFraction = 0.60;
-
     /** Flywheel speed for the close-range dump shot (ft/s, converted from 1850 RPM with 4" wheel). */
     public static final double kDumpShotFlywheelSpeed = 32.0;
   }
 
   // ── Hanger ────────────────────────────────────────────────────────────────
   public static class HangerConstants {
+
+    // ── Motor ────────────────────────────────────────────────────────────
+    /** Primary current limit (amps) for the hanger motor. */
+    public static final int kSmartCurrentLimit = 70;
+    public static final IdleMode kIdleMode = IdleMode.kCoast;
+    /** Secondary (backup) current limit (amps) for the hanger motor. */
+    public static final int kSecondaryCurrentLimit = 120;
+
+    // ── Manual control ───────────────────────────────────────────────────
     /** Percent output for manual d-pad down control. */
     public static final double kManualDownPower = -0.8;
     /** Percent output for manual d-pad up control. */
     public static final double kManualUpPower = 0.8;
-    /** Primary current limit (amps) for the hanger motor. */
-    public static final int kSmartCurrentLimit = 70;
-    /** Secondary (backup) current limit (amps) for the hanger motor. */
-    public static final int kSecondaryCurrentLimit = 120;
+    /** Percent output for the driver A-button nudge. */
+    public static final double kNudgePower = 0.5;
+    /** Duration of the A-button nudge (seconds). */
+    public static final double kNudgeSeconds = 0.33;
+
+    // ── Auto climb ───────────────────────────────────────────────────────
     /** Percent output for the initial autonomous climb (full speed). */
     public static final double kAutoClimbFullPower = -0.95;
     /** Current threshold (amps) that indicates the climber has reached a hard stop during auto. */
@@ -130,15 +156,13 @@ public final class Constants {
     /** Percent output for the release pulse after the auto climb stalls (opposite direction). */
     public static final double kAutoClimbReleasePower = 0.5;
     /** Duration of the release pulse after the auto climb stalls (seconds). */
-    public static final double kAutoClimbReleaseSeconds = 0.3;
+    public static final double kAutoClimbReleaseSeconds = 0.4;
+
+    // ── Homing ───────────────────────────────────────────────────────────
     /** Homing percent output (negative = retract toward hard stop). */
     public static final double kHomingPower = -0.05;
     /** Current threshold (amps) used to detect the homing hard stop. */
     public static final double kHomingCurrentThreshold = 7.0;
-    /** Percent output for the driver A-button nudge. */
-    public static final double kNudgePower = 0.5;
-    /** Duration of the A-button nudge (seconds). */
-    public static final double kNudgeSeconds = 0.33;
   }
 
   // ── UltraShooter Physics ──────────────────────────────────────────────────
@@ -158,9 +182,10 @@ public final class Constants {
     public static final double kHubCenterHeightFromFloorInches = 72.0;
 
     /**
-     * Horizontal distance from the robot center to the shooter exit point,
-     * measured toward the hub (inches). Subtracted from the odometry
-     * distance so the physics model uses the true shooter-to-hub range.
+     * Horizontal distance from the robot center to the shooter (hood) exit
+     * point (inches). The hood is at the BACK of the robot, so this value is
+     * ADDED to the odometry distance (robot center → hub) to get the true
+     * shooter-to-hub range used by the physics model.
      */
     public static final double kShooterCenterlineOffsetInches = 8.0;
 
@@ -170,52 +195,51 @@ public final class Constants {
      */
     public static final double kLaunchAngleDegrees = 75.0;
 
-    // ── Motor / PID (mirrors ShooterOrca values — adjust if hardware differs) ─
-    public static final int kSmartCurrentLimit    = 60;
-    public static final int kFreeCurrentLimit     = 40;
-    public static final int kStatorCurrentLimit   = 120;
+    // ── Motor ────────────────────────────────────────────────────────────
+    public static final int kSmartCurrentLimit  = 60;
+    public static final int kFreeCurrentLimit   = 40;
+    public static final int kStatorCurrentLimit = 120;
 
+    // ── PID ──────────────────────────────────────────────────────────────
     public static final double kP = 0.003;
     public static final double kI = 0.000;
     public static final double kD = 0.25;
     public static final double kS = 0.15;
 
+    // ── Flywheel behavior ─────────────────────────────────────────────────
     /** Setpoint ramp-up rate (ft/s per 20 ms cycle). */
     public static final double kRampUpRate   = 200.0 * (Math.PI * (4.0 / 12.0) / 60.0);
     /** Setpoint ramp-down rate (ft/s per 20 ms cycle). */
     public static final double kRampDownRate = 400.0 * (Math.PI * (4.0 / 12.0) / 60.0);
-
     /** Rolling-average window for encoder noise filtering (samples at 50 Hz). */
     public static final int kVelocityAvgSamples = 8;
-
     /** Flywheel is "ready" within this tolerance of target (ft/s). */
     public static final double kReadyTolerance = 100.0 * (Math.PI * (4.0 / 12.0) / 60.0);
-
     /** Fraction of the physics-calculated speed used for pre-spin (0.0–1.0). */
     public static final double kPreSpinFraction = 0.60;
 
-    // ── Parabolic fine-tune offsets ────────────────────────────────────────
+    // ── Parabolic fine-tune offsets ───────────────────────────────────────
     // Three anchor points define a parabola (Lagrange quadratic) that is
     // added on top of the physics-calculated flywheel speed as a percentage.
     // Tune close/mid/far independently on the field; the parabola fills in
-    // smoothly between anchors.  Distance is clamped to [3 ft, 23 ft].
+    // smoothly between anchors.  Distance is clamped to [3 ft, 12 ft, 20 ft].
     // Positive = spin faster, negative = spin slower.
 
     /** Distance (ft) of the close anchor. */
     public static final double kCloseShotAnchorFeet = 3.0;
     /** Distance (ft) of the mid anchor. */
-    public static final double kMidShotAnchorFeet   = 13.0;
+    public static final double kMidShotAnchorFeet   = 12.0;
     /** Distance (ft) of the far anchor. */
-    public static final double kFarShotAnchorFeet   = 23.0;
+    public static final double kFarShotAnchorFeet   = 20.0;
 
     /** Speed offset (%) applied at the close anchor (3 ft). */
     public static final double kCloseShotOffsetPercent = 0.0; // tune me
-    /** Speed offset (%) applied at the mid anchor (13 ft). */
+    /** Speed offset (%) applied at the mid anchor (12 ft). */
     public static final double kMidShotOffsetPercent   = 0.0; // tune me
-    /** Speed offset (%) applied at the far anchor (23 ft). */
+    /** Speed offset (%) applied at the far anchor (20 ft). */
     public static final double kFarShotOffsetPercent   = 0.0; // tune me
 
-    // ── Aerodynamics & efficiency ──────────────────────────────────────────
+    // ── Aerodynamics & efficiency ─────────────────────────────────────────
 
     /**
      * Flywheel-to-ball velocity transfer efficiency (0–1).
@@ -228,6 +252,13 @@ public final class Constants {
     public static final double kFlywheelEfficiency = 0.43;
 
     /**
+     * Ball diameter (inches). Used to compute cross-sectional area for drag.
+     * Change this when swapping game pieces; kDragCoefficient must be updated
+     * accordingly: B = 0.5 × Cd × ρ_air × π × (diameter_m / 2)²
+     */
+    public static final double kBallDiameterInches = 6.0;
+
+    /**
      * Ball mass (lbs).  Used in the aerodynamic drag term (B / m).
      * 2026 game piece: adjust once the game manual publishes the spec.
      * Internally converted to kg for SI physics calculations.
@@ -236,23 +267,45 @@ public final class Constants {
 
     /**
      * Aerodynamic drag constant B = 0.5 × Cd × ρ_air × A_cross  (kg/m).
-     * For a 9.5-inch-diameter foam sphere:
-     *   Cd ≈ 0.47,  ρ = 1.225 kg/m³,  A = π×(0.1207)² ≈ 0.0458 m²
-     *   → B ≈ 0.0132 kg/m
+     * For a 6-inch-diameter foam sphere (kBallDiameterInches = 6.0):
+     *   Cd ≈ 0.47,  ρ = 1.225 kg/m³,  A = π×(0.0762)² ≈ 0.01824 m²
+     *   → B ≈ 0.00525 kg/m
      * Set to 0.0 to disable drag compensation and fall back to the
      * analytic (vacuum) projectile formula.
      */
-    public static final double kDragCoefficient = 0.0132;
+    public static final double kDragCoefficient = 0.00525;
+
+    // ── Close-range backup ─────────────────────────────────────────────────
+
+    /**
+     * If true, pressing the right trigger while within kCloseRangeThresholdInches
+     * of the hub will first reverse the robot kCloseRangeBackupInches away from
+     * the hub before beginning the aim-and-fire sequence.
+     * Set false to disable entirely.
+     */
+    public static final boolean kEnableCloseRangeBackup = true;
+
+    /** Hub centerline distance (inches) at or below which close-range backup activates. */
+    public static final double kCloseRangeThresholdInches = 35.0;
+
+    /** Distance (inches) to drive away from the hub before aiming when backup triggers. */
+    public static final double kCloseRangeBackupInches = 12.0;
+
+    /** Speed (ft/s) at which the robot drives away from the hub during backup. */
+    public static final double kCloseRangeBackupSpeedFps = 3.0;
   }
 
   // ── Drivetrain IMU / Bump Detection ───────────────────────────────────────
   public static class BumpDetectionConstants {
+
+    // ── Filtering ────────────────────────────────────────────────────────
     /**
      * Low-pass filter alpha for Pigeon 2 accelerometer axes.
      * Range [0, 1]: lower = heavier filtering (more bump rejection), higher = faster response.
      */
     public static final double kAccelFilterAlpha = 0.15;
 
+    // ── Detection thresholds ─────────────────────────────────────────────
     /**
      * Robot pitch (degrees) above which a bump is considered in progress.
      * The Pigeon 2 reports positive pitch as nose-up.
@@ -273,14 +326,6 @@ public final class Constants {
     public static final double kLimelightAccelZDeviationThreshold = 0.25;
 
     /**
-     * Standard-deviation multiplier applied to vision measurements while a
-     * confirmed bump is in progress AND vision confidence is LOW.
-     * Effectively tells the pose estimator to discount vision when the camera
-     * is tilted and we have no reliable tag fix.
-     */
-    public static final double kBumpVisionStdDevMultiplier = 10.0;
-
-    /**
      * Encoder-vs-IMU linear acceleration mismatch magnitude (m/s²) above
      * which wheel slip is flagged. During bump traversal a slipping wheel
      * causes the encoder-derived acceleration to spike while the robot body
@@ -288,6 +333,15 @@ public final class Constants {
      * Set conservatively high to avoid false positives from differentiation noise.
      */
     public static final double kWheelSlipDetectionThresholdMps2 = 6.0;
+
+    // ── Vision trust adjustment ───────────────────────────────────────────
+    /**
+     * Standard-deviation multiplier applied to vision measurements while a
+     * confirmed bump is in progress AND vision confidence is LOW.
+     * Effectively tells the pose estimator to discount vision when the camera
+     * is tilted and we have no reliable tag fix.
+     */
+    public static final double kBumpVisionStdDevMultiplier = 10.0;
 
     /**
      * Minimum vision confidence score (avgTagArea × tagCount) required to

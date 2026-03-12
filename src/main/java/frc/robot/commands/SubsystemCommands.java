@@ -4,7 +4,10 @@ import java.util.Set;
 import java.util.function.DoubleSupplier;
 
 import frc.robot.Constants;
+import frc.robot.Landmarks;
 
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Feeder;
@@ -86,14 +89,43 @@ public final class SubsystemCommands {
     private Command aimAndFire(Command feedCommand) {
         return Commands.defer(() -> {
             AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
-            return Commands.parallel(
+            Command shootSequence = Commands.parallel(
                 ultraShooter.spinUpPhysicsCommand(),
                 aimCommand,
                 Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
                     .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
                     .andThen(feedCommand)
             );
+
+            boolean needsBackup = Constants.UltraShooterConstants.kEnableCloseRangeBackup
+                && swerve.getDistanceToHub() < Constants.UltraShooterConstants.kCloseRangeThresholdInches * 0.0254;
+
+            return needsBackup
+                ? Commands.sequence(backupFromHubCommand(), shootSequence)
+                : shootSequence;
         }, Set.of(swerve, ultraShooter, feeder, floor));
+    }
+
+    /**
+     * Drives field-oriented away from the hub until kCloseRangeBackupInches of
+     * displacement has been covered. Direction is computed once at schedule time
+     * from the current robot pose, so the robot drives in a straight line.
+     */
+    private Command backupFromHubCommand() {
+        final double backupMeters = Constants.UltraShooterConstants.kCloseRangeBackupInches * 0.0254;
+        return Commands.defer(() -> {
+            final Translation2d startPos = swerve.getPose().getTranslation();
+            final Translation2d hubPos   = Landmarks.hubPosition();
+            final double dist = startPos.getDistance(hubPos);
+
+            // Unit vector pointing from hub toward robot (away from hub)
+            final double awayX = dist > 0.01 ? (startPos.getX() - hubPos.getX()) / dist : 1.0;
+            final double awayY = dist > 0.01 ? (startPos.getY() - hubPos.getY()) / dist : 0.0;
+
+            final double speed = Constants.UltraShooterConstants.kCloseRangeBackupSpeedFps * 0.3048;
+            return swerve.driveFieldOriented(() -> new ChassisSpeeds(awayX * speed, awayY * speed, 0))
+                .until(() -> swerve.getPose().getTranslation().getDistance(startPos) >= backupMeters);
+        }, Set.of(swerve));
     }
 
     private Command feed() {

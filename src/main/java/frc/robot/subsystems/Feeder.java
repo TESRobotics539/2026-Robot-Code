@@ -6,7 +6,6 @@ import com.revrobotics.*;
 import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkMaxConfig;
 
 import edu.wpi.first.units.measure.AngularVelocity;
@@ -41,7 +40,7 @@ public class Feeder extends SubsystemBase {
 
         SparkMaxConfig config = new SparkMaxConfig();
         config.inverted(true);
-        config.idleMode(IdleMode.kCoast);
+        config.idleMode(Constants.FeederConstants.kIdleMode);
         config.smartCurrentLimit(Constants.FeederConstants.kSmartCurrentLimit);
 
         config.closedLoop
