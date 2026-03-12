@@ -8,6 +8,7 @@ import java.util.Set;
 
 import com.pathplanner.lib.auto.NamedCommands;
 import com.pathplanner.lib.auto.AutoBuilder;
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
@@ -92,10 +93,11 @@ public class RobotContainer
     /**
      * Converts driver input into a field-relative ChassisSpeeds that is controlled by angular velocity.
      */
+    // Input curve: x^1.5 softens fine control near center while preserving full speed at edges.
     SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
-                                                                  () -> driverXbox.getLeftY() * -1,
-                                                                  () -> driverXbox.getLeftX() * -1)
-                                                              .withControllerRotationAxis(() -> driverXbox.getRightX() * -1)
+                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, 1.5),
+                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, 1.5))
+                                                              .withControllerRotationAxis(() -> MathUtil.copyDirectionPow(driverXbox.getRightX() * -1, 1.5))
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(1.0)
