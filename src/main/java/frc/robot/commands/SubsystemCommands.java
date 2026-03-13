@@ -3,6 +3,8 @@ package frc.robot.commands;
 import java.util.Set;
 import java.util.function.DoubleSupplier;
 
+import edu.wpi.first.math.util.Units;
+
 import frc.robot.Constants;
 import frc.robot.Landmarks;
 
@@ -98,7 +100,7 @@ public final class SubsystemCommands {
             );
 
             boolean needsBackup = Constants.UltraShooterConstants.kEnableCloseRangeBackup
-                && swerve.getDistanceToHub() < Constants.UltraShooterConstants.kCloseRangeThresholdInches * 0.0254;
+                && swerve.getDistanceToHub() < Units.inchesToMeters(Constants.UltraShooterConstants.kCloseRangeThresholdInches);
 
             return needsBackup
                 ? Commands.sequence(backupFromHubCommand(), shootSequence)
@@ -112,7 +114,7 @@ public final class SubsystemCommands {
      * from the current robot pose, so the robot drives in a straight line.
      */
     private Command backupFromHubCommand() {
-        final double backupMeters = Constants.UltraShooterConstants.kCloseRangeBackupInches * 0.0254;
+        final double backupMeters = Units.inchesToMeters(Constants.UltraShooterConstants.kCloseRangeBackupInches);
         return Commands.defer(() -> {
             final Translation2d startPos = swerve.getPose().getTranslation();
             final Translation2d hubPos   = Landmarks.hubPosition();

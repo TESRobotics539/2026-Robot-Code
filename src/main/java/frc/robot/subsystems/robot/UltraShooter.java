@@ -72,6 +72,7 @@ public class UltraShooter extends SubsystemBase {
             Units.inchesToMeters(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
     private static final double HUB_HEIGHT_M =
             Units.inchesToMeters(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
+    private static final double METERS_TO_FEET = 3.28084;
 
     // ── State ─────────────────────────────────────────────────────────────────
 
@@ -269,7 +270,7 @@ public class UltraShooter extends SubsystemBase {
         final double v0_mps = calcBallExitSpeedMps(distanceToHubMeters, dragCoefficient, ballMassLbs);
         if (v0_mps <= 0) return 0;
         // flywheel surface speed = ball exit speed / efficiency, then m/s → ft/s
-        return (v0_mps / flywheelEfficiency) * 3.28084;
+        return (v0_mps / flywheelEfficiency) * METERS_TO_FEET;
     }
 
     /**
@@ -498,7 +499,7 @@ public class UltraShooter extends SubsystemBase {
      * @return Offset as a fraction (e.g. 5.0 % → 0.05).
      */
     private double interpolateOffsetFraction(double distanceMeters) {
-        final double d  = Math.max(CLOSE_ANCHOR_FT, Math.min(FAR_ANCHOR_FT, distanceMeters * 3.28084));
+        final double d  = Math.max(CLOSE_ANCHOR_FT, Math.min(FAR_ANCHOR_FT, distanceMeters * METERS_TO_FEET));
         final double p0 = shooterTuner.getCloseShotOffsetPercent();
         final double p1 = shooterTuner.getMidShotOffsetPercent();
         final double p2 = shooterTuner.getFarShotOffsetPercent();
@@ -566,7 +567,7 @@ public class UltraShooter extends SubsystemBase {
                 : 0.0;
         // Convert radial speed to flywheel-surface ft/s (same scaling as physicsSpeed).
         final double radialCorrectionFps =
-                radialVelocityMps * 3.28084 / Math.max(shooterTuner.getFlywheelEfficiency(), 0.01);
+                radialVelocityMps * METERS_TO_FEET / Math.max(shooterTuner.getFlywheelEfficiency(), 0.01);
         final double adjustedSpeed = Math.max(0.0, physicsSpeed - radialCorrectionFps);
 
         setTarget(adjustedSpeed * (1.0 + offsetFraction));
@@ -707,7 +708,7 @@ public class UltraShooter extends SubsystemBase {
      *  redundant {@code getFieldVelocity()} call when the caller already has it. */
     private double getAverageDistanceToHub(ChassisSpeeds fieldVel) {
         final double speedFps = Math.hypot(fieldVel.vxMetersPerSecond, fieldVel.vyMetersPerSecond)
-                * 3.28084;
+                * METERS_TO_FEET;
         if (speedFps > MOVING_SPEED_THRESHOLD_FPS) {
             return swerve.getDistanceToHub();
         }
@@ -775,7 +776,7 @@ public class UltraShooter extends SubsystemBase {
 
         // Solve once — derive physFPS, TOF, and visualization v0 from a single binary search.
         final double v0Mps   = calcBallExitSpeedMps(dist, drag, mass);
-        final double physFPS = v0Mps > 0 ? (v0Mps / Math.max(effic, 0.001)) * 3.28084 : 0;
+        final double physFPS = v0Mps > 0 ? (v0Mps / Math.max(effic, 0.001)) * METERS_TO_FEET : 0;
         final double tof;
         if (v0Mps <= 0) {
             tof = 0;
@@ -790,8 +791,8 @@ public class UltraShooter extends SubsystemBase {
         }
         Logger.recordOutput("UltraShooter/Physics_fps",           physFPS);
         Logger.recordOutput("UltraShooter/TimeOfFlight_s",        tof);
-        Logger.recordOutput("UltraShooter/Distance_ft",           swerve.getDistanceToHub() * 3.28084);
-        Logger.recordOutput("UltraShooter/AvgDistance_ft",        dist * 3.28084);
+        Logger.recordOutput("UltraShooter/Distance_ft",           swerve.getDistanceToHub() * METERS_TO_FEET);
+        Logger.recordOutput("UltraShooter/AvgDistance_ft",        dist * METERS_TO_FEET);
         Logger.recordOutput("UltraShooter/LaunchAngle_deg",       Constants.UltraShooterConstants.kLaunchAngleDegrees);
         Logger.recordOutput("UltraShooter/HoodHeight_in",         Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
         Logger.recordOutput("UltraShooter/HubHeight_in",          Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
@@ -803,7 +804,7 @@ public class UltraShooter extends SubsystemBase {
         // Publish average distance directly to NT so physics_coprocessor.py can read it.
         // Logger.recordOutput() goes through AdvantageKit and may be published under a
         // different key prefix; this direct publish guarantees the Pi reads the right value.
-        nt.getEntry("Avg Distance to Hub (ft)").setDouble(dist * 3.28084);
+        nt.getEntry("Avg Distance to Hub (ft)").setDouble(dist * METERS_TO_FEET);
 
         // Trajectory visualization at ~10 Hz (every 5 cycles) — display-only, no need for 50 Hz.
         if (++vizSkipCounter % 5 == 0) {
@@ -825,7 +826,7 @@ public class UltraShooter extends SubsystemBase {
     private void updateTrajectoryVisualization(
             double distM, double v0IdealMps, double v0TunedMps, double dragPerMass) {
         final double hubH  = Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches / 12.0;
-        final double distFt = distM * 3.28084;
+        final double distFt = distM * METERS_TO_FEET;
 
         // Reposition the hub box, stand, and fuel roots based on current distance.
         trajHubStandRoot.setPosition(distFt, 0.0);
@@ -864,8 +865,8 @@ public class UltraShooter extends SubsystemBase {
                 segs[i].setLength(0);
                 continue;
             }
-            final double dx       = (pts[next]     - pts[base])     * 3.28084;
-            final double dy       = (pts[next + 1] - pts[base + 1]) * 3.28084;
+            final double dx       = (pts[next]     - pts[base])     * METERS_TO_FEET;
+            final double dy       = (pts[next + 1] - pts[base + 1]) * METERS_TO_FEET;
             final double len      = Math.sqrt(dx * dx + dy * dy);
             final double worldDeg = Math.toDegrees(Math.atan2(dy, dx));
             final double relDeg   = (i == 0) ? worldDeg : worldDeg - prevWorldDeg;

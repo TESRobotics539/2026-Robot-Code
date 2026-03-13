@@ -92,7 +92,9 @@ public class Swerve extends SubsystemBase
   // 60 ms (3-cycle) rolling average for the raw slip magnitude.
   // Differentiation amplifies sample-to-sample encoder noise; averaging over 3 cycles
   // smooths that noise without meaningfully delaying detection of true wheel slip events.
-  private static final int SLIP_AVG_SAMPLES = 3;
+  private static final int    SLIP_AVG_SAMPLES   = 3;
+  private static final double LOOP_PERIOD_SECONDS = 0.02;
+  private static final double GRAVITY_MPS2        = 9.81;
   private final double[] slipBuffer = new double[SLIP_AVG_SAMPLES];
   private int    slipBufferIndex = 0;
   private double slipBufferSum   = 0.0;
@@ -302,15 +304,15 @@ public class Swerve extends SubsystemBase
     // a gravity component proportional to pitch/roll. Subtract that projection
     // so only true linear body acceleration remains before comparing.
     ChassisSpeeds currentVel = swerveDrive.getRobotVelocity();
-    double encoderAccelX = (currentVel.vxMetersPerSecond - prevVxMetersPerSecond) / 0.02; // m/s²
-    double encoderAccelY = (currentVel.vyMetersPerSecond - prevVyMetersPerSecond) / 0.02;
+    double encoderAccelX = (currentVel.vxMetersPerSecond - prevVxMetersPerSecond) / LOOP_PERIOD_SECONDS; // m/s²
+    double encoderAccelY = (currentVel.vyMetersPerSecond - prevVyMetersPerSecond) / LOOP_PERIOD_SECONDS;
     prevVxMetersPerSecond = currentVel.vxMetersPerSecond;
     prevVyMetersPerSecond = currentVel.vyMetersPerSecond;
 
     double pitchRad = Math.toRadians(pigeonPitch.getValueAsDouble());
     double rollRad  = Math.toRadians(pigeonRoll.getValueAsDouble());
-    double imuAccelX = (filtX - Math.sin(pitchRad)) * 9.81; // gravity-compensated, m/s²
-    double imuAccelY = (filtY - Math.sin(rollRad))  * 9.81;
+    double imuAccelX = (filtX - Math.sin(pitchRad)) * GRAVITY_MPS2; // gravity-compensated, m/s²
+    double imuAccelY = (filtY - Math.sin(rollRad))  * GRAVITY_MPS2;
 
     double rawSlip = Math.hypot(encoderAccelX - imuAccelX, encoderAccelY - imuAccelY);
     slipBufferSum -= slipBuffer[slipBufferIndex];
