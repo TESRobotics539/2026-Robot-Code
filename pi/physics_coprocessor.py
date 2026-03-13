@@ -32,8 +32,13 @@ ShooterTuner/Params so they stay in sync with dashboard edits.
 
 NetworkTables (table: "UltraShooter")
 ---------------------------------------
-  Pi Physics Velocity ft/s  double  — raw physics-calculated flywheel velocity
-  Pi Heartbeat              integer — increments every cycle; roboRIO staleness check
+  Reads:
+    Avg Distance to Hub (ft)  double  — 1-s averaged robot-center→hub distance; published
+                                        directly by UltraShooter.java via nt.getEntry()
+  Writes:
+    Pi Physics Velocity ft/s  double  — flywheel surface speed (ft/s) required for current distance
+    Pi Time of Flight (s)     double  — ball time-of-flight (s) for motion-compensation lead
+    Pi Heartbeat              integer — increments every cycle; roboRIO uses for staleness check
 """
 
 import math
@@ -147,7 +152,9 @@ def calculate_tof_seconds(
     Analytic when drag_coeff == 0; numerical otherwise.
     """
     angle_rad = math.radians(LAUNCH_ANGLE_DEG)
-    d = distance_to_hub_m - _in_to_m(SHOOTER_OFFSET_INCHES)
+    # Shooter is at the BACK of the robot — add offset to get shooter-to-hub range.
+    # Mirrors Java: d = distanceToHubMeters + SHOOTER_OFFSET_M
+    d = distance_to_hub_m + _in_to_m(SHOOTER_OFFSET_INCHES)
     h = _in_to_m(HUB_HEIGHT_INCHES) - _in_to_m(HOOD_HEIGHT_INCHES)
 
     if d <= 0:
@@ -189,7 +196,9 @@ def calculate_velocity_fps(
     ball_mass_lbs       : ball mass (lbs); converted to kg internally
     """
     angle_rad = math.radians(LAUNCH_ANGLE_DEG)
-    d = distance_to_hub_m - _in_to_m(SHOOTER_OFFSET_INCHES)
+    # Shooter is at the BACK of the robot — add offset to get shooter-to-hub range.
+    # Mirrors Java: d = distanceToHubMeters + SHOOTER_OFFSET_M
+    d = distance_to_hub_m + _in_to_m(SHOOTER_OFFSET_INCHES)
     h = _in_to_m(HUB_HEIGHT_INCHES) - _in_to_m(HOOD_HEIGHT_INCHES)
 
     if d <= 0 or flywheel_efficiency <= 0:

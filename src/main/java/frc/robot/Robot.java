@@ -8,6 +8,7 @@ import static edu.wpi.first.units.Units.Volts;
 
 import java.util.OptionalInt;
 
+import com.ctre.phoenix6.SignalLogger;
 import org.littletonrobotics.junction.LoggedRobot;
 import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.networktables.NT4Publisher;
@@ -44,13 +45,18 @@ public class Robot extends LoggedRobot {
         } else {
             Logger.addDataReceiver(new NT4Publisher());
         }
+        // Suppress CTRE's built-in signal logger — prevents double-logging with AdvantageKit.
+        SignalLogger.enableAutoLogging(false);
         Logger.start();
 
         // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
         // autonomous chooser on the dashboard.
         m_robotContainer = new RobotContainer();
         SmartDashboard.putData(CommandScheduler.getInstance());
-        RobotController.setBrownoutVoltage(Volts.of(6.1));
+        // Lower brownout threshold so the robot keeps running longer on a depleted battery.
+        // Default (~6.3V) causes spurious shutdowns under hard-stall loads; 4.6V is the
+        // 1678 standard that avoids false brownouts while still protecting the RIO.
+        RobotController.setBrownoutVoltage(Volts.of(4.6));
     }
     
     /**

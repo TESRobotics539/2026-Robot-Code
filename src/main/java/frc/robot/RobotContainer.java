@@ -18,6 +18,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
@@ -38,6 +39,7 @@ import frc.robot.subsystems.iodiagnostics.FeederIOReal;
 import frc.robot.subsystems.iodiagnostics.FloorIOReal;
 import frc.robot.subsystems.iodiagnostics.HangerIOReal;
 import frc.robot.subsystems.iodiagnostics.IntakeIOReal;
+import frc.robot.subsystems.iodiagnostics.UltraShooterIOReal;
 import frc.robot.subsystems.tuning.BumpTuner;
 import frc.robot.subsystems.tuning.ShooterAutoTuner;
 import frc.robot.subsystems.tuning.ShooterTuner;
@@ -71,7 +73,7 @@ public class RobotContainer
     private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field, bumpTuner);
     //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
     private final ShooterTuner     shooterTuner     = new ShooterTuner();
-    private final UltraShooter     ultraShooter     = new UltraShooter(drivebase, shooterTuner);
+    private final UltraShooter     ultraShooter     = new UltraShooter(new UltraShooterIOReal(), drivebase, shooterTuner);
     private final ShooterAutoTuner shooterAutoTuner = new ShooterAutoTuner(ultraShooter, shooterTuner);
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
@@ -215,6 +217,11 @@ public class RobotContainer
 
       // Manual mid-match gyro reset — press the Back (View) button on the Xbox controller
       driverXbox.back().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
+
+      // Emergency stop — cancels every running command immediately.
+      // Bind to Start so it's reachable without looking down at the controller.
+      driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
+          .ignoringDisable(true).withName("KillAll"));
 
       Command driveFieldOrientedAnglularVelocity = drivebase.driveFieldOriented(driveAngularVelocity);
       drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);

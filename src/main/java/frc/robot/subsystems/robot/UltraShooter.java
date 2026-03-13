@@ -4,17 +4,6 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
-import com.revrobotics.PersistMode;
-import com.revrobotics.RelativeEncoder;
-import com.revrobotics.ResetMode;
-import com.revrobotics.spark.ClosedLoopSlot;
-import com.revrobotics.spark.FeedbackSensor;
-import com.revrobotics.spark.SparkClosedLoopController;
-import com.revrobotics.spark.SparkFlex;
-import com.revrobotics.spark.SparkBase.ControlType;
-import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import com.revrobotics.spark.config.SparkFlexConfig;
 
 import java.util.Arrays;
 import java.util.function.BooleanSupplier;
@@ -37,7 +26,8 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.GameData;
 import frc.robot.Landmarks;
-import frc.robot.Ports;
+import frc.robot.subsystems.iodiagnostics.UltraShooterIO;
+import frc.robot.subsystems.iodiagnostics.UltraShooterIOInputsAutoLogged;
 import frc.robot.subsystems.tuning.ShooterTuner;
 
 /**
@@ -62,17 +52,15 @@ import frc.robot.subsystems.tuning.ShooterTuner;
  */
 public class UltraShooter extends SubsystemBase {
 
-    // ── Hardware ──────────────────────────────────────────────────────────────
+    // ── IO layer ──────────────────────────────────────────────────────────────
 
-    private static final double WHEEL_DIAMETER_FEET       = 4.0 / 12.0;
-    private static final double WHEEL_CIRCUMFERENCE_FEET  = Math.PI * WHEEL_DIAMETER_FEET;
-    /** Converts motor RPM → wheel surface velocity (ft/s). */
-    private static final double VELOCITY_CONVERSION_FACTOR = WHEEL_CIRCUMFERENCE_FEET / 60.0;
-    /** Neo Vortex free-speed surface velocity (ft/s) — used for FF. */
-    private static final double NEO_VORTEX_FREE_SPEED_FPS  = 6784.0 * VELOCITY_CONVERSION_FACTOR;
+    private final UltraShooterIO io;
+    private final UltraShooterIOInputsAutoLogged inputs = new UltraShooterIOInputsAutoLogged();
 
-    /** kV in V/(ft/s), derived from physics-based FF: 12 V / free-speed. */
-    private static final double KV = 12.0 / NEO_VORTEX_FREE_SPEED_FPS;
+    // ── KV feedforward constant ───────────────────────────────────────────────
+    // Kept here so applyPID() can compute the full feedforward without touching the IO layer.
+    private static final double WHEEL_CIRCUMFERENCE_FEET = Math.PI * (4.0 / 12.0);
+    private static final double KV = 12.0 / (6784.0 * WHEEL_CIRCUMFERENCE_FEET / 60.0);
 
     // ── Cached physics constants (derived from Constants at class-load time) ──
     // Avoids calling Math.toRadians / Units.inchesToMeters on every solver call.
@@ -84,18 +72,6 @@ public class UltraShooter extends SubsystemBase {
             Units.inchesToMeters(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
     private static final double HUB_HEIGHT_M =
             Units.inchesToMeters(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
-
-    private final SparkFlex primaryMotor   = new SparkFlex(Ports.kShooterLeft,   MotorType.kBrushless);
-    private final SparkFlex secondaryMotor = new SparkFlex(Ports.kShooterMiddle, MotorType.kBrushless);
-    private final SparkFlex tertiaryMotor  = new SparkFlex(Ports.kShooterRight,  MotorType.kBrushless);
-
-    private final RelativeEncoder primaryEncoder   = primaryMotor.getEncoder();
-    private final RelativeEncoder secondaryEncoder = secondaryMotor.getEncoder();
-    private final RelativeEncoder tertiaryEncoder  = tertiaryMotor.getEncoder();
-
-    private final SparkClosedLoopController primaryPID   = primaryMotor.getClosedLoopController();
-    private final SparkClosedLoopController secondaryPID = secondaryMotor.getClosedLoopController();
-    private final SparkClosedLoopController tertiaryPID  = tertiaryMotor.getClosedLoopController();
 
     // ── State ─────────────────────────────────────────────────────────────────
 
@@ -196,13 +172,10 @@ public class UltraShooter extends SubsystemBase {
     // Construction
     // ─────────────────────────────────────────────────────────────────────────
 
-    public UltraShooter(Swerve swerve, ShooterTuner shooterTuner) {
+    public UltraShooter(UltraShooterIO io, Swerve swerve, ShooterTuner shooterTuner) {
+        this.io            = io;
         this.swerve        = swerve;
         this.shooterTuner  = shooterTuner;
-
-        configureMotor(primaryMotor,   /* inverted */ false);
-        configureMotor(secondaryMotor, /* inverted */ false);
-        configureMotor(tertiaryMotor,  /* inverted */ true);
 
         // ── Mechanism2d trajectory canvas ─────────────────────────────────────
         final double hoodH = Constants.UltraShooterConstants.kHoodHeightFromFloorInches / 12.0;
@@ -268,27 +241,6 @@ public class UltraShooter extends SubsystemBase {
         SmartDashboard.putData(this);
     }
 
-    private void configureMotor(SparkFlex motor, boolean inverted) {
-        SparkFlexConfig cfg = new SparkFlexConfig();
-        cfg.inverted(inverted)
-           .idleMode(IdleMode.kCoast)
-           .smartCurrentLimit(
-               Constants.UltraShooterConstants.kSmartCurrentLimit,
-               Constants.UltraShooterConstants.kFreeCurrentLimit)
-           .secondaryCurrentLimit(Constants.UltraShooterConstants.kStatorCurrentLimit);
-        cfg.encoder
-           .velocityConversionFactor(VELOCITY_CONVERSION_FACTOR);
-        cfg.closedLoop
-           .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-           .pid(Constants.UltraShooterConstants.kP,
-                Constants.UltraShooterConstants.kI,
-                Constants.UltraShooterConstants.kD)
-           .velocityFF(KV);
-        // Position is never used on the Rio for these motors — slow it down to reduce CAN traffic.
-        cfg.signals
-           .primaryEncoderPositionPeriodMs(500);
-        motor.configure(cfg, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Projectile-motion calculator
@@ -781,23 +733,11 @@ public class UltraShooter extends SubsystemBase {
     }
 
     /**
-     * Re-configures all three SparkFlex controllers with a new kP value.
-     * Uses {@code kNoResetSafeParameters} so only the closed-loop block is
-     * touched, and {@code kNoPersistParameters} to avoid burning motor flash
-     * (the Pi JSON is the persistence layer instead).
+     * Re-configures all three SparkFlex controllers with a new kP value via the IO layer.
+     * Uses kNoResetSafeParameters + kNoPersistParameters — the Pi JSON is the persistence layer.
      */
     private void applyKpToMotors(double kP) {
-        SparkFlexConfig cfg = new SparkFlexConfig();
-        cfg.closedLoop
-           .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-           .pid(kP, Constants.UltraShooterConstants.kI, Constants.UltraShooterConstants.kD)
-           .velocityFF(KV);
-        primaryMotor  .configure(cfg, com.revrobotics.spark.SparkBase.ResetMode.kNoResetSafeParameters,
-                                       com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
-        secondaryMotor.configure(cfg, com.revrobotics.spark.SparkBase.ResetMode.kNoResetSafeParameters,
-                                       com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
-        tertiaryMotor .configure(cfg, com.revrobotics.spark.SparkBase.ResetMode.kNoResetSafeParameters,
-                                       com.revrobotics.spark.SparkBase.PersistMode.kNoPersistParameters);
+        io.setKp(kP);
         appliedKp = kP;
     }
 
@@ -813,14 +753,10 @@ public class UltraShooter extends SubsystemBase {
                                                Constants.UltraShooterConstants.kMaxVoltageBias);
             }
             double ff = Constants.UltraShooterConstants.kS + rampedSetpoint * KV + voltageBias;
-            primaryPID  .setSetpoint(rampedSetpoint, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
-            secondaryPID.setSetpoint(rampedSetpoint, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
-            tertiaryPID .setSetpoint(rampedSetpoint, ControlType.kVelocity, ClosedLoopSlot.kSlot0, ff);
+            io.setVelocity(rampedSetpoint, ff);
         } else {
             voltageBias = 0.0;  // Reset on stop — fresh calibration every shot.
-            primaryMotor  .set(0);
-            secondaryMotor.set(0);
-            tertiaryMotor .set(0);
+            io.stop();
         }
     }
 
@@ -859,10 +795,15 @@ public class UltraShooter extends SubsystemBase {
         Logger.recordOutput("UltraShooter/LaunchAngle_deg",       Constants.UltraShooterConstants.kLaunchAngleDegrees);
         Logger.recordOutput("UltraShooter/HoodHeight_in",         Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
         Logger.recordOutput("UltraShooter/HubHeight_in",          Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
-        Logger.recordOutput("UltraShooter/PrimaryCurrent_A",      primaryMotor.getOutputCurrent());
-        Logger.recordOutput("UltraShooter/SecondaryCurrent_A",    secondaryMotor.getOutputCurrent());
-        Logger.recordOutput("UltraShooter/TertiaryCurrent_A",     tertiaryMotor.getOutputCurrent());
+        Logger.recordOutput("UltraShooter/PrimaryCurrent_A",      inputs.leftCurrentAmps);
+        Logger.recordOutput("UltraShooter/SecondaryCurrent_A",    inputs.middleCurrentAmps);
+        Logger.recordOutput("UltraShooter/TertiaryCurrent_A",     inputs.rightCurrentAmps);
         Logger.recordOutput("UltraShooter/PiActive",              isPiResultFresh());
+
+        // Publish average distance directly to NT so physics_coprocessor.py can read it.
+        // Logger.recordOutput() goes through AdvantageKit and may be published under a
+        // different key prefix; this direct publish guarantees the Pi reads the right value.
+        nt.getEntry("Avg Distance to Hub (ft)").setDouble(dist * 3.28084);
 
         // Trajectory visualization at ~10 Hz (every 5 cycles) — display-only, no need for 50 Hz.
         if (++vizSkipCounter % 5 == 0) {
@@ -940,9 +881,12 @@ public class UltraShooter extends SubsystemBase {
 
     @Override
     public void periodic() {
-        cachedVelocity = (primaryEncoder.getVelocity()
-                        + secondaryEncoder.getVelocity()
-                        + tertiaryEncoder.getVelocity()) / 3.0;
+        io.updateInputs(inputs);
+        Logger.processInputs("UltraShooter", inputs);
+
+        cachedVelocity = (inputs.leftVelocityFPS
+                        + inputs.middleVelocityFPS
+                        + inputs.rightVelocityFPS) / 3.0;
         updatePiStaleness();
         updateDistanceBuffer();
         updateVelocityBuffer();
@@ -963,18 +907,18 @@ public class UltraShooter extends SubsystemBase {
     @Override
     public void initSendable(SendableBuilder builder) {
         super.initSendable(builder);
-        builder.addDoubleProperty("Left ft/s",      () -> primaryEncoder.getVelocity(),   null);
-        builder.addDoubleProperty("Middle ft/s",    () -> secondaryEncoder.getVelocity(), null);
-        builder.addDoubleProperty("Right ft/s",     () -> tertiaryEncoder.getVelocity(),  null);
-        builder.addDoubleProperty("Left Current",   () -> primaryMotor.getOutputCurrent(),   null);
-        builder.addDoubleProperty("Middle Current", () -> secondaryMotor.getOutputCurrent(), null);
-        builder.addDoubleProperty("Right Current",  () -> tertiaryMotor.getOutputCurrent(),  null);
-        builder.addDoubleProperty("Target ft/s",    () -> velocityTarget,       null);
-        builder.addDoubleProperty("Ramped ft/s",    () -> rampedSetpoint,       null);
-        builder.addDoubleProperty("Avg ft/s",       this::getAverageVelocity,   null);
+        builder.addDoubleProperty("Left ft/s",      () -> inputs.leftVelocityFPS,    null);
+        builder.addDoubleProperty("Middle ft/s",    () -> inputs.middleVelocityFPS,  null);
+        builder.addDoubleProperty("Right ft/s",     () -> inputs.rightVelocityFPS,   null);
+        builder.addDoubleProperty("Left Current",   () -> inputs.leftCurrentAmps,    null);
+        builder.addDoubleProperty("Middle Current", () -> inputs.middleCurrentAmps,  null);
+        builder.addDoubleProperty("Right Current",  () -> inputs.rightCurrentAmps,   null);
+        builder.addDoubleProperty("Target ft/s",    () -> velocityTarget,            null);
+        builder.addDoubleProperty("Ramped ft/s",    () -> rampedSetpoint,            null);
+        builder.addDoubleProperty("Avg ft/s",       this::getAverageVelocity,        null);
         builder.addDoubleProperty("Physics ft/s",
-                () -> calculateRequiredVelocityFPS(swerve.getDistanceToHub()), null);
-        builder.addBooleanProperty("Ready",         this::isReady,              null);
+                () -> calculateRequiredVelocityFPS(swerve.getDistanceToHub()),       null);
+        builder.addBooleanProperty("Ready",         this::isReady,                   null);
         builder.addStringProperty("Command",
                 () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "none", null);
     }
