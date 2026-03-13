@@ -83,6 +83,18 @@ public final class Constants {
     public static final double kMinPosition       = 0.53;
     public static final double kMaxPosition       = 0.9;
 
+    // ── Roller anti-jam ──────────────────────────────────────────────────
+    /** Current (amps) above which a roller jam is suspected while intaking. */
+    public static final double kRollerJamCurrentThreshold = 40.0;
+    /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
+    public static final double kRollerJamVelocityThresholdRPM = 1000.0;
+    /** Reverse speed (RPM, magnitude) applied during the roller anti-jam pulse. */
+    public static final double kRollerUnjamReverseRPM = 2500.0;
+    /** Duration of the reverse pulse during roller anti-jam (seconds). */
+    public static final double kRollerUnjamReverseSeconds = 0.33;
+    /** Velocity (RPM) above which the roller is considered to be running freely after an unjam. */
+    public static final double kRollerFreeVelocityThresholdRPM = 3000.0;
+
     // ── Agitation (pivot motion during shooting to settle fuel) ──────────
     /** Pivot percent output going up during agitation. */
     public static final double kAgitateUpPower = 0.25;
@@ -113,6 +125,18 @@ public final class Constants {
     public static final double kI          = 0.0;
     public static final double kD          = 0.0;
     public static final double kVelocityFF = 0.000175;
+
+    // ── Anti-jam ──────────────────────────────────────────────────────────
+    /** Current (amps) above which a jam is suspected while feeding. */
+    public static final double kJamCurrentThreshold = 35.0;
+    /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
+    public static final double kJamVelocityThresholdRPM = 1000.0;
+    /** Reverse speed (RPM, magnitude) applied during the anti-jam pulse. */
+    public static final double kUnjamReverseRPM = 2500.0;
+    /** Duration of the reverse pulse during anti-jam (seconds). */
+    public static final double kUnjamReverseSeconds = 0.5;
+    /** Velocity (RPM) above which the feeder is considered to be running freely after an unjam. */
+    public static final double kFreeVelocityThresholdRPM = 3000.0;
   }
 
   // ── Floor ─────────────────────────────────────────────────────────────────

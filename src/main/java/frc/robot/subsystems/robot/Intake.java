@@ -41,6 +41,13 @@ public class Intake extends SubsystemBase {
     private boolean lastRollerAboveThreshold = false;
     private boolean rollerJustSpiked = false;
     private final Timer rollerNoLoadTimer = new Timer();
+
+    // Roller anti-jam state machine
+    private static final int ROLLER_RUNNING    = 0;
+    private static final int ROLLER_REVERSING  = 1;
+    private static final int ROLLER_RECOVERING = 2;
+    private int rollerUnjamState = ROLLER_RUNNING;
+    private final Timer rollerUnjamTimer = new Timer();
     private boolean matchStowLocked = false;
     private boolean deployedPositionCalibrated = false;
     private boolean initialDeployEnabled = false;
@@ -80,9 +87,46 @@ public class Intake extends SubsystemBase {
             io.setPivotSetpoint(targetPivotPosition);
         }
 
-        // Detect rising edges of roller current to count fuel pickups
-        boolean aboveThreshold = rollerRunning &&
-            inputs.rollerCurrentAmps > Constants.IntakeConstants.kRollerLoadCurrentThreshold;
+        // Roller anti-jam state machine — runs before spike detection so that reverse-phase
+        // current cannot trigger false fuel-pickup events.
+        if (rollerRunning) {
+            boolean jammed = inputs.rollerCurrentAmps > Constants.IntakeConstants.kRollerJamCurrentThreshold
+                && Math.abs(inputs.rollerVelocityRPM) < Constants.IntakeConstants.kRollerJamVelocityThresholdRPM;
+            boolean free = inputs.rollerVelocityRPM > Constants.IntakeConstants.kRollerFreeVelocityThresholdRPM;
+
+            Logger.recordOutput("Intake/RollerUnjamState",
+                rollerUnjamState == ROLLER_RUNNING ? "RUNNING"
+                    : rollerUnjamState == ROLLER_REVERSING ? "REVERSING" : "RECOVERING");
+
+            if (rollerUnjamState == ROLLER_RUNNING) {
+                io.setRollerRPM(Constants.IntakeConstants.kRollerRPM);
+                if (jammed) {
+                    io.setRollerRPM(-Constants.IntakeConstants.kRollerUnjamReverseRPM);
+                    rollerUnjamTimer.restart();
+                    rollerUnjamState = ROLLER_REVERSING;
+                }
+            } else if (rollerUnjamState == ROLLER_REVERSING) {
+                if (rollerUnjamTimer.hasElapsed(Constants.IntakeConstants.kRollerUnjamReverseSeconds)) {
+                    io.setRollerRPM(Constants.IntakeConstants.kRollerRPM);
+                    rollerUnjamState = ROLLER_RECOVERING;
+                }
+            } else { // RECOVERING
+                if (free) {
+                    rollerUnjamState = ROLLER_RUNNING;
+                } else if (jammed) {
+                    io.setRollerRPM(-Constants.IntakeConstants.kRollerUnjamReverseRPM);
+                    rollerUnjamTimer.restart();
+                    rollerUnjamState = ROLLER_REVERSING;
+                }
+            }
+        } else {
+            rollerUnjamState = ROLLER_RUNNING; // reset on stop so next run starts clean
+        }
+
+        // Detect rising edges of roller current to count fuel pickups.
+        // Gated on ROLLER_RUNNING so reverse-phase current cannot trigger false pickup events.
+        boolean aboveThreshold = rollerRunning && rollerUnjamState == ROLLER_RUNNING
+            && inputs.rollerCurrentAmps > Constants.IntakeConstants.kRollerLoadCurrentThreshold;
         if (aboveThreshold && !lastRollerAboveThreshold) {
             rollerSpikeCount++;
             rollerJustSpiked = true;

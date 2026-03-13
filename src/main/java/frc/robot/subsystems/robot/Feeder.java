@@ -7,6 +7,7 @@ import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -51,8 +52,56 @@ public class Feeder extends SubsystemBase {
         io.setPercentOutput(percentOutput);
     }
 
+    /**
+     * Feeds at {@link Speed#FEED} with automatic anti-jam.
+     *
+     * <p>State machine:
+     * <ol>
+     *   <li>FEEDING — runs at feed speed; transitions to REVERSING on current spike + low velocity.
+     *   <li>REVERSING — runs at {@code kUnjamReverseRPM} for {@code kUnjamReverseSeconds}, then transitions to RECOVERING.
+     *   <li>RECOVERING — re-applies feed speed; returns to FEEDING once velocity exceeds {@code kFreeVelocityThresholdRPM}, or repeats the reverse pulse if still jammed.
+     * </ol>
+     *
+     * <p>Never finishes on its own; interrupt to stop.
+     */
     public Command feedCommand() {
-        return startEnd(() -> set(Speed.FEED), () -> setPercentOutput(0));
+        final int FEEDING = 0, REVERSING = 1, RECOVERING = 2;
+        final int[] state = {FEEDING};
+        final Timer unjamTimer = new Timer();
+
+        return runOnce(() -> {
+            set(Speed.FEED);
+            state[0] = FEEDING;
+        }).andThen(run(() -> {
+            boolean jammed = inputs.outputCurrentAmps > Constants.FeederConstants.kJamCurrentThreshold
+                && Math.abs(inputs.velocityRPM) < Constants.FeederConstants.kJamVelocityThresholdRPM;
+            boolean free = inputs.velocityRPM > Constants.FeederConstants.kFreeVelocityThresholdRPM;
+
+            Logger.recordOutput("Feeder/UnjamState",
+                state[0] == FEEDING ? "FEEDING" : state[0] == REVERSING ? "REVERSING" : "RECOVERING");
+
+            if (state[0] == FEEDING) {
+                set(Speed.FEED);
+                if (jammed) {
+                    io.setVelocityRPM(-Constants.FeederConstants.kUnjamReverseRPM);
+                    unjamTimer.restart();
+                    state[0] = REVERSING;
+                }
+            } else if (state[0] == REVERSING) {
+                if (unjamTimer.hasElapsed(Constants.FeederConstants.kUnjamReverseSeconds)) {
+                    set(Speed.FEED);
+                    state[0] = RECOVERING;
+                }
+            } else { // RECOVERING
+                if (free) {
+                    state[0] = FEEDING;
+                } else if (jammed) {
+                    io.setVelocityRPM(-Constants.FeederConstants.kUnjamReverseRPM);
+                    unjamTimer.restart();
+                    state[0] = REVERSING;
+                }
+            }
+        })).finallyDo(interrupted -> setPercentOutput(0));
     }
 
     public Command reverseCommand() {
