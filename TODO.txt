@@ -85,11 +85,13 @@ Priority tiers
 [DEPLOY]   Upload all Pi scripts via the web dashboard
            ("Application" → "Uploaded Python file" → upload main.py):
              pi/main.py                  ← set as the startup script
-             pi/physics_coprocessor.py
+             pi/physics_engine.py
              pi/ball_detector.py
              pi/apriltag_vision.py
              pi/bump_tuner.py
              pi/shooter_tuner.py
+             pi/match_logger.py
+             pi/health_watchdog.py
            Use the "File Upload" section to place all in /home/pi/.
 
 [DEPLOY]   Verify Pi Active = true appears in the UltraShooter NT table

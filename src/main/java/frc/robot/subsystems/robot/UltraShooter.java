@@ -110,8 +110,8 @@ public class UltraShooter extends SubsystemBase {
 
     private final ShooterTuner shooterTuner;
 
-    // ── NetworkTable — Pi co-processor reader entries only ────────────────────
-    // These entries are READ from physics_coprocessor.py running on the Pi.
+    // ── NetworkTable — Pi physics engine reader entries only ──────────────────
+    // These entries are READ from physics_engine.py running on the Pi.
     // All output telemetry is handled by Logger.recordOutput() in updateNetworkTable().
 
     private final NetworkTable        nt           = NetworkTableInstance.getDefault().getTable("UltraShooter");
@@ -150,8 +150,8 @@ public class UltraShooter extends SubsystemBase {
     // Fuel ball: short, thick, yellow ligament that reads as a dot
     private final MechanismLigament2d trajFuelDot;
 
-    // ── Pi co-processor integration ───────────────────────────────────────────
-    // physics_coprocessor.py (on WPILibPi) publishes raw physics velocity and a
+    // ── Pi physics engine integration ─────────────────────────────────────────
+    // physics_engine.py (on WPILibPi) publishes raw physics velocity and a
     // heartbeat counter every 20 ms.  We prefer the Pi result when the heartbeat
     // has changed within the last 25 cycles (500 ms); otherwise we fall back to
     // the local calculateRequiredVelocityFPS() call transparently.
@@ -533,7 +533,7 @@ public class UltraShooter extends SubsystemBase {
      * Updates the flywheel target using the projectile-motion calculator from the
      * 1-second averaged distance, with the fine-tune offset blended in.
      *
-     * <p>When the Raspberry Pi co-processor ({@code physics_coprocessor.py}) is
+     * <p>When the Raspberry Pi physics engine ({@code physics_engine.py}) is
      * live, its pre-computed physics velocity is used instead of the local
      * calculation.  If the Pi heartbeat goes stale for more than 500 ms the
      * fallback is automatic and transparent.
@@ -574,7 +574,7 @@ public class UltraShooter extends SubsystemBase {
     }
 
     /**
-     * Returns true when the Pi co-processor heartbeat has updated within the
+     * Returns true when the Pi physics engine heartbeat has updated within the
      * last {@value #PI_STALE_THRESHOLD} cycles (~500 ms).
      */
     private boolean isPiResultFresh() {
@@ -801,7 +801,7 @@ public class UltraShooter extends SubsystemBase {
         Logger.recordOutput("UltraShooter/TertiaryCurrent_A",     inputs.rightCurrentAmps);
         Logger.recordOutput("UltraShooter/PiActive",              isPiResultFresh());
 
-        // Publish average distance directly to NT so physics_coprocessor.py can read it.
+        // Publish average distance directly to NT so physics_engine.py can read it.
         // Logger.recordOutput() goes through AdvantageKit and may be published under a
         // different key prefix; this direct publish guarantees the Pi reads the right value.
         nt.getEntry("Avg Distance to Hub (ft)").setDouble(dist * METERS_TO_FEET);

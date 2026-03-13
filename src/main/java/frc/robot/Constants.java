@@ -316,6 +316,40 @@ public final class Constants {
     public static final double kCloseRangeBackupSpeedFps = 3.0;
   }
 
+  // ── Rumble ────────────────────────────────────────────────────────────────
+  public static class RumbleConstants {
+
+    // ── Fuel pickup (intake roller spike) ────────────────────────────────
+    /** Rumble intensity for the fuel-pickup double-pulse (0.0–1.0). */
+    public static final double kFuelPickupIntensity        = 0.8;
+    /** Duration of each on-pulse in the fuel-pickup double-pulse (seconds). */
+    public static final double kFuelPickupPulseOnSeconds   = 0.12;
+    /** Gap between the two fuel-pickup pulses (seconds). */
+    public static final double kFuelPickupPauseBetweenSeconds = 0.08;
+
+    // ── Shoot pulse (bumper spin-up + trigger feed phase) ─────────────────
+    /** Rumble intensity during the repeating shoot pulse (0.0–1.0). */
+    public static final double kShootPulseIntensity  = 0.7;
+    /** Duration of the on-phase of each shoot pulse (seconds). */
+    public static final double kShootPulseOnSeconds  = 0.15;
+    /** Duration of the off-phase of each shoot pulse (seconds). */
+    public static final double kShootPulseOffSeconds = 0.15;
+
+    // ── Shoot announcement (right-trigger sequence start) ─────────────────
+    /** Duration of the single announcement pulse when the aim-and-fire sequence begins (seconds). */
+    public static final double kShootAnnouncementOnSeconds = 0.25;
+
+    // ── Climb success ─────────────────────────────────────────────────────
+    /** Rumble intensity for the post-climb celebratory pulse (0.0–1.0). */
+    public static final double kClimbSuccessIntensity      = 1.0;
+    /** Duration of the on-phase of each climb-success pulse (seconds). */
+    public static final double kClimbSuccessPulseOnSeconds = 0.4;
+    /** Duration of the off-phase of each climb-success pulse (seconds). */
+    public static final double kClimbSuccessPulseOffSeconds = 0.1;
+    /** Maximum duration of the climb-success rumble sequence (seconds). */
+    public static final double kClimbSuccessDurationSeconds = 15.0;
+  }
+
   // ── Drivetrain IMU / Bump Detection ───────────────────────────────────────
   public static class BumpDetectionConstants {
 

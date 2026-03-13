@@ -12,16 +12,17 @@ Deploy steps
       http://wpilibpi.local   (or http://10.5.39.XX on the field network)
 2. Go to "Application" → set mode to "Uploaded Python file".
 3. Upload THIS file (main.py).
-   Also upload ball_detector.py, physics_coprocessor.py, shooter_tuner.py,
-   apriltag_vision.py, bump_tuner.py, and trajectory_visualizer.py to the
-   same directory — use the web dashboard's "File Upload" section.
+   Also upload ball_detector.py, physics_engine.py, shooter_tuner.py,
+   apriltag_vision.py, bump_tuner.py, trajectory_visualizer.py,
+   match_logger.py, and health_watchdog.py to the same directory
+   — use the web dashboard's "File Upload" section.
 4. Click Save.  The Pi will run main.py automatically on every boot.
 
 Directory layout on the Pi
 ---------------------------
   /home/pi/
     main.py                  ← this file (set as the startup script)
-    physics_coprocessor.py   ← physics module
+    physics_engine.py        ← physics module
     ball_detector.py         ← vision module
 
 Camera streams
@@ -35,11 +36,13 @@ Camera streams
 import threading
 import ntcore
 
-import physics_coprocessor
+import physics_engine
 import ball_detector
 import apriltag_vision
 import bump_tuner
 import shooter_tuner
+import match_logger
+import health_watchdog
 # trajectory_visualizer is available as a Pi-side MJPEG debug tool but is not
 # started by default — the RoboRIO's Mechanism2d widget is used instead.
 
@@ -54,18 +57,20 @@ def main() -> None:
     inst.startDSClient()   # also accepts the DS-forwarded address at competitions
 
     # Each module gets its own NT subtable to keep entries organised.
-    physics_table       = inst.getTable("UltraShooter")   # shares the shooter table
-    ball_table          = inst.getTable("BallDetection")
-    apriltag_table      = inst.getTable("PiVision")
-    bump_tuner_table    = inst.getTable("BumpTuner")
-    shooter_tuner_table = inst.getTable("ShooterTuner")
+    physics_table        = inst.getTable("UltraShooter")   # shares the shooter table
+    ball_table           = inst.getTable("BallDetection")
+    apriltag_table       = inst.getTable("PiVision")
+    bump_tuner_table     = inst.getTable("BumpTuner")
+    shooter_tuner_table  = inst.getTable("ShooterTuner")
+    match_logger_table   = inst.getTable("MatchLogger")    # used only for inst access
+    health_table         = inst.getTable("RobotHealth")
     # ── Launch co-processors in daemon threads ─────────────────────────────────
     # Daemon threads are killed automatically when the main process exits,
     # so a crash in one module doesn't hang the Pi.
 
     threads = [
         threading.Thread(
-            target=physics_coprocessor.run,
+            target=physics_engine.run,
             args=(physics_table,),
             name="physics",
             daemon=True,
@@ -92,6 +97,18 @@ def main() -> None:
             target=shooter_tuner.run,
             args=(shooter_tuner_table,),
             name="shooter-tuner",
+            daemon=True,
+        ),
+        threading.Thread(
+            target=match_logger.run,
+            args=(match_logger_table,),
+            name="match-logger",
+            daemon=True,
+        ),
+        threading.Thread(
+            target=health_watchdog.run,
+            args=(health_table,),
+            name="health-watchdog",
             daemon=True,
         ),
     ]

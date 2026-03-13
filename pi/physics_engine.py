@@ -1,5 +1,5 @@
 """
-UltraShooter Physics Co-processor  —  Team 539
+UltraShooter Physics Engine  —  Team 539
 ===============================================
 Runs as a module inside main.py.  Reads the 1-second averaged hub distance
 published by UltraShooter.java, computes the required flywheel surface velocity
@@ -247,7 +247,7 @@ def run(table: ntcore.NetworkTable) -> None:
     mass_sub     = tuner_params.getDoubleTopic("BallMassLbs").subscribe(DEFAULT_BALL_MASS_LBS)
 
     heartbeat: int = 0
-    print("Physics co-processor: running at 50 Hz (drag-aware).")
+    print("Physics engine: running at 50 Hz (drag-aware).")
 
     while True:
         effic = effic_sub.get()

@@ -39,6 +39,7 @@ public class Intake extends SubsystemBase {
     private boolean rollerRunning = false;
     private int rollerSpikeCount = 0;
     private boolean lastRollerAboveThreshold = false;
+    private boolean rollerJustSpiked = false;
     private final Timer rollerNoLoadTimer = new Timer();
     private boolean matchStowLocked = false;
     private boolean deployedPositionCalibrated = false;
@@ -84,6 +85,7 @@ public class Intake extends SubsystemBase {
             inputs.rollerCurrentAmps > Constants.IntakeConstants.kRollerLoadCurrentThreshold;
         if (aboveThreshold && !lastRollerAboveThreshold) {
             rollerSpikeCount++;
+            rollerJustSpiked = true;
             rollerNoLoadTimer.restart();
         }
         lastRollerAboveThreshold = aboveThreshold;
@@ -165,6 +167,19 @@ public class Intake extends SubsystemBase {
     public void resetFuelDetection() {
         rollerSpikeCount = 0;
         lastRollerAboveThreshold = false;
+        rollerJustSpiked = false;
+    }
+
+    /**
+     * Returns {@code true} once per roller current spike (rising edge of the load
+     * threshold crossing) and immediately clears the flag.  Intended to be polled
+     * by a {@link edu.wpi.first.wpilibj2.command.button.Trigger} in
+     * {@code RobotContainer} so each fuel pickup produces exactly one rumble event.
+     */
+    public boolean consumeRollerSpike() {
+        boolean spiked = rollerJustSpiked;
+        rollerJustSpiked = false;
+        return spiked;
     }
 
     private boolean isDeployed() {

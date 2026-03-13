@@ -23,7 +23,7 @@ UltraShooter/Hood Height From Floor (in)         [Double]   shooter exit height 
 UltraShooter/Hub Center Height From Floor (in)   [Double]   hub height constant
 UltraShooter/Primary Current                     [Double]   primary motor current (A)
 UltraShooter/Secondary Current                   [Double]   secondary motor current (A)
-UltraShooter/Pi Active                           [Boolean]  Pi physics co-processor connected
+UltraShooter/Pi Active                           [Boolean]  Pi physics engine connected
 UltraShooter/Pi Heartbeat                        [Integer]  Pi heartbeat counter
 
 
@@ -153,6 +153,24 @@ AbsoluteEncoders/Module BR Absolute Angle        [Double]   back-right absolute 
 AbsoluteEncoders/Module BR Relative Angle        [Double]   back-right motor angle
 AbsoluteEncoders/Module BR Drift                 [Double]   back-right drift
 
+
+────────────────────────────────────────────────────────────────────────────────
+  ROBOT HEALTH — Pi health watchdog (table: RobotHealth)
+────────────────────────────────────────────────────────────────────────────────
+RobotHealth/BatteryVoltage_V             [Double]   last sampled bus voltage (V)
+RobotHealth/BatteryStatus               [String]   "OK" | "LOW" | "CRITICAL"
+RobotHealth/LoopTimeOk                  [Boolean]  roboRIO loop < 25 ms
+RobotHealth/MaxMotorCurrent_A           [Double]   highest flywheel motor current (A)
+RobotHealth/PiModulesOk                 [Boolean]  all Pi daemon threads heartbeating
+RobotHealth/Status                      [String]   one-line summary ("OK" or fault list)
+RobotHealth/Heartbeat                   [Integer]  watchdog alive counter
+
+────────────────────────────────────────────────────────────────────────────────
+  ROBOT HEALTH — roboRIO source (published via AdvantageKit)
+────────────────────────────────────────────────────────────────────────────────
+AdvantageKit/Robot/BatteryVoltage_V     [Double]   RoboRIO bus voltage each cycle
+AdvantageKit/Robot/MatchTime_s          [Double]   remaining match time (s); -1 = unknown
+AdvantageKit/Robot/Enabled              [Boolean]  robot enabled state
 
 ────────────────────────────────────────────────────────────────────────────────
   MATCH CONTEXT

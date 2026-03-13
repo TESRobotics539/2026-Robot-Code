@@ -20,8 +20,10 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
@@ -112,19 +114,26 @@ public class RobotContainer
 
     public RobotContainer()
     {
-      configureNamedCommands();
-      autoChooser = AutoBuilder.buildAutoChooser();
+        configureNamedCommands();
+        autoChooser = AutoBuilder.buildAutoChooser();
 
-      // Configure the trigger bindings
-      configureBindings();
-      DriverStation.silenceJoystickConnectionWarning(true);
+        configureBindings();
+        DriverStation.silenceJoystickConnectionWarning(true);
 
-      limelight.setDefaultCommand(updateVisionCommand());
+        limelight.setDefaultCommand(updateVisionCommand());
 
-      blinkinLed.setDefaultCommand(Commands.run(blinkinLed::setPhasePattern, blinkinLed));
+        blinkinLed.setDefaultCommand(Commands.run(blinkinLed::setPhasePattern, blinkinLed));
 
-      SmartDashboard.putData("Auto Chooser", autoChooser);
-      SmartDashboard.putData("Field", field);
+        SmartDashboard.putData("Auto Chooser", autoChooser);
+        SmartDashboard.putData("Field", field);
+    }
+
+    private void configureBindings()
+    {
+        // ── Mode triggers ────────────────────────────────────────────────────
+        // Zero gyro and reset fuel detection at the start of every teleop period.
+        RobotModeTriggers.teleop().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
+        RobotModeTriggers.teleop().onTrue(intake.runOnce(intake::resetFuelDetection));
 
         // At autonomous start: enforce brake mode and snapshot the current encoder position
         // as the PID target. If kStowIntakeForMatch is enabled, the pivot is locked to that
@@ -133,8 +142,6 @@ public class RobotContainer
             intake.enforceBrakeMode();
             intake.lockCurrentPositionAsStow();
         }));
-
-        driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
 
         // At teleop start: if auto climb completed during autonomous, run the declimb sequence
         // first, then wait until the robot has driven 2 meters, then deploy the intake.
@@ -154,6 +161,13 @@ public class RobotContainer
                 }
             }, Set.of(hanger, intake)));
 
+        // ── Drive ────────────────────────────────────────────────────────────
+        drivebase.setDefaultCommand(drivebase.driveFieldOriented(driveAngularVelocity));
+
+        // Manual mid-match gyro reset — press the Back (View) button on the Xbox controller
+        driverXbox.back().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
+
+        // ── Intake ───────────────────────────────────────────────────────────
         // Single pull → deploy/toggle rollers. Double-tap → stow.
         driverXbox.leftTrigger().onTrue(
             Commands.defer(() -> {
@@ -163,10 +177,21 @@ public class RobotContainer
                 lastIntakeTriggerPressTime = now;
                 return isDoubleTap ? intake.stowCommand() : intake.intakePressCommand();
             }, Set.of(intake)));
+
+        // ── Shooter ──────────────────────────────────────────────────────────
+        // Right bumper: spin up → wait for ready → feed
         driverXbox.rightBumper().whileTrue(
             Commands.defer(() -> Commands.parallel(
                 ultraShooter.spinUpPhysicsCommand(),
                 intake.agitateCommand(),
+                // Pulse the entire time the button is held, from first press.
+                // Cleared by finallyDo() when the sequence ends or is interrupted.
+                Commands.sequence(
+                    Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kShootPulseIntensity)),
+                    Commands.waitSeconds(Constants.RumbleConstants.kShootPulseOnSeconds),
+                    Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)),
+                    Commands.waitSeconds(Constants.RumbleConstants.kShootPulseOffSeconds)
+                ).repeatedly(),
                 Commands.waitUntil(ultraShooter::isReady)
                     .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
                     .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
@@ -174,7 +199,10 @@ public class RobotContainer
                         feeder.feedCommand(),
                         Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())
                     ))
-            ), Set.of(ultraShooter, intake, feeder, floor)));
+            ), Set.of(ultraShooter, intake, feeder, floor))
+            .finallyDo(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)));
+
+        // X: dump shot (fixed low speed)
         driverXbox.x().whileTrue(
             Commands.defer(() -> Commands.parallel(
                 ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
@@ -186,45 +214,82 @@ public class RobotContainer
                         Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())
                     ))
             ), Set.of(ultraShooter, feeder, floor)));
+
+        // Right trigger: aim + shoot (physics-based, only while hub is active)
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
-            Commands.parallel(subsystemCommands.shootMap(), intake.agitateCommand()))
+            Commands.parallel(
+                // Single announcement pulse the moment the shot sequence begins.
+                Commands.sequence(
+                    Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kShootPulseIntensity)),
+                    Commands.waitSeconds(Constants.RumbleConstants.kShootAnnouncementOnSeconds),
+                    Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0))
+                ),
+                subsystemCommands.shootMapWithFeedExtra(
+                    // Pulsing rumble once the feeder is feeding.
+                    Commands.sequence(
+                        Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kShootPulseIntensity)),
+                        Commands.waitSeconds(Constants.RumbleConstants.kShootPulseOnSeconds),
+                        Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)),
+                        Commands.waitSeconds(Constants.RumbleConstants.kShootPulseOffSeconds)
+                    ).repeatedly()
+                ),
+                intake.agitateCommand()
+            ).finallyDo(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)))
             .onFalse(Commands.parallel(
                 subsystemCommands.holdAimAndSpeedCommand(1.5),
                 intake.runOnce(intake::resetFuelDetection)));
 
-      // D-pad up/down → manual hanger control
-      driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
-                        .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-      driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
+        // ── Feeder ───────────────────────────────────────────────────────────
+        driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
+
+        // ── Hanger ───────────────────────────────────────────────────────────
+        // D-pad up/down → manual hanger control
+        driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
                           .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-      driverXbox.a().onTrue(
-          hanger.runOnce(() -> hanger.setPercentOutput(Constants.HangerConstants.kNudgePower))
-              .andThen(Commands.waitSeconds(Constants.HangerConstants.kNudgeSeconds))
-              .andThen(hanger.runOnce(() -> hanger.setPercentOutput(0))));
+        driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
+                            .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
 
-      driverXbox.y().onTrue(hanger.autoClimbCommand());
-      driverXbox.y()
-          .and(() -> DriverStation.isTeleop() && DriverStation.getMatchTime() <= 30)
-          .onTrue(ultraShooter.spinDownCommand());
-    }
+        // Y: auto climb; also spin down shooter in last 30 seconds of teleop
+        driverXbox.y().onTrue(hanger.autoClimbCommand());
+        driverXbox.y()
+            .and(() -> DriverStation.isTeleop() && DriverStation.getMatchTime() <= 30)
+            .onTrue(ultraShooter.spinDownCommand());
 
-    private void configureBindings()
-    {
-      // Zero gyro to field-forward every time teleop starts
-      RobotModeTriggers.teleop().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
-      // Reset fuel detection so prespin only activates once the driver picks up fuel
-      RobotModeTriggers.teleop().onTrue(intake.runOnce(intake::resetFuelDetection));
+        // Slow celebratory pulse when the climb sequence completes during teleop.
+        // Pattern is distinct from the fast shoot pulse — see RumbleConstants for timings.
+        // Runs until kClimbSuccessDurationSeconds have elapsed or the match ends.
+        new Trigger(hanger::isAutoClimbCompleted)
+            .and(RobotModeTriggers.teleop())
+            .onTrue(
+                Commands.sequence(
+                    Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kClimbSuccessIntensity)),
+                    Commands.waitSeconds(Constants.RumbleConstants.kClimbSuccessPulseOnSeconds),
+                    Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)),
+                    Commands.waitSeconds(Constants.RumbleConstants.kClimbSuccessPulseOffSeconds)
+                ).repeatedly()
+                .withTimeout(Constants.RumbleConstants.kClimbSuccessDurationSeconds)
+                .finallyDo(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0))
+                .withName("ClimbSuccessRumble"));
 
-      // Manual mid-match gyro reset — press the Back (View) button on the Xbox controller
-      driverXbox.back().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
+        // ── Feedback ─────────────────────────────────────────────────────────
+        // Brief double-pulse rumble on each roller current spike so the driver
+        // feels every fuel ball enter the robot without looking down.
+        new Trigger(intake::consumeRollerSpike)
+            .and(RobotModeTriggers.teleop())
+            .onTrue(Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kFuelPickupIntensity))
+                .andThen(Commands.waitSeconds(Constants.RumbleConstants.kFuelPickupPulseOnSeconds))
+                .andThen(Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)))
+                .andThen(Commands.waitSeconds(Constants.RumbleConstants.kFuelPickupPauseBetweenSeconds))
+                .andThen(Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kFuelPickupIntensity)))
+                .andThen(Commands.waitSeconds(Constants.RumbleConstants.kFuelPickupPulseOnSeconds))
+                .andThen(Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)))
+                .withName("FuelPickupRumble"));
 
-      // Emergency stop — cancels every running command immediately.
-      // Bind to Start so it's reachable without looking down at the controller.
-      driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
-          .ignoringDisable(true).withName("KillAll"));
-
-      Command driveFieldOrientedAnglularVelocity = drivebase.driveFieldOriented(driveAngularVelocity);
-      drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
+        // ── Utility ──────────────────────────────────────────────────────────
+        // Emergency stop — cancels every running command immediately.
+        // Bind to Start so it's reachable without looking down at the controller.
+        driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
+            .ignoringDisable(true).withName("KillAll"));
     }
 
     private void configureNamedCommands() {

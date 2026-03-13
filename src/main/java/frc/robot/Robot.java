@@ -77,6 +77,10 @@ public class Robot extends LoggedRobot {
         Logger.recordOutput("LoopTime/ms",              (Timer.getFPGATimestamp() - loopStart) * 1000.0);
         Logger.recordOutput("GameData/HubActive",        GameData.isHubActive());
         Logger.recordOutput("GameData/HubActiveExpanded", GameData.isHubActiveExpanded(5.0));
+        // Health metrics read by health_watchdog.py and match_logger.py on the Pi.
+        Logger.recordOutput("Robot/BatteryVoltage_V", RobotController.getBatteryVoltage());
+        Logger.recordOutput("Robot/MatchTime_s",      DriverStation.getMatchTime());
+        Logger.recordOutput("Robot/Enabled",          DriverStation.isEnabled());
     }
 
     @Override

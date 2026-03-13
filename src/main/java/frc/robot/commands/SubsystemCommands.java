@@ -67,6 +67,14 @@ public final class SubsystemCommands {
         return aimAndFire(feed());
     }
 
+    /**
+     * Physics-based map shot with an extra command run in parallel during the feed phase
+     * (after flywheel ready + aim settled). Use this to inject rumble, LEDs, etc.
+     */
+    public Command shootMapWithFeedExtra(Command feedExtra) {
+        return aimAndFire(feedWith(feedExtra));
+    }
+
     /** Holds flywheel speed and continues aiming at the hub for the given duration, then stops both. */
     public Command holdAimAndSpeedCommand(double seconds) {
         return Commands.parallel(
@@ -131,12 +139,17 @@ public final class SubsystemCommands {
     }
 
     private Command feed() {
+        return feedWith();
+    }
+
+    private Command feedWith(Command... extras) {
         return Commands.parallel(
             feeder.feedCommand(),
             Commands.defer(
                 () -> Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()),
                 Set.of()
-            ).andThen(floor.feedCommand())
+            ).andThen(floor.feedCommand()),
+            Commands.parallel(extras)
         );
     }
 
