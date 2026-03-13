@@ -175,7 +175,12 @@ public class RobotContainer
                 boolean isDoubleTap = (now - lastIntakeTriggerPressTime)
                     < Constants.IntakeConstants.kDoubleTapWindowSeconds;
                 lastIntakeTriggerPressTime = now;
-                return isDoubleTap ? intake.stowCommand() : intake.intakePressCommand();
+                return isDoubleTap
+                    ? intake.stowCommand()
+                        .andThen(Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kIntakeStowIntensity)))
+                        .andThen(Commands.waitSeconds(Constants.RumbleConstants.kIntakeStowPulseSeconds))
+                        .andThen(Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)))
+                    : intake.intakePressCommand();
             }, Set.of(intake)));
 
         // ── Shooter ──────────────────────────────────────────────────────────

@@ -321,7 +321,7 @@ public final class Constants {
 
     // ── Fuel pickup (intake roller spike) ────────────────────────────────
     /** Rumble intensity for the fuel-pickup double-pulse (0.0–1.0). */
-    public static final double kFuelPickupIntensity        = 0.8;
+    public static final double kFuelPickupIntensity        = 0.55;
     /** Duration of each on-pulse in the fuel-pickup double-pulse (seconds). */
     public static final double kFuelPickupPulseOnSeconds   = 0.12;
     /** Gap between the two fuel-pickup pulses (seconds). */
@@ -329,7 +329,7 @@ public final class Constants {
 
     // ── Shoot pulse (bumper spin-up + trigger feed phase) ─────────────────
     /** Rumble intensity during the repeating shoot pulse (0.0–1.0). */
-    public static final double kShootPulseIntensity  = 0.7;
+    public static final double kShootPulseIntensity  = 0.85;
     /** Duration of the on-phase of each shoot pulse (seconds). */
     public static final double kShootPulseOnSeconds  = 0.15;
     /** Duration of the off-phase of each shoot pulse (seconds). */
@@ -337,7 +337,13 @@ public final class Constants {
 
     // ── Shoot announcement (right-trigger sequence start) ─────────────────
     /** Duration of the single announcement pulse when the aim-and-fire sequence begins (seconds). */
-    public static final double kShootAnnouncementOnSeconds = 0.25;
+    public static final double kShootAnnouncementOnSeconds = 0.33;
+
+    // ── Intake stow ───────────────────────────────────────────────────────
+    /** Rumble intensity for the intake-stow confirmation pulse (0.0–1.0). */
+    public static final double kIntakeStowIntensity    = 0.6;
+    /** Duration of the intake-stow confirmation pulse (seconds). */
+    public static final double kIntakeStowPulseSeconds = 0.5;
 
     // ── Climb success ─────────────────────────────────────────────────────
     /** Rumble intensity for the post-climb celebratory pulse (0.0–1.0). */
