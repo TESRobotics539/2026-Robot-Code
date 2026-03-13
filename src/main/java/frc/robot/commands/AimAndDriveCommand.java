@@ -60,6 +60,7 @@ public class AimAndDriveCommand extends Command {
 
     @Override
     public void initialize() {
+        targetHeading = getDirectionToHub();
         swerve.setHeadingCorrection(true);
     }
 

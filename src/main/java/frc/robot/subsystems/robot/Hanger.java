@@ -102,7 +102,8 @@ public class Hanger extends SubsystemBase {
     public Command homingCommand() {
         return Commands.sequence(
             runOnce(() -> setPercentOutput(Constants.HangerConstants.kHomingPower)),
-            Commands.waitUntil(() -> inputs.outputCurrentAmps > Constants.HangerConstants.kHomingCurrentThreshold),
+            Commands.waitUntil(() -> inputs.outputCurrentAmps > Constants.HangerConstants.kHomingCurrentThreshold)
+                .withTimeout(10.0),
             runOnce(() -> {
                 io.resetEncoder();
                 isHomed = true;

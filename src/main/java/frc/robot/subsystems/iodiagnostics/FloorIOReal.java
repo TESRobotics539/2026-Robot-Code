@@ -16,7 +16,6 @@ public class FloorIOReal implements FloorIO {
 
     public FloorIOReal() {
         motor = new SparkMax(Ports.kFloor, MotorType.kBrushless);
-        encoder = motor.getEncoder();
 
         SparkMaxConfig config = new SparkMaxConfig();
         config.inverted(true);
@@ -26,7 +25,9 @@ public class FloorIOReal implements FloorIO {
             .primaryEncoderPositionPeriodMs(500)
             .primaryEncoderVelocityPeriodMs(100);
 
-        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+
+        encoder = motor.getEncoder();
     }
 
     @Override

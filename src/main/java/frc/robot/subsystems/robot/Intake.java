@@ -34,6 +34,7 @@ public class Intake extends SubsystemBase {
     private final IntakeIOInputsAutoLogged inputs = new IntakeIOInputsAutoLogged();
 
     private double targetPivotPosition = 0.0;
+    private boolean hasSetpoint = false;
     private boolean usePercentOutput = false;
     private boolean rollerRunning = false;
     private int rollerSpikeCount = 0;
@@ -68,12 +69,13 @@ public class Intake extends SubsystemBase {
             if (spiked) {
                 calibratedDeployedPosition = Math.max(kMinPosition, Math.min(kMaxPosition, inputs.pivotAbsEncoderPosition));
                 targetPivotPosition = calibratedDeployedPosition;
+                hasSetpoint = true;
                 deployedPositionCalibrated = true;
                 initialDeployEnabled = false;
             }
         }
 
-        if (!usePercentOutput && targetPivotPosition != 0.0) {
+        if (!usePercentOutput && hasSetpoint) {
             io.setPivotSetpoint(targetPivotPosition);
         }
 
@@ -104,9 +106,11 @@ public class Intake extends SubsystemBase {
             targetPivotPosition = !Double.isNaN(calibratedDeployedPosition)
                 ? calibratedDeployedPosition
                 : Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
+            hasSetpoint = true;
         } else if (position == Position.STOWED) {
             io.setPivotCoastMode(false);
             targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
+            hasSetpoint = true;
         }
     }
 
@@ -131,6 +135,7 @@ public class Intake extends SubsystemBase {
     public void lockCurrentPositionAsStow() {
         double currentPos = inputs.pivotAbsEncoderPosition;
         targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, currentPos));
+        hasSetpoint = true;
         usePercentOutput = false;
         matchStowLocked = Constants.IntakeConstants.kStowIntakeForMatch;
     }

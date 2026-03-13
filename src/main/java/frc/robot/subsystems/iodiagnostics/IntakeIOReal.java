@@ -55,9 +55,10 @@ public class IntakeIOReal implements IntakeIO {
 
         config.signals
             .primaryEncoderPositionPeriodMs(500)
-            .primaryEncoderVelocityPeriodMs(500);
+            .primaryEncoderVelocityPeriodMs(500)
+            .absoluteEncoderPositionPeriodMs(20);
 
-        pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+        pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
     }
 
     private void configureRollerMotor() {
@@ -76,7 +77,7 @@ public class IntakeIOReal implements IntakeIO {
         config.signals
             .primaryEncoderPositionPeriodMs(500);
 
-        rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+        rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
     }
 
     @Override

@@ -83,12 +83,11 @@ public class UltraShooterIOReal implements UltraShooterIO {
            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
            .pid(Constants.UltraShooterConstants.kP,
                 Constants.UltraShooterConstants.kI,
-                Constants.UltraShooterConstants.kD)
-           .velocityFF(KV);
+                Constants.UltraShooterConstants.kD);
         // Position is never used — slow the signal down to reduce CAN traffic.
         cfg.signals
            .primaryEncoderPositionPeriodMs(500);
-        motor.configure(cfg, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+        motor.configure(cfg, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
     }
 
     @Override

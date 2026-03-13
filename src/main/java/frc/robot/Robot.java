@@ -106,10 +106,9 @@ public class Robot extends LoggedRobot {
         // teleop starts running. If you want the autonomous to
         // continue until interrupted by another command, remove
         // this line or comment it out.
-        // if (m_autonomousCommand != null)
-        // {
-        //     m_autonomousCommand.cancel();
-        // }
+        if (m_autonomousCommand != null) {
+            m_autonomousCommand.cancel();
+        }
         
         // Set the robot's starting position for teleop
         // Choose the starting location that matches where you placed the robot

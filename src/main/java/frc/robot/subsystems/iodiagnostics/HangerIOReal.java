@@ -26,7 +26,7 @@ public class HangerIOReal implements HangerIO {
         config.signals
             .primaryEncoderVelocityPeriodMs(500);
 
-        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
         encoder = motor.getEncoder();
         encoder.setPosition(0);

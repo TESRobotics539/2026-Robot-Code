@@ -30,7 +30,7 @@ public class FeederIOReal implements FeederIO {
         config.signals
             .primaryEncoderPositionPeriodMs(500);
 
-        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
         encoder = motor.getEncoder();
     }
