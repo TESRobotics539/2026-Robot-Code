@@ -1,18 +1,6 @@
-package frc.robot.subsystems;
+package frc.robot.subsystems.robot;
 
-import com.revrobotics.AbsoluteEncoder;
-import com.revrobotics.PersistMode;
-import com.revrobotics.RelativeEncoder;
-import com.revrobotics.ResetMode;
-import com.revrobotics.spark.FeedbackSensor;
-import com.revrobotics.spark.SparkBase.ControlType;
-import com.revrobotics.spark.SparkClosedLoopController;
-import com.revrobotics.spark.SparkFlex;
-import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import com.revrobotics.spark.config.SparkFlexConfig;
-import com.revrobotics.spark.config.SparkMaxConfig;
+import org.littletonrobotics.junction.Logger;
 
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.filter.Debouncer.DebounceType;
@@ -23,13 +11,14 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
-import frc.robot.Ports;
+import frc.robot.subsystems.iodiagnostics.IntakeIO;
+import frc.robot.subsystems.iodiagnostics.IntakeIOInputsAutoLogged;
 
 public class Intake extends SubsystemBase {
 
     public enum Position {
         STOWED(Constants.IntakeConstants.kStowedPosition),
-        DEPLOYED(Constants.IntakeConstants.kDeployedPosition); // TODO: tune absolute encoder value
+        DEPLOYED(Constants.IntakeConstants.kDeployedPosition);
 
         public final double value;
 
@@ -41,13 +30,8 @@ public class Intake extends SubsystemBase {
     private static final double kMinPosition = Constants.IntakeConstants.kMinPosition;
     private static final double kMaxPosition = Constants.IntakeConstants.kMaxPosition;
 
-    private final SparkMax pivotMotor;
-    private final SparkClosedLoopController pivotController;
-    private final AbsoluteEncoder absEncoder;
-    private final RelativeEncoder encoder;
-
-    private final SparkFlex rollerMotor;
-    private final SparkClosedLoopController rollerController;
+    private final IntakeIO io;
+    private final IntakeIOInputsAutoLogged inputs = new IntakeIOInputsAutoLogged();
 
     private double targetPivotPosition = 0.0;
     private boolean usePercentOutput = false;
@@ -57,96 +41,48 @@ public class Intake extends SubsystemBase {
     private final Timer rollerNoLoadTimer = new Timer();
     private boolean matchStowLocked = false;
     private boolean deployedPositionCalibrated = false;
-    private boolean initialDeployEnabled = false;   // true only when the match-start deploy fires
-    private double  deployStartPosition   = 0.0;    // encoder position when deploy began
-    private double  calibratedDeployedPosition = Double.NaN; // persists across deploys once set
+    private boolean initialDeployEnabled = false;
+    private double  deployStartPosition   = 0.0;
+    private double  calibratedDeployedPosition = Double.NaN;
     private final Debouncer deployCurrentDebouncer = new Debouncer(Constants.IntakeConstants.kPivotDeployedCurrentDebounceSeconds, DebounceType.kRising);
 
-    public Intake() {
-        pivotMotor = new SparkMax(Ports.kIntakePivot, MotorType.kBrushless);
-        pivotController = pivotMotor.getClosedLoopController();
-        absEncoder = pivotMotor.getAbsoluteEncoder();
-        encoder = pivotMotor.getEncoder();
-        configurePivotMotor();
-
-        rollerMotor = new SparkFlex(Ports.kIntakeRollers, MotorType.kBrushless);
-        rollerController = rollerMotor.getClosedLoopController();
-        configureRollerMotor();
-
+    public Intake(IntakeIO io) {
+        this.io = io;
         SmartDashboard.putData(this);
-    }
-
-    private void configurePivotMotor() {
-        SparkMaxConfig config = new SparkMaxConfig();
-
-        config.inverted(true)
-            .idleMode(IdleMode.kBrake)
-            .voltageCompensation(12);
-
-        config.smartCurrentLimit(80)
-            .secondaryCurrentLimit(120);
-
-        config.closedLoop
-            .feedbackSensor(FeedbackSensor.kAbsoluteEncoder)
-            .pid(Constants.IntakeConstants.kPivotP, Constants.IntakeConstants.kPivotI, Constants.IntakeConstants.kPivotD)
-            .outputRange(Constants.IntakeConstants.kPivotOutputRangeMin, Constants.IntakeConstants.kPivotOutputRangeMax);
-
-        // PID uses the absolute encoder; the relative encoder position and velocity are never read.
-        config.signals
-            .primaryEncoderPositionPeriodMs(500)
-            .primaryEncoderVelocityPeriodMs(500);
-
-        pivotMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-    }
-
-    private void configureRollerMotor() {
-        SparkFlexConfig config = new SparkFlexConfig();
-
-        config.inverted(true);
-        config.idleMode(Constants.IntakeConstants.kRollerIdleMode);
-        config.smartCurrentLimit(80);
-        config.secondaryCurrentLimit(120);
-
-        config.closedLoop
-            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
-            .pid(Constants.IntakeConstants.kRollerP, Constants.IntakeConstants.kRollerI, Constants.IntakeConstants.kRollerD)
-            .velocityFF(12.0 / Constants.IntakeConstants.kRollerFreeSpeedRPM);
-
-        // Position is never read on the Rio; velocity and current are needed for ball detection.
-        config.signals
-            .primaryEncoderPositionPeriodMs(500);
-
-        rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     }
 
     @Override
     public void periodic() {
+        io.updateInputs(inputs);
+        Logger.processInputs("Intake", inputs);
+
         if (matchStowLocked) {
             usePercentOutput = false;
         }
-        // Snap deployed position to the hard stop once the intake has traveled >= 0.2 encoder
-        // rotations from where it started deploying. Only runs on the initial match deploy.
+
+        // Snap deployed position to the hard stop once the intake has traveled far enough.
         if (!usePercentOutput && !deployedPositionCalibrated && initialDeployEnabled && isDeployed()) {
-            boolean travelMet = Math.abs(absEncoder.getPosition() - deployStartPosition) >= Constants.IntakeConstants.kPivotDeployedTravelThreshold;
+            boolean travelMet = Math.abs(inputs.pivotAbsEncoderPosition - deployStartPosition) >= Constants.IntakeConstants.kPivotDeployedTravelThreshold;
             boolean spiked = deployCurrentDebouncer.calculate(
-                travelMet && pivotMotor.getOutputCurrent() > Constants.IntakeConstants.kPivotDeployedCurrentThreshold);
+                travelMet && inputs.pivotCurrentAmps > Constants.IntakeConstants.kPivotDeployedCurrentThreshold);
             if (spiked) {
-                calibratedDeployedPosition = Math.max(kMinPosition, Math.min(kMaxPosition, absEncoder.getPosition()));
+                calibratedDeployedPosition = Math.max(kMinPosition, Math.min(kMaxPosition, inputs.pivotAbsEncoderPosition));
                 targetPivotPosition = calibratedDeployedPosition;
                 deployedPositionCalibrated = true;
                 initialDeployEnabled = false;
             }
         }
+
         if (!usePercentOutput && targetPivotPosition != 0.0) {
-            pivotController.setSetpoint(targetPivotPosition, ControlType.kPosition);
+            io.setPivotSetpoint(targetPivotPosition);
         }
 
         // Detect rising edges of roller current to count fuel pickups
         boolean aboveThreshold = rollerRunning &&
-            rollerMotor.getOutputCurrent() > Constants.IntakeConstants.kRollerLoadCurrentThreshold;
+            inputs.rollerCurrentAmps > Constants.IntakeConstants.kRollerLoadCurrentThreshold;
         if (aboveThreshold && !lastRollerAboveThreshold) {
             rollerSpikeCount++;
-            rollerNoLoadTimer.restart(); // Reset window after each pickup
+            rollerNoLoadTimer.restart();
         }
         lastRollerAboveThreshold = aboveThreshold;
 
@@ -157,26 +93,19 @@ public class Intake extends SubsystemBase {
         }
     }
 
-    private void setPivotIdleMode(IdleMode mode) {
-        SparkMaxConfig config = new SparkMaxConfig();
-        config.idleMode(mode);
-        pivotMotor.configure(config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
-    }
-
     public void setPivotPosition(Position position) {
         if (matchStowLocked) return;
         usePercentOutput = false;
         if (position == Position.DEPLOYED) {
-            setPivotIdleMode(IdleMode.kCoast);
+            io.setPivotCoastMode(true);
             deployedPositionCalibrated = false;
-            deployStartPosition = absEncoder.getPosition();
+            deployStartPosition = inputs.pivotAbsEncoderPosition;
             deployCurrentDebouncer.calculate(false); // reset debouncer state
-            // Reuse the calibrated position if already established, otherwise use the constant
             targetPivotPosition = !Double.isNaN(calibratedDeployedPosition)
                 ? calibratedDeployedPosition
                 : Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
         } else if (position == Position.STOWED) {
-            setPivotIdleMode(IdleMode.kBrake);
+            io.setPivotCoastMode(false);
             targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
         }
     }
@@ -192,16 +121,15 @@ public class Intake extends SubsystemBase {
 
     /** Forces brake mode regardless of current position — call at autonomous start. */
     public void enforceBrakeMode() {
-        setPivotIdleMode(IdleMode.kBrake);
+        io.setPivotCoastMode(false);
     }
 
     /**
      * Reads the current absolute encoder position and sets it as the PID target.
-     * If {@link Constants#kStowIntakeForMatch} is enabled, also locks the pivot for
-     * the rest of the match so any subsequent calls to {@link #setPivotPosition} are ignored.
+     * If {@link Constants#kStowIntakeForMatch} is enabled, also locks the pivot.
      */
     public void lockCurrentPositionAsStow() {
-        double currentPos = absEncoder.getPosition();
+        double currentPos = inputs.pivotAbsEncoderPosition;
         targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, currentPos));
         usePercentOutput = false;
         matchStowLocked = Constants.IntakeConstants.kStowIntakeForMatch;
@@ -209,16 +137,16 @@ public class Intake extends SubsystemBase {
 
     public void setPivotPercentOutput(double percentOutput) {
         usePercentOutput = true;
-        pivotMotor.set(percentOutput);
+        io.setPivotPercentOutput(percentOutput);
     }
 
     public void setRollerSpeed(double rpm) {
-        rollerController.setSetpoint(rpm, ControlType.kVelocity);
+        io.setRollerRPM(rpm);
         rollerNoLoadTimer.restart();
     }
 
     public void stopRoller() {
-        rollerMotor.set(0);
+        io.stopRoller();
         rollerNoLoadTimer.stop();
         rollerNoLoadTimer.reset();
     }
@@ -270,7 +198,6 @@ public class Intake extends SubsystemBase {
 
     /**
      * Repeatedly pulses the intake pivot to agitate fuel during shooting.
-     * Pattern: 25% up for 0.33s, then 5% down for 0.2s, repeat.
      * Restores position control when interrupted.
      */
     public Command agitateCommand() {
@@ -286,11 +213,11 @@ public class Intake extends SubsystemBase {
     @Override
     public void initSendable(SendableBuilder builder) {
         builder.addStringProperty("Command", () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "null", null);
-        builder.addDoubleProperty("Abs Encoder Position", () -> absEncoder.getPosition(), null);
-        builder.addDoubleProperty("Rel Encoder Position", () -> encoder.getPosition(), null);
+        builder.addDoubleProperty("Abs Encoder Position", () -> inputs.pivotAbsEncoderPosition, null);
+        builder.addDoubleProperty("Rel Encoder Position", () -> inputs.pivotRelEncoderPosition, null);
         builder.addDoubleProperty("Target Position", () -> targetPivotPosition, null);
-        builder.addDoubleProperty("Pivot Current (A)", () -> pivotMotor.getOutputCurrent(), null);
-        builder.addDoubleProperty("Roller RPM", () -> rollerMotor.getEncoder().getVelocity(), null);
-        builder.addDoubleProperty("Roller Current (A)", () -> rollerMotor.getOutputCurrent(), null);
+        builder.addDoubleProperty("Pivot Current (A)", () -> inputs.pivotCurrentAmps, null);
+        builder.addDoubleProperty("Roller RPM", () -> inputs.rollerVelocityRPM, null);
+        builder.addDoubleProperty("Roller Current (A)", () -> inputs.rollerCurrentAmps, null);
     }
 }

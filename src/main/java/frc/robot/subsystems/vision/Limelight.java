@@ -1,4 +1,4 @@
-package frc.robot.subsystems;
+package frc.robot.subsystems.vision;
 
 import java.util.Optional;
 
@@ -9,8 +9,7 @@ import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StructPublisher;
-import edu.wpi.first.networktables.DoublePublisher;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.LimelightHelpers;
 import frc.robot.LimelightHelpers.PoseEstimate;
@@ -26,38 +25,22 @@ public class Limelight extends SubsystemBase {
     private static final double MAX_MEASUREMENT_LATENCY_MS = 100.0;
 
     private final String name;
-    private final NetworkTable telemetryTable;
-    private final StructPublisher<Pose2d> posePublisher;
-
-    // IMU telemetry publishers — visible in Elastic under SmartDashboard/<name>/
-    private final DoublePublisher imuPitchPub;
-    private final DoublePublisher imuYawPub;
-    private final DoublePublisher imuRollPub;
-    private final DoublePublisher imuAccelZPub;
 
     // Cached last IMU reading — updated once per periodic() to avoid redundant NT calls.
     private LimelightHelpers.IMUData lastImu = new LimelightHelpers.IMUData();
 
     public Limelight(String name) {
         this.name = name;
-        this.telemetryTable = NetworkTableInstance.getDefault().getTable("SmartDashboard/" + name);
-        this.posePublisher = telemetryTable.getStructTopic("Estimated Robot Pose", Pose2d.struct).publish();
-
-        imuPitchPub  = telemetryTable.getDoubleTopic("IMU Pitch (deg)").publish();
-        imuYawPub    = telemetryTable.getDoubleTopic("IMU Yaw (deg)").publish();
-        imuRollPub   = telemetryTable.getDoubleTopic("IMU Roll (deg)").publish();
-        imuAccelZPub = telemetryTable.getDoubleTopic("IMU Accel Z (g)").publish();
-
         LimelightHelpers.SetIMUMode(name, 4);
     }
 
     @Override
     public void periodic() {
         lastImu = LimelightHelpers.getIMUData(name);
-        imuPitchPub.set(lastImu.Pitch);
-        imuYawPub.set(lastImu.Yaw);
-        imuRollPub.set(lastImu.Roll);
-        imuAccelZPub.set(lastImu.accelZ);
+        Logger.recordOutput("Limelight/" + name + "/IMU/Pitch_deg",  lastImu.Pitch);
+        Logger.recordOutput("Limelight/" + name + "/IMU/Yaw_deg",    lastImu.Yaw);
+        Logger.recordOutput("Limelight/" + name + "/IMU/Roll_deg",   lastImu.Roll);
+        Logger.recordOutput("Limelight/" + name + "/IMU/AccelZ_g",   lastImu.accelZ);
     }
 
     /**
@@ -118,7 +101,7 @@ public class Limelight extends SubsystemBase {
         if (poseEstimate_MegaTag2.tagCount > 1) xyStdDev *= 0.5;
         final Matrix<N3, N1> standardDeviations = VecBuilder.fill(xyStdDev, xyStdDev, 10.0);
 
-        posePublisher.set(poseEstimate_MegaTag2.pose);
+        Logger.recordOutput("Limelight/" + name + "/EstimatedPose", poseEstimate_MegaTag2.pose);
 
         return Optional.of(new Measurement(poseEstimate_MegaTag2, standardDeviations, poseEstimate_MegaTag2.avgTagArea));
     }

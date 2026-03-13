@@ -10,11 +10,11 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.subsystems.Feeder;
-import frc.robot.subsystems.Floor;
-import frc.robot.subsystems.ShooterTuner;
-import frc.robot.subsystems.Swerve;
-import frc.robot.subsystems.UltraShooter;
+import frc.robot.subsystems.robot.Feeder;
+import frc.robot.subsystems.robot.Floor;
+import frc.robot.subsystems.robot.Swerve;
+import frc.robot.subsystems.robot.UltraShooter;
+import frc.robot.subsystems.tuning.ShooterTuner;
 
 public final class SubsystemCommands {
     private final Swerve swerve;

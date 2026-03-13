@@ -1,5 +1,5 @@
 /*
-package frc.robot.subsystems;
+package frc.robot.subsystems.robot;
 
 import com.revrobotics.servohub.config.ServoHubConfig;
 import com.revrobotics.servohub.config.ServoHubParameter;

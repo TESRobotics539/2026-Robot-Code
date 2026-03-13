@@ -1,5 +1,6 @@
-package frc.robot.subsystems;
+package frc.robot.subsystems.vision;
 
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -29,8 +30,6 @@ public class BallVision extends SubsystemBase {
     private final NetworkTableEntry   ntDistance   = nt.getEntry("NearestDistance");
     private final NetworkTableEntry   ntHeartbeat  = nt.getEntry("Heartbeat");
 
-    // Telemetry published back to the dashboard
-    private final NetworkTableEntry   ntConnected  = nt.getEntry("Pi Connected");
 
     private long lastHeartbeat  = Long.MIN_VALUE;
     private int  staleFrames    = STALE_THRESHOLD;
@@ -91,7 +90,7 @@ public class BallVision extends SubsystemBase {
         } else {
             staleFrames++;
         }
-        ntConnected.setBoolean(isConnected());
+        Logger.recordOutput("BallVision/Connected", isConnected());
     }
 
     @Override

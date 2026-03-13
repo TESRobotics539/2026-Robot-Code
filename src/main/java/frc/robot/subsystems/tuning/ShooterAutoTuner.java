@@ -1,4 +1,4 @@
-package frc.robot.subsystems;
+package frc.robot.subsystems.tuning;
 
 import edu.wpi.first.networktables.BooleanEntry;
 import edu.wpi.first.networktables.DoubleEntry;

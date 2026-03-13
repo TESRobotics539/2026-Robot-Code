@@ -26,12 +26,12 @@ public final class Autos {
 // import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 // import edu.wpi.first.wpilibj2.command.Commands;
 // import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
-// import frc.robot.subsystems.Feeder;
-// import frc.robot.subsystems.Floor;
-// import frc.robot.subsystems.Hanger;
-// import frc.robot.subsystems.Intake;
-// import frc.robot.subsystems.Limelight;
-// import frc.robot.subsystems.Swerve;
+// import frc.robot.subsystems.robot.Feeder;
+// import frc.robot.subsystems.robot.Floor;
+// import frc.robot.subsystems.robot.Hanger;
+// import frc.robot.subsystems.robot.Intake;
+// import frc.robot.subsystems.robot.Swerve;
+// import frc.robot.subsystems.vision.Limelight;
 //
 // public final class Autos {
 //     private final Swerve swerve;

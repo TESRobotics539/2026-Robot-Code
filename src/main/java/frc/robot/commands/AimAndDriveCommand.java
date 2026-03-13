@@ -10,8 +10,8 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Landmarks;
-import frc.robot.subsystems.Swerve;
-import frc.robot.subsystems.UltraShooter;
+import frc.robot.subsystems.robot.Swerve;
+import frc.robot.subsystems.robot.UltraShooter;
 import frc.util.GeometryUtil;
 
 public class AimAndDriveCommand extends Command {

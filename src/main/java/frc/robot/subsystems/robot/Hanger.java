@@ -1,12 +1,6 @@
-package frc.robot.subsystems;
+package frc.robot.subsystems.robot;
 
-import com.revrobotics.PersistMode;
-import com.revrobotics.RelativeEncoder;
-import com.revrobotics.ResetMode;
-import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.config.SparkMaxConfig;
-import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import org.littletonrobotics.junction.Logger;
 
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.filter.Debouncer.DebounceType;
@@ -17,7 +11,8 @@ import edu.wpi.first.wpilibj2.command.Command.InterruptionBehavior;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
-import frc.robot.Ports;
+import frc.robot.subsystems.iodiagnostics.HangerIO;
+import frc.robot.subsystems.iodiagnostics.HangerIOInputsAutoLogged;
 
 public class Hanger extends SubsystemBase {
     public enum Position {
@@ -27,8 +22,8 @@ public class Hanger extends SubsystemBase {
         HUNG;
     }
 
-    private final SparkMax motor;
-    private final RelativeEncoder encoder;
+    private final HangerIO io;
+    private final HangerIOInputsAutoLogged inputs = new HangerIOInputsAutoLogged();
 
     private final Debouncer climbCurrentDebouncer = new Debouncer(Constants.HangerConstants.kAutoClimbCurrentDebounceSeconds, DebounceType.kRising);
 
@@ -36,35 +31,23 @@ public class Hanger extends SubsystemBase {
     private boolean toggleIsUp = false;
 
     // Tracks auto climb encoder position for teleop reversal
-    // Zero'd at climb start; records ticks at spike detection or autonomous end
     private static final double kDeclimbReturnThresholdRotations = 10.0;
     private double climbEncoderTicks = 0;
     private boolean autoClimbCompleted = false;
 
-    public Hanger() {
-        motor = new SparkMax(Ports.kHanger, MotorType.kBrushless);
-
-        SparkMaxConfig config = new SparkMaxConfig();
-        config.inverted(true)
-            .idleMode(Constants.HangerConstants.kIdleMode)
-            .smartCurrentLimit(Constants.HangerConstants.kSmartCurrentLimit)
-            .secondaryCurrentLimit(Constants.HangerConstants.kSecondaryCurrentLimit);
-
-        // Current is needed at 20ms for stall detection; position for encoder tracking.
-        // Velocity is never read on the Rio.
-        config.signals
-            .primaryEncoderVelocityPeriodMs(500);
-
-        motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
-
-        encoder = motor.getEncoder();
-        encoder.setPosition(0);
-
+    public Hanger(HangerIO io) {
+        this.io = io;
         SmartDashboard.putData(this);
     }
 
+    @Override
+    public void periodic() {
+        io.updateInputs(inputs);
+        Logger.processInputs("Hanger", inputs);
+    }
+
     public void setPercentOutput(double percentOutput) {
-        motor.set(percentOutput);
+        io.setPercentOutput(percentOutput);
     }
 
     public Command toggleCommand() {
@@ -75,13 +58,13 @@ public class Hanger extends SubsystemBase {
         return Commands.sequence(
             runOnce(() -> {
                 climbCurrentDebouncer.calculate(false); // reset debouncer state
-                encoder.setPosition(0);                 // zero encoder at climb start
+                io.resetEncoder();                      // zero encoder at climb start
                 autoClimbCompleted = false;
             }),
             run(() -> setPercentOutput(Constants.HangerConstants.kAutoClimbFullPower))
-                .until(() -> climbCurrentDebouncer.calculate(motor.getOutputCurrent() > Constants.HangerConstants.kAutoClimbCurrentThreshold)),
+                .until(() -> climbCurrentDebouncer.calculate(inputs.outputCurrentAmps > Constants.HangerConstants.kAutoClimbCurrentThreshold)),
             runOnce(() -> {
-                climbEncoderTicks = encoder.getPosition(); // record ticks at spike
+                climbEncoderTicks = inputs.encoderPositionRot; // record ticks at spike
                 autoClimbCompleted = true;
                 setPercentOutput(Constants.HangerConstants.kAutoClimbReleasePower);
             }),
@@ -90,7 +73,7 @@ public class Hanger extends SubsystemBase {
         ).finallyDo(interrupted -> {
             // If autonomous ended before the spike was detected, record ticks at interruption
             if (interrupted && !autoClimbCompleted) {
-                climbEncoderTicks = encoder.getPosition();
+                climbEncoderTicks = inputs.encoderPositionRot;
                 autoClimbCompleted = true;
                 setPercentOutput(0);
             }
@@ -104,18 +87,14 @@ public class Hanger extends SubsystemBase {
     /**
      * If the auto climb command ran during autonomous, reverses the climber until the
      * encoder returns to within {@link #kDeclimbReturnThresholdRotations} of zero.
-     * Works whether the spike was detected or autonomous ended mid-climb.
-     * Clears the flag so it only runs once at the start of teleop.
      */
     public Command reverseClimbIfNeededCommand() {
         return Commands.defer(() -> {
             if (!autoClimbCompleted || climbEncoderTicks == 0) return Commands.none();
             double ticks = climbEncoderTicks;
             autoClimbCompleted = false;
-            // signum(ticks) tells us which direction the encoder moved;
-            // stop when we've returned within threshold of zero
             return run(() -> setPercentOutput(-Constants.HangerConstants.kAutoClimbFullPower))
-                .until(() -> Math.signum(ticks) * encoder.getPosition() <= kDeclimbReturnThresholdRotations)
+                .until(() -> Math.signum(ticks) * inputs.encoderPositionRot <= kDeclimbReturnThresholdRotations)
                 .andThen(runOnce(() -> setPercentOutput(0)));
         }, java.util.Set.of(this));
     }
@@ -123,9 +102,9 @@ public class Hanger extends SubsystemBase {
     public Command homingCommand() {
         return Commands.sequence(
             runOnce(() -> setPercentOutput(Constants.HangerConstants.kHomingPower)),
-            Commands.waitUntil(() -> motor.getOutputCurrent() > Constants.HangerConstants.kHomingCurrentThreshold),
+            Commands.waitUntil(() -> inputs.outputCurrentAmps > Constants.HangerConstants.kHomingCurrentThreshold),
             runOnce(() -> {
-                encoder.setPosition(0);
+                io.resetEncoder();
                 isHomed = true;
             })
         )
@@ -140,7 +119,7 @@ public class Hanger extends SubsystemBase {
     @Override
     public void initSendable(SendableBuilder builder) {
         builder.addStringProperty("Command", () -> getCurrentCommand() != null ? getCurrentCommand().getName() : "null", null);
-        builder.addDoubleProperty("Supply Current", () -> motor.getOutputCurrent(), null);
-        builder.addDoubleProperty("Encoder Position", () -> encoder.getPosition(), null);
+        builder.addDoubleProperty("Supply Current", () -> inputs.outputCurrentAmps, null);
+        builder.addDoubleProperty("Encoder Position", () -> inputs.encoderPositionRot, null);
     }
 }

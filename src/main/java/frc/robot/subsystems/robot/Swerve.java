@@ -2,7 +2,7 @@
 // Open Source Software; you can modify and/or share it under the terms of
 // the WPILib BSD license file in the root directory of this project.
 
-package frc.robot.subsystems;
+package frc.robot.subsystems.robot;
 
 import static edu.wpi.first.units.Units.Meter;
 
@@ -16,8 +16,7 @@ import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.trajectory.Trajectory;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import org.littletonrobotics.junction.Logger;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.ModuleConfig;
 import com.pathplanner.lib.config.PIDConstants;
@@ -64,7 +63,6 @@ import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
 public class Swerve extends SubsystemBase
 {
   private final SwerveDrive swerveDrive;
-  private final NetworkTable telemetryTable;
 
   private final Field2d field;
   private final BumpTuner bumpTuner;
@@ -114,16 +112,6 @@ public class Swerve extends SubsystemBase
   private int metricOverBump;
   private int metricWheelSlipping;
 
-  // Cached NT entries — initialized once in initTelemetryEntries().
-  // getEntry() does a HashMap string lookup; calling it 18× per 20 ms cycle allocates
-  // objects under GC pressure and adds latency. Cache once, set every cycle.
-  private NetworkTableEntry ntFlAbsAngle, ntFlRelAngle, ntFlDrift;
-  private NetworkTableEntry ntFrAbsAngle, ntFrRelAngle, ntFrDrift;
-  private NetworkTableEntry ntBlAbsAngle, ntBlRelAngle, ntBlDrift;
-  private NetworkTableEntry ntBrAbsAngle, ntBrRelAngle, ntBrDrift;
-  private NetworkTableEntry ntAccelXRaw,  ntAccelYRaw,  ntAccelZRaw;
-  private NetworkTableEntry ntAccelXFilt, ntAccelYFilt, ntAccelZFilt;
-  private NetworkTableEntry ntSlipRaw,    ntSlipAvg,    ntSlipping;
 
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
@@ -136,7 +124,6 @@ public class Swerve extends SubsystemBase
   {
     // Configure the Telemetry before creating the SwerveDrive to avoid unnecessary objects being created.
     SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
-    this.telemetryTable = NetworkTableInstance.getDefault().getTable("AbsoluteEncoders");
     this.field = field;
     this.bumpTuner = bumpTuner;
 
@@ -170,7 +157,6 @@ public class Swerve extends SubsystemBase
     setupAutoBuilder();
     initSetpointGenerator();
     initMetricColumns();
-    initTelemetryEntries();
   }
 
   /**
@@ -183,7 +169,6 @@ public class Swerve extends SubsystemBase
    */
   public Swerve(SwerveDriveConfiguration driveCfg, SwerveControllerConfiguration controllerCfg, Field2d field, BumpTuner bumpTuner)
   {
-    this.telemetryTable = NetworkTableInstance.getDefault().getTable("AbsoluteEncoders");
     this.field = field;
     this.bumpTuner = bumpTuner;
 
@@ -204,7 +189,6 @@ public class Swerve extends SubsystemBase
     setupAutoBuilder();
     initSetpointGenerator();
     initMetricColumns();
-    initTelemetryEntries();
   }
 
   private void initSetpointGenerator() {
@@ -226,30 +210,6 @@ public class Swerve extends SubsystemBase
     metricWheelSlip     = MetricTracker.getInstance().addColumn("WheelSlipScore (m/s^2)");
     metricOverBump      = MetricTracker.getInstance().addColumn("IsOverBump");
     metricWheelSlipping = MetricTracker.getInstance().addColumn("IsWheelSlipping");
-  }
-
-  private void initTelemetryEntries() {
-    ntFlAbsAngle = telemetryTable.getEntry("Module FL Absolute Angle");
-    ntFlRelAngle = telemetryTable.getEntry("Module FL Relative Angle");
-    ntFlDrift    = telemetryTable.getEntry("Module FL Drift");
-    ntFrAbsAngle = telemetryTable.getEntry("Module FR Absolute Angle");
-    ntFrRelAngle = telemetryTable.getEntry("Module FR Relative Angle");
-    ntFrDrift    = telemetryTable.getEntry("Module FR Drift");
-    ntBlAbsAngle = telemetryTable.getEntry("Module BL Absolute Angle");
-    ntBlRelAngle = telemetryTable.getEntry("Module BL Relative Angle");
-    ntBlDrift    = telemetryTable.getEntry("Module BL Drift");
-    ntBrAbsAngle = telemetryTable.getEntry("Module BR Absolute Angle");
-    ntBrRelAngle = telemetryTable.getEntry("Module BR Relative Angle");
-    ntBrDrift    = telemetryTable.getEntry("Module BR Drift");
-    ntAccelXRaw  = telemetryTable.getEntry("Accel X Raw (g)");
-    ntAccelYRaw  = telemetryTable.getEntry("Accel Y Raw (g)");
-    ntAccelZRaw  = telemetryTable.getEntry("Accel Z Raw (g)");
-    ntAccelXFilt = telemetryTable.getEntry("Accel X Filtered (g)");
-    ntAccelYFilt = telemetryTable.getEntry("Accel Y Filtered (g)");
-    ntAccelZFilt = telemetryTable.getEntry("Accel Z Filtered (g)");
-    ntSlipRaw    = telemetryTable.getEntry("Wheel Slip Score Raw (m/s\u00b2)");
-    ntSlipAvg    = telemetryTable.getEntry("Wheel Slip Score (m/s\u00b2)");
-    ntSlipping   = telemetryTable.getEntry("Wheel Slipping");
   }
 
   private void setupAutoBuilder() {
@@ -297,21 +257,21 @@ public class Swerve extends SubsystemBase
     double blPos = swerveDrive.getModules()[2].getAbsoluteEncoder().getAbsolutePosition();
     double brPos = swerveDrive.getModules()[3].getAbsoluteEncoder().getAbsolutePosition();
 
-    ntFlAbsAngle.setNumber(flPos);
-    ntFlRelAngle.setNumber(swerveDrive.getModules()[0].getState().angle.getDegrees());
-    ntFlDrift   .setNumber(flPos - swerveDrive.getModules()[0].getState().angle.getDegrees());
+    Logger.recordOutput("Swerve/FL/AbsAngleDeg", flPos);
+    Logger.recordOutput("Swerve/FL/RelAngleDeg", swerveDrive.getModules()[0].getState().angle.getDegrees());
+    Logger.recordOutput("Swerve/FL/DriftDeg",    flPos - swerveDrive.getModules()[0].getState().angle.getDegrees());
 
-    ntFrAbsAngle.setNumber(frPos);
-    ntFrRelAngle.setNumber(swerveDrive.getModules()[1].getState().angle.getDegrees());
-    ntFrDrift   .setNumber(frPos - swerveDrive.getModules()[1].getState().angle.getDegrees());
+    Logger.recordOutput("Swerve/FR/AbsAngleDeg", frPos);
+    Logger.recordOutput("Swerve/FR/RelAngleDeg", swerveDrive.getModules()[1].getState().angle.getDegrees());
+    Logger.recordOutput("Swerve/FR/DriftDeg",    frPos - swerveDrive.getModules()[1].getState().angle.getDegrees());
 
-    ntBlAbsAngle.setNumber(blPos);
-    ntBlRelAngle.setNumber(swerveDrive.getModules()[2].getState().angle.getDegrees());
-    ntBlDrift   .setNumber(blPos - swerveDrive.getModules()[2].getState().angle.getDegrees());
+    Logger.recordOutput("Swerve/BL/AbsAngleDeg", blPos);
+    Logger.recordOutput("Swerve/BL/RelAngleDeg", swerveDrive.getModules()[2].getState().angle.getDegrees());
+    Logger.recordOutput("Swerve/BL/DriftDeg",    blPos - swerveDrive.getModules()[2].getState().angle.getDegrees());
 
-    ntBrAbsAngle.setNumber(brPos);
-    ntBrRelAngle.setNumber(swerveDrive.getModules()[3].getState().angle.getDegrees());
-    ntBrDrift   .setNumber(brPos - swerveDrive.getModules()[3].getState().angle.getDegrees());
+    Logger.recordOutput("Swerve/BR/AbsAngleDeg", brPos);
+    Logger.recordOutput("Swerve/BR/RelAngleDeg", swerveDrive.getModules()[3].getState().angle.getDegrees());
+    Logger.recordOutput("Swerve/BR/DriftDeg",    brPos - swerveDrive.getModules()[3].getState().angle.getDegrees());
 
     // Filtered Pigeon 2 accelerometer — bump spikes are smoothed out.
     // refreshAll() guarantees all five signals come from the same CAN frame before
@@ -324,12 +284,12 @@ public class Swerve extends SubsystemBase
     double filtY = accelYFilter.calculate(rawY);
     double filtZ = accelZFilter.calculate(rawZ);
 
-    ntAccelXRaw .setNumber(rawX);
-    ntAccelYRaw .setNumber(rawY);
-    ntAccelZRaw .setNumber(rawZ);
-    ntAccelXFilt.setNumber(filtX);
-    ntAccelYFilt.setNumber(filtY);
-    ntAccelZFilt.setNumber(filtZ);
+    Logger.recordOutput("Swerve/Accel/XRaw_g",   rawX);
+    Logger.recordOutput("Swerve/Accel/YRaw_g",   rawY);
+    Logger.recordOutput("Swerve/Accel/ZRaw_g",   rawZ);
+    Logger.recordOutput("Swerve/Accel/XFilt_g",  filtX);
+    Logger.recordOutput("Swerve/Accel/YFilt_g",  filtY);
+    Logger.recordOutput("Swerve/Accel/ZFilt_g",  filtZ);
 
     // Wheel-slip detection — encoder-derived acceleration vs IMU acceleration.
     //
@@ -358,9 +318,9 @@ public class Swerve extends SubsystemBase
     slipBufferIndex = (slipBufferIndex + 1) % SLIP_AVG_SAMPLES;
     wheelSlipScore = slipBufferSum / SLIP_AVG_SAMPLES;
 
-    ntSlipRaw .setNumber(rawSlip);
-    ntSlipAvg .setNumber(wheelSlipScore);
-    ntSlipping.setBoolean(isWheelSlipping());
+    Logger.recordOutput("Swerve/WheelSlip/RawMps2", rawSlip);
+    Logger.recordOutput("Swerve/WheelSlip/AvgMps2", wheelSlipScore);
+    Logger.recordOutput("Swerve/WheelSlip/Slipping", isWheelSlipping());
 
     MetricTracker.getInstance().newRow();
     MetricTracker.getInstance().set(metricWheelSlip,     wheelSlipScore);

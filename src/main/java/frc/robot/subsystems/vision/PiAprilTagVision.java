@@ -1,4 +1,4 @@
-package frc.robot.subsystems;
+package frc.robot.subsystems.vision;
 
 import java.util.Optional;
 
@@ -8,6 +8,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -87,7 +88,6 @@ public class PiAprilTagVision extends SubsystemBase {
     private final NetworkTableEntry ntTagCount = nt.getEntry("TagCount");
     private final NetworkTableEntry ntMargin   = nt.getEntry("AvgDecisionMargin");
     private final NetworkTableEntry ntHB       = nt.getEntry("Heartbeat");
-    private final NetworkTableEntry ntConnected = nt.getEntry("Pi Connected");
 
     // ── Staleness tracking ────────────────────────────────────────────────────
 
@@ -153,7 +153,7 @@ public class PiAprilTagVision extends SubsystemBase {
         } else {
             staleFrames++;
         }
-        ntConnected.setBoolean(isConnected());
+        Logger.recordOutput("PiAprilTagVision/Connected", isConnected());
     }
 
     @Override

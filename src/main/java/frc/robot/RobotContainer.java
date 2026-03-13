@@ -15,6 +15,7 @@ import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -23,20 +24,24 @@ import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
-import frc.robot.subsystems.BallVision;
-import frc.robot.subsystems.BlinkinLed;
-import frc.robot.subsystems.BumpTuner;
-import frc.robot.subsystems.ShooterTuner;
-import frc.robot.subsystems.ShooterAutoTuner;
-import frc.robot.subsystems.PiAprilTagVision;
-import frc.robot.subsystems.Intake;
-import frc.robot.subsystems.Feeder;
-import frc.robot.subsystems.Floor;
-import frc.robot.subsystems.Hanger;
-import frc.robot.subsystems.Limelight;
-//import frc.robot.subsystems.ShooterOrca; // deprecated — replaced by UltraShooter
-import frc.robot.subsystems.Swerve;
-import frc.robot.subsystems.UltraShooter;
+import frc.robot.subsystems.vision.BallVision;
+import frc.robot.subsystems.vision.Limelight;
+import frc.robot.subsystems.vision.PiAprilTagVision;
+import frc.robot.subsystems.robot.BlinkinLed;
+import frc.robot.subsystems.robot.Feeder;
+import frc.robot.subsystems.robot.Floor;
+import frc.robot.subsystems.robot.Hanger;
+import frc.robot.subsystems.robot.Intake;
+import frc.robot.subsystems.robot.Swerve;
+import frc.robot.subsystems.robot.UltraShooter;
+import frc.robot.subsystems.iodiagnostics.FeederIOReal;
+import frc.robot.subsystems.iodiagnostics.FloorIOReal;
+import frc.robot.subsystems.iodiagnostics.HangerIOReal;
+import frc.robot.subsystems.iodiagnostics.IntakeIOReal;
+import frc.robot.subsystems.tuning.BumpTuner;
+import frc.robot.subsystems.tuning.ShooterAutoTuner;
+import frc.robot.subsystems.tuning.ShooterTuner;
+//import frc.robot.subsystems.tuning.ShooterOrca; // deprecated — replaced by UltraShooter
 
 import java.io.File;
 
@@ -56,10 +61,10 @@ public class RobotContainer
     // BumpTuner must be constructed before Swerve so the reference is ready to pass in.
     private final BumpTuner bumpTuner = new BumpTuner();
 
-    private final Intake intake = new Intake();
-    private final Floor floor = new Floor();
-    private final Feeder feeder = new Feeder();
-    private final Hanger hanger = new Hanger();
+    private final Intake intake = new Intake(new IntakeIOReal());
+    private final Floor floor = new Floor(new FloorIOReal());
+    private final Feeder feeder = new Feeder(new FeederIOReal());
+    private final Hanger hanger = new Hanger(new HangerIOReal());
     private final Limelight limelight     = new Limelight(Ports.kLimelightFront);
     private final Limelight limelightRear = new Limelight(Ports.kLimelightRear);
     private final Field2d field = new Field2d();
@@ -299,12 +304,12 @@ public class RobotContainer
             } else {
                 activeSource = "rear (" + String.format("%.3f", rearConf) + ")";
             }
-            SmartDashboard.putString("Vision/Active Source", activeSource);
-            SmartDashboard.putNumber("Vision/Front Confidence", frontConf);
-            SmartDashboard.putNumber("Vision/Rear Confidence",  rearConf);
-            SmartDashboard.putNumber("Vision/Best Confidence",  bestConf);
-            SmartDashboard.putBoolean("Vision/Wheel Slipping",  isSlipping);
-            SmartDashboard.putNumber("Vision/Wheel Slip Score", drivebase.getWheelSlipScore());
+            Logger.recordOutput("Vision/ActiveSource",   activeSource);
+            Logger.recordOutput("Vision/FrontConfidence", frontConf);
+            Logger.recordOutput("Vision/RearConfidence",  rearConf);
+            Logger.recordOutput("Vision/BestConfidence",  bestConf);
+            Logger.recordOutput("Vision/WheelSlipping",   isSlipping);
+            Logger.recordOutput("Vision/WheelSlipScore",  drivebase.getWheelSlipScore());
 
             if (bestMeasurement.isPresent()) {
                 var m = bestMeasurement.get();
@@ -325,7 +330,7 @@ public class RobotContainer
                 } else {
                     stdDevMultiplier = 1.0;
                 }
-                SmartDashboard.putNumber("Vision/StdDev Multiplier", stdDevMultiplier);
+                Logger.recordOutput("Vision/StdDevMultiplier", stdDevMultiplier);
                 var stdDevs = m.standardDeviations.times(stdDevMultiplier);
                 drivebase.addVisionMeasurement(
                     m.poseEstimate.pose,

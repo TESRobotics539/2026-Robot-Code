@@ -8,10 +8,14 @@ import static edu.wpi.first.units.Units.Volts;
 
 import java.util.OptionalInt;
 
+import org.littletonrobotics.junction.LoggedRobot;
+import org.littletonrobotics.junction.Logger;
+import org.littletonrobotics.junction.networktables.NT4Publisher;
+import org.littletonrobotics.junction.wpilog.WPILOGWriter;
+
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
@@ -22,7 +26,7 @@ import frc.util.MetricTracker;
  * the TimedRobot documentation. If you change the name of this class or the package after creating
  * this project, you must also update the Main.java file in the project.
  */
-public class Robot extends TimedRobot {
+public class Robot extends LoggedRobot {
     private final RobotContainer m_robotContainer;
     private Command m_autonomousCommand;
     
@@ -31,6 +35,17 @@ public class Robot extends TimedRobot {
      * initialization code.
      */
     public Robot() {
+        // Configure AdvantageKit logger before anything else.
+        Logger.recordMetadata("ProjectName", "2026-Robot-Code");
+        Logger.recordMetadata("RobotName",   "Helga");
+        if (isReal()) {
+            Logger.addDataReceiver(new WPILOGWriter()); // logs to /U/logs on USB stick
+            Logger.addDataReceiver(new NT4Publisher());
+        } else {
+            Logger.addDataReceiver(new NT4Publisher());
+        }
+        Logger.start();
+
         // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
         // autonomous chooser on the dashboard.
         m_robotContainer = new RobotContainer();
@@ -53,9 +68,9 @@ public class Robot extends TimedRobot {
         // block in order for anything in the Command-based framework to work.
         double loopStart = Timer.getFPGATimestamp();
         CommandScheduler.getInstance().run();
-        SmartDashboard.putNumber("Loop Time ms", (Timer.getFPGATimestamp() - loopStart) * 1000.0);
-        SmartDashboard.putBoolean("Hub Active", GameData.isHubActive());
-        SmartDashboard.putBoolean("Hub Active (Expanded)", GameData.isHubActiveExpanded(5.0));
+        Logger.recordOutput("LoopTime/ms",              (Timer.getFPGATimestamp() - loopStart) * 1000.0);
+        Logger.recordOutput("GameData/HubActive",        GameData.isHubActive());
+        Logger.recordOutput("GameData/HubActiveExpanded", GameData.isHubActiveExpanded(5.0));
     }
 
     @Override

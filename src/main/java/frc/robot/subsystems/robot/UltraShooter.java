@@ -1,4 +1,4 @@
-package frc.robot.subsystems;
+package frc.robot.subsystems.robot;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -22,6 +22,7 @@ import java.util.function.BooleanSupplier;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
@@ -131,25 +132,11 @@ public class UltraShooter extends SubsystemBase {
 
     private final ShooterTuner shooterTuner;
 
-    // ── NetworkTable telemetry ────────────────────────────────────────────────
+    // ── NetworkTable — Pi co-processor reader entries only ────────────────────
+    // These entries are READ from physics_coprocessor.py running on the Pi.
+    // All output telemetry is handled by Logger.recordOutput() in updateNetworkTable().
 
     private final NetworkTable        nt           = NetworkTableInstance.getDefault().getTable("UltraShooter");
-    private final NetworkTableEntry   ntVelocity   = nt.getEntry("Velocity ft/s");
-    private final NetworkTableEntry   ntTarget     = nt.getEntry("Target ft/s");
-    private final NetworkTableEntry   ntRamped     = nt.getEntry("Ramped Setpoint ft/s");
-    private final NetworkTableEntry   ntAvg        = nt.getEntry("Avg Velocity ft/s");
-    private final NetworkTableEntry   ntReady      = nt.getEntry("Ready");
-    private final NetworkTableEntry   ntPhysics    = nt.getEntry("Physics Velocity ft/s");
-    private final NetworkTableEntry   ntDistance    = nt.getEntry("Distance to Hub (ft)");
-    private final NetworkTableEntry   ntDistanceAvg = nt.getEntry("Avg Distance to Hub (ft)");
-    private final NetworkTableEntry   ntAngle      = nt.getEntry("Launch Angle (deg)");
-    private final NetworkTableEntry   ntHoodHeight = nt.getEntry("Hood Height From Floor (in)");
-    private final NetworkTableEntry   ntHubHeight  = nt.getEntry("Hub Center Height From Floor (in)");
-    private final NetworkTableEntry   ntPrimCur    = nt.getEntry("Primary Current");
-    private final NetworkTableEntry   ntSecCur     = nt.getEntry("Secondary Current");
-    private final NetworkTableEntry   ntTerCur     = nt.getEntry("Tertiary Current");
-    private final NetworkTableEntry   ntTOF        = nt.getEntry("Time of Flight (s)");
-    private final NetworkTableEntry   ntVoltageBias = nt.getEntry("Voltage Bias V");
     // ── Trajectory Mechanism2d canvas ─────────────────────────────────────────
     // Draws a side-view of the current shot: robot box, arc, hub box, yellow fuel ball.
     // Published to SmartDashboard as "Shot Trajectory" — add as a Mechanism2d widget
@@ -193,7 +180,6 @@ public class UltraShooter extends SubsystemBase {
 
     private final NetworkTableEntry   ntPiPhysics  = nt.getEntry("Pi Physics Velocity ft/s");
     private final NetworkTableEntry   ntPiHB       = nt.getEntry("Pi Heartbeat");
-    private final NetworkTableEntry   ntPiActive   = nt.getEntry("Pi Active");
 
     /** Last heartbeat counter seen from the Pi. */
     private long piLastHeartbeat = Long.MIN_VALUE;
@@ -838,16 +824,17 @@ public class UltraShooter extends SubsystemBase {
     }
 
     private void updateNetworkTable() {
-        ntVelocity   .setDouble(getVelocity());
-        ntTarget     .setDouble(velocityTarget);
-        ntRamped     .setDouble(rampedSetpoint);
-        ntAvg        .setDouble(getAverageVelocity());
-        ntReady      .setBoolean(isReady());
-        ntVoltageBias.setDouble(voltageBias);
-        final double effic   = shooterTuner.getFlywheelEfficiency();
-        final double drag    = shooterTuner.getDragCoefficient();
-        final double mass    = shooterTuner.getBallMassLbs();
-        final double dist    = getAverageDistanceToHub();
+        Logger.recordOutput("UltraShooter/Velocity_fps",   getVelocity());
+        Logger.recordOutput("UltraShooter/Target_fps",     velocityTarget);
+        Logger.recordOutput("UltraShooter/Ramped_fps",     rampedSetpoint);
+        Logger.recordOutput("UltraShooter/AvgVelocity_fps", getAverageVelocity());
+        Logger.recordOutput("UltraShooter/Ready",          isReady());
+        Logger.recordOutput("UltraShooter/VoltageBias_V",  voltageBias);
+
+        final double effic = shooterTuner.getFlywheelEfficiency();
+        final double drag  = shooterTuner.getDragCoefficient();
+        final double mass  = shooterTuner.getBallMassLbs();
+        final double dist  = getAverageDistanceToHub();
 
         // Solve once — derive physFPS, TOF, and visualization v0 from a single binary search.
         final double v0Mps   = calcBallExitSpeedMps(dist, drag, mass);
@@ -864,20 +851,19 @@ public class UltraShooter extends SubsystemBase {
             final double d           = dist + SHOOTER_OFFSET_M;
             tof = simulateTimeOfFlight(v0Mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
         }
-        ntPhysics    .setDouble(physFPS);
-        ntTOF        .setDouble(tof);
-        ntDistance   .setDouble(swerve.getDistanceToHub() * 3.28084);
-        ntDistanceAvg.setDouble(dist * 3.28084);
-        ntAngle     .setDouble(Constants.UltraShooterConstants.kLaunchAngleDegrees);
-        ntHoodHeight.setDouble(Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
-        ntHubHeight .setDouble(Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
-        ntPrimCur   .setDouble(primaryMotor.getOutputCurrent());
-        ntSecCur    .setDouble(secondaryMotor.getOutputCurrent());
-        ntTerCur    .setDouble(tertiaryMotor.getOutputCurrent());
-        ntPiActive  .setBoolean(isPiResultFresh());
+        Logger.recordOutput("UltraShooter/Physics_fps",           physFPS);
+        Logger.recordOutput("UltraShooter/TimeOfFlight_s",        tof);
+        Logger.recordOutput("UltraShooter/Distance_ft",           swerve.getDistanceToHub() * 3.28084);
+        Logger.recordOutput("UltraShooter/AvgDistance_ft",        dist * 3.28084);
+        Logger.recordOutput("UltraShooter/LaunchAngle_deg",       Constants.UltraShooterConstants.kLaunchAngleDegrees);
+        Logger.recordOutput("UltraShooter/HoodHeight_in",         Constants.UltraShooterConstants.kHoodHeightFromFloorInches);
+        Logger.recordOutput("UltraShooter/HubHeight_in",          Constants.UltraShooterConstants.kHubCenterHeightFromFloorInches);
+        Logger.recordOutput("UltraShooter/PrimaryCurrent_A",      primaryMotor.getOutputCurrent());
+        Logger.recordOutput("UltraShooter/SecondaryCurrent_A",    secondaryMotor.getOutputCurrent());
+        Logger.recordOutput("UltraShooter/TertiaryCurrent_A",     tertiaryMotor.getOutputCurrent());
+        Logger.recordOutput("UltraShooter/PiActive",              isPiResultFresh());
 
         // Trajectory visualization at ~10 Hz (every 5 cycles) — display-only, no need for 50 Hz.
-        // v0Mps is the ideal ball speed (efficiency = 1); tuned arc scales it by the offset.
         if (++vizSkipCounter % 5 == 0) {
             final double v0Tuned = v0Mps * (1.0 + interpolateOffsetFraction(dist));
             final double dpm     = drag > 0 ? drag / Math.max(mass, 0.001) : 0;
