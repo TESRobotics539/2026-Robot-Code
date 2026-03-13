@@ -275,7 +275,7 @@ public final class Constants {
     /**
      * Ball diameter (inches). Used to compute cross-sectional area for drag.
      * Change this when swapping game pieces; kDragCoefficient must be updated
-     * accordingly: B = 0.5 × Cd × ρ_air × π × (diameter_m / 2)²
+     * accordingly: B = 0.5 x Cd x rho_air x pi x (diameter_m / 2)^2
      */
     public static final double kBallDiameterInches = 6.0;
 
@@ -287,9 +287,9 @@ public final class Constants {
     public static final double kBallMassLbs = 0.595;
 
     /**
-     * Aerodynamic drag constant B = 0.5 × Cd × ρ_air × A_cross  (kg/m).
+     * Aerodynamic drag constant B = 0.5 x Cd x rho_air x A_cross  (kg/m).
      * For a 6-inch-diameter foam sphere (kBallDiameterInches = 6.0):
-     *   Cd ≈ 0.47,  ρ = 1.225 kg/m³,  A = π×(0.0762)² ≈ 0.01824 m²
+     *   Cd ~= 0.47,  rho = 1.225 kg/m^3,  A = pi*(0.0762)^2 ~= 0.01824 m^2
      *   → B ≈ 0.00525 kg/m
      * Set to 0.0 to disable drag compensation and fall back to the
      * analytic (vacuum) projectile formula.

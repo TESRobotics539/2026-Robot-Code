@@ -38,6 +38,7 @@ import frc.robot.Constants;
 import frc.robot.GameData;
 import frc.robot.Landmarks;
 import frc.robot.Ports;
+import frc.robot.subsystems.tuning.ShooterTuner;
 
 /**
  * UltraShooter — physics-based shooter subsystem.
@@ -303,7 +304,7 @@ public class UltraShooter extends SubsystemBase {
      *
      * @param distanceToHubMeters  Odometry distance from robot center to hub (m).
      * @param flywheelEfficiency   Ball-to-flywheel velocity ratio (0–1).
-     * @param dragCoefficient      Aerodynamic drag constant B = 0.5×Cd×ρ×A (kg/m).
+     * @param dragCoefficient      Aerodynamic drag constant B = 0.5*Cd*rho*A (kg/m).
      * @param ballMassLbs          Ball mass (lbs), used in drag term B/m (converted to kg internally).
      * @return Required flywheel surface velocity in ft/s, or 0 if impossible.
      */
@@ -345,7 +346,7 @@ public class UltraShooter extends SubsystemBase {
      * With drag: single forward Euler simulation at 5 ms time-step.
      *
      * @param distanceToHubMeters  Odometry distance from robot center to hub (m).
-     * @param dragCoefficient      Aerodynamic drag constant B = 0.5×Cd×ρ×A (kg/m).
+     * @param dragCoefficient      Aerodynamic drag constant B = 0.5*Cd*rho*A (kg/m).
      * @param ballMassLbs          Ball mass (lbs).
      * @return Time of flight in seconds, or 0 if the shot is physically impossible.
      */
@@ -494,7 +495,7 @@ public class UltraShooter extends SubsystemBase {
      *
      * @param v0BallMps     Ball exit speed (m/s) — not flywheel speed.
      * @param angleRad      Launch angle (radians).
-     * @param dragPerMass   Drag per unit mass B/m (m⁻¹).
+     * @param dragPerMass   Drag per unit mass B/m (1/m).
      * @param maxPoints     Maximum number of points to return.
      * @return Flat array [x0, y0, x1, y1, ...] in meters.
      */

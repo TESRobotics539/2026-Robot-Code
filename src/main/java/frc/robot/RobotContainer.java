@@ -295,7 +295,7 @@ public class RobotContainer
             // Publish for Elastic so drivers can verify which camera is active.
             String activeSource;
             var bestMeasurement = frontMeasurement.isEmpty() && rearMeasurement.isEmpty()
-                ? java.util.Optional.<frc.robot.subsystems.Limelight.Measurement>empty()
+                ? java.util.Optional.<frc.robot.subsystems.vision.Limelight.Measurement>empty()
                 : (frontConf >= rearConf ? frontMeasurement : rearMeasurement);
             if (frontMeasurement.isEmpty() && rearMeasurement.isEmpty()) {
                 activeSource = "none";

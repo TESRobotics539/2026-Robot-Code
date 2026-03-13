@@ -12,6 +12,8 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
+import frc.robot.subsystems.robot.UltraShooter;
+
 /**
  * Automatic kP tuner for the flywheel shooter.
  *

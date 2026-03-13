@@ -36,6 +36,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Config;
 import frc.robot.Constants;
 import frc.robot.Landmarks;
+import frc.robot.subsystems.tuning.BumpTuner;
 import frc.util.LowPassFilter;
 import frc.util.MetricTracker;
 import frc.util.SwerveSetpoint;
@@ -73,11 +74,11 @@ public class Swerve extends SubsystemBase
   private Pigeon2 pigeon2;
   // Cached signal objects — refreshed together via refreshAll() each cycle to guarantee
   // all five values come from the same CAN frame before the filters and rolling averages run.
-  private StatusSignal<Double> pigeonAccelX;
-  private StatusSignal<Double> pigeonAccelY;
-  private StatusSignal<Double> pigeonAccelZ;
-  private StatusSignal<Double> pigeonPitch;
-  private StatusSignal<Double> pigeonRoll;
+  private StatusSignal<?> pigeonAccelX;
+  private StatusSignal<?> pigeonAccelY;
+  private StatusSignal<?> pigeonAccelZ;
+  private StatusSignal<?> pigeonPitch;
+  private StatusSignal<?> pigeonRoll;
   private final LowPassFilter accelXFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelYFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelZFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
@@ -136,7 +137,7 @@ public class Swerve extends SubsystemBase
       throw new RuntimeException(e);
     }
 
-    pigeon2      = (Pigeon2) swerveDrive.getImu().getIMU();
+    pigeon2      = (Pigeon2) swerveDrive.getGyro().getIMU();
     pigeonAccelX = pigeon2.getAccelerationX();
     pigeonAccelY = pigeon2.getAccelerationY();
     pigeonAccelZ = pigeon2.getAccelerationZ();
@@ -177,7 +178,7 @@ public class Swerve extends SubsystemBase
                                   Constants.DrivetrainConstants.kMaxSpeed,
                                   new Pose2d(new Translation2d(Meter.of(2), Meter.of(0)),
                                              Rotation2d.fromDegrees(0)));
-    pigeon2      = (Pigeon2) swerveDrive.getImu().getIMU();
+    pigeon2      = (Pigeon2) swerveDrive.getGyro().getIMU();
     pigeonAccelX = pigeon2.getAccelerationX();
     pigeonAccelY = pigeon2.getAccelerationY();
     pigeonAccelZ = pigeon2.getAccelerationZ();
