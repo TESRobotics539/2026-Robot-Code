@@ -19,8 +19,8 @@ public final class Constants {
 
   // ── Drivetrain ────────────────────────────────────────────────────────────
   public static class DrivetrainConstants {
-    /** Maximum drivetrain translation speed (meters per second). */
-    public static final double kMaxSpeed = Units.feetToMeters(17);
+    /** Maximum drivetrain translation speed (meters per second). SDS MK4 L1 (8.14:1). */
+    public static final double kMaxSpeed = Units.feetToMeters(13);
 
     /**
      * Maximum drive wheel linear acceleration used by the setpoint generator (m/s²).

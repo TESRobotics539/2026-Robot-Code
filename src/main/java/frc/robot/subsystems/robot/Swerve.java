@@ -224,9 +224,9 @@ public class Swerve extends SubsystemBase
         6.883,  // moment of inertia (kg·m²)
         new ModuleConfig(
             0.0508,                                   // wheel radius: 4" wheel → 2" = 0.0508 m
-            5.45,                                     // max drive speed (m/s)
+            4.09,                                     // max drive speed (m/s) — L1 theoretical
             1.19,                                     // wheel COF
-            DCMotor.getNeoVortex(1).withReduction(6.12), // SparkFlex + NEO Vortex, L? gearing
+            DCMotor.getNeoVortex(1).withReduction(8.14), // SparkFlex + NEO Vortex, L1 gearing
             40.0,                                     // drive current limit (A)
             1                                         // motors per module
         ),

@@ -1,0 +1,135 @@
+/**
+ * Standalone build for the Team 539 Pi coprocessor JAR.
+ *
+ * Produces a fat ("shadow") JAR at:
+ *   pi-java/build/libs/pi-coprocessor-all.jar
+ *
+ * ARM64 Linux natives (ntcore, wpinet, wpiutil) are downloaded directly from
+ * the WPILib artifactory and embedded in the JAR so WPILib's RuntimeLoader
+ * can extract them on the Pi at the path "linux/arm64/shared/libXXX.so".
+ *
+ * Usage (from repo root):
+ *   .\gradlew.bat --project-dir pi-java shadowJar
+ *   scp pi-java\build\libs\pi-coprocessor-all.jar pi@wpilibpi.local:/home/pi/
+ *   ssh pi@wpilibpi.local "java -jar /home/pi/pi-coprocessor-all.jar"
+ */
+
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+// Compile Java source files as UTF-8 so Unicode characters in Javadoc don't break the build.
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+def WPILIB_VERSION = '2026.2.1'
+def FRC_MAVEN      = 'https://frcmaven.wpi.edu/artifactory/release/'
+
+def wpiHome = {
+    if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+        def pub = System.getenv('PUBLIC') ?: 'C:\\Users\\Public'
+        return new File(pub, 'wpilib\\2026')
+    } else {
+        return new File(System.getProperty('user.home'), 'wpilib/2026')
+    }
+}()
+
+repositories {
+    maven {
+        name = 'frcHome'
+        url  = new File(wpiHome, 'maven').toURI()
+    }
+    maven {
+        name = 'frcRemote'
+        url  = FRC_MAVEN
+    }
+    mavenCentral()
+}
+
+// ── Java API dependencies ─────────────────────────────────────────────────────
+dependencies {
+    implementation "edu.wpi.first.ntcore:ntcore-java:$WPILIB_VERSION"
+    implementation "edu.wpi.first.wpiutil:wpiutil-java:$WPILIB_VERSION"
+    implementation "edu.wpi.first.wpinet:wpinet-java:$WPILIB_VERSION"
+    implementation 'com.google.code.gson:gson:2.10.1'
+
+    // Jackson is required by WPILib's RuntimeLoader for JNI native extraction.
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.19.2'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.19.2'
+}
+
+// ── Download ARM64 native zips directly ──────────────────────────────────────
+// Gradle's dependency resolution won't fall through to the remote maven when
+// a local POM exists for the same artifact. Downloading directly avoids this.
+def nativeZips = [
+    ntcore : "${FRC_MAVEN}edu/wpi/first/ntcore/ntcore-cpp/${WPILIB_VERSION}/ntcore-cpp-${WPILIB_VERSION}-linuxarm64.zip",
+    wpiutil: "${FRC_MAVEN}edu/wpi/first/wpiutil/wpiutil-cpp/${WPILIB_VERSION}/wpiutil-cpp-${WPILIB_VERSION}-linuxarm64.zip",
+    wpinet : "${FRC_MAVEN}edu/wpi/first/wpinet/wpinet-cpp/${WPILIB_VERSION}/wpinet-cpp-${WPILIB_VERSION}-linuxarm64.zip",
+]
+
+def zipCacheDir  = layout.buildDirectory.dir('arm64zips').get().asFile
+def nativesDir   = layout.buildDirectory.dir('arm64natives').get().asFile
+
+tasks.register('downloadArm64Natives') {
+    outputs.dir(zipCacheDir)
+
+    doLast {
+        zipCacheDir.mkdirs()
+        nativeZips.each { name, url ->
+            def dest = new File(zipCacheDir, "${name}.zip")
+            if (!dest.exists()) {
+                println "Downloading ${name} ARM64 native from WPILib..."
+                new URL(url).withInputStream { src -> dest.bytes = src.bytes }
+            }
+        }
+    }
+}
+
+tasks.register('extractArm64Natives') {
+    dependsOn 'downloadArm64Natives'
+    inputs.dir(zipCacheDir)
+    outputs.dir(nativesDir)
+
+    doLast {
+        nativesDir.deleteDir()
+        nativesDir.mkdirs()
+        zipCacheDir.listFiles().each { zipFile ->
+            zipTree(zipFile).matching {
+                // Release .so only — skip .so.debug and static builds.
+                include 'linux/arm64/shared/*.so'
+            }.each { soFile ->
+                def dest = new File(nativesDir, "linux/arm64/shared/${soFile.name}")
+                dest.parentFile.mkdirs()
+                dest.bytes = soFile.bytes
+            }
+        }
+    }
+}
+
+// ── Fat JAR ───────────────────────────────────────────────────────────────────
+shadowJar {
+    dependsOn 'extractArm64Natives'
+
+    archiveBaseName.set('pi-coprocessor')
+    archiveClassifier.set('all')
+    archiveVersion.set('')
+
+    // Embed ARM64 natives at the resource path WPILib's RuntimeLoader expects.
+    from(nativesDir)
+
+    manifest {
+        attributes 'Main-Class': 'Main'
+    }
+
+    mergeServiceFiles()
+}
+
+build.dependsOn shadowJar
