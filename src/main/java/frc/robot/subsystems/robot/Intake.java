@@ -99,22 +99,22 @@ public class Intake extends SubsystemBase {
                     : rollerUnjamState == ROLLER_REVERSING ? "REVERSING" : "RECOVERING");
 
             if (rollerUnjamState == ROLLER_RUNNING) {
-                io.setRollerRPM(Constants.IntakeConstants.kRollerRPM);
+                io.setRollerPercentOutput(0.9);
                 if (jammed) {
-                    io.setRollerRPM(-Constants.IntakeConstants.kRollerUnjamReverseRPM);
+                    io.setRollerPercentOutput(-0.9);
                     rollerUnjamTimer.restart();
                     rollerUnjamState = ROLLER_REVERSING;
                 }
             } else if (rollerUnjamState == ROLLER_REVERSING) {
                 if (rollerUnjamTimer.hasElapsed(Constants.IntakeConstants.kRollerUnjamReverseSeconds)) {
-                    io.setRollerRPM(Constants.IntakeConstants.kRollerRPM);
+                    io.setRollerPercentOutput(0.9);
                     rollerUnjamState = ROLLER_RECOVERING;
                 }
             } else { // RECOVERING
                 if (free) {
                     rollerUnjamState = ROLLER_RUNNING;
                 } else if (jammed) {
-                    io.setRollerRPM(-Constants.IntakeConstants.kRollerUnjamReverseRPM);
+                    io.setRollerPercentOutput(-0.9);
                     rollerUnjamTimer.restart();
                     rollerUnjamState = ROLLER_REVERSING;
                 }
@@ -266,12 +266,18 @@ public class Intake extends SubsystemBase {
      */
     public Command agitateCommand() {
         return Commands.sequence(
-            runOnce(() -> setPivotPercentOutput(Constants.IntakeConstants.kAgitateUpPower)),
+            runOnce(() -> {
+                usePercentOutput = false;
+                targetPivotPosition = Constants.IntakeConstants.kAgitateHighPosition;
+                hasSetpoint = true;
+            }),
             Commands.waitSeconds(Constants.IntakeConstants.kAgitateUpSeconds),
-            runOnce(() -> setPivotPercentOutput(Constants.IntakeConstants.kAgitateDownPower)),
+            runOnce(() -> {
+                targetPivotPosition = Constants.IntakeConstants.kAgitateLowPosition;
+                hasSetpoint = true;
+            }),
             Commands.waitSeconds(Constants.IntakeConstants.kAgitateDownSeconds)
-        ).repeatedly()
-        .finallyDo(() -> usePercentOutput = false);
+        ).repeatedly();
     }
 
     @Override

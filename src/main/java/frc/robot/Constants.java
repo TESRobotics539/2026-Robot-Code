@@ -78,31 +78,31 @@ public final class Constants {
     public static final double kPivotOutputRangeMax =  0.4;
 
     // ── Pivot positions (absolute encoder, 0.0–1.0) ──────────────────────
-    public static final double kStowedPosition   = 0.8;
-    public static final double kDeployedPosition = 0.57;
-    public static final double kMinPosition       = 0.53;
-    public static final double kMaxPosition       = 0.9;
+    public static final double kStowedPosition   = 0.35;
+    public static final double kDeployedPosition = 0.108;
+    public static final double kMinPosition       = 0.07;
+    public static final double kMaxPosition       = 0.41;
 
     // ── Roller anti-jam ──────────────────────────────────────────────────
     /** Current (amps) above which a roller jam is suspected while intaking. */
-    public static final double kRollerJamCurrentThreshold = 40.0;
+    public static final double kRollerJamCurrentThreshold = 60.0;
     /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
     public static final double kRollerJamVelocityThresholdRPM = 1000.0;
     /** Reverse speed (RPM, magnitude) applied during the roller anti-jam pulse. */
     public static final double kRollerUnjamReverseRPM = 2500.0;
     /** Duration of the reverse pulse during roller anti-jam (seconds). */
-    public static final double kRollerUnjamReverseSeconds = 0.34;
+    public static final double kRollerUnjamReverseSeconds = 0.2;
     /** Velocity (RPM) above which the roller is considered to be running freely after an unjam. */
     public static final double kRollerFreeVelocityThresholdRPM = 3000.0;
 
     // ── Agitation (pivot motion during shooting to settle fuel) ──────────
-    /** Pivot percent output going up during agitation. */
-    public static final double kAgitateUpPower = 0.25;
-    /** Duration of the upward agitation pulse (seconds). */
+    /** Pivot position for the upper agitation hold (absolute encoder units). */
+    public static final double kAgitateHighPosition = 0.210;
+    /** Pivot position for the lower agitation hold (absolute encoder units). */
+    public static final double kAgitateLowPosition  = 0.15;
+    /** Duration to hold the upper agitation position (seconds). */
     public static final double kAgitateUpSeconds = 0.33;
-    /** Pivot percent output going down during agitation (negative = down). */
-    public static final double kAgitateDownPower = -0.05;
-    /** Duration of the downward agitation pulse (seconds). */
+    /** Duration to hold the lower agitation position (seconds). */
     public static final double kAgitateDownSeconds = 0.2;
   }
 
@@ -239,10 +239,15 @@ public final class Constants {
     public static final int kStatorCurrentLimit = 120;
 
     // ── PID ──────────────────────────────────────────────────────────────
-    public static final double kP = 0.003;
+    // Initial values ported from ORCA3136 2026 (ShooterSubsystem.java).
+    // ORCA uses RPM units; ours are ft/s. Conversion: 1 ft/s = 60/(π×4/12) ≈ 57.3 RPM.
+    //   kP: 0.0003/RPM × 57.3 ≈ 0.017/fps
+    //   kD: 0.01/RPM  × 57.3 ≈ 0.57/fps
+    //   kS: 0.21 V — same units, direct copy
+    public static final double kP = 0.017;
     public static final double kI = 0.000;
-    public static final double kD = 0.25;
-    public static final double kS = 0.15;
+    public static final double kD = 0.57;
+    public static final double kS = 0.21;
 
     // ── Flywheel behavior ─────────────────────────────────────────────────
     /** Setpoint ramp-up rate (ft/s per 20 ms cycle). */
@@ -294,7 +299,7 @@ public final class Constants {
      * Tune on the field via ShooterTuner/Params/FlywheelEfficiency.
      * Applied as: ball_exit_speed = flywheel_surface_speed × efficiency.
      */
-    public static final double kFlywheelEfficiency = 0.43;
+    public static final double kFlywheelEfficiency = 0.60;
 
     /**
      * Ball diameter (inches). Used to compute cross-sectional area for drag.
@@ -319,6 +324,19 @@ public final class Constants {
      * analytic (vacuum) projectile formula.
      */
     public static final double kDragCoefficient = 0.00525;
+
+    // ── Pre-spin gating ───────────────────────────────────────────────────
+
+    /**
+     * If true, the FMS-aware pre-spin state machine is active: the flywheel only
+     * spins up to pre-spin speed when fuel has been detected, the hub is within
+     * its active window, and the robot is in the scoring zone.
+     *
+     * <p>Set to {@code false} to always pre-spin to the pre-spin speed regardless
+     * of FMS state, fuel detection, or field position — useful for practice matches,
+     * scrimmages, or debugging when the full state machine is not desired.
+     */
+    public static final boolean kEnableFMSAwarePreSpinLatch = false;
 
     // ── Close-range backup ─────────────────────────────────────────────────
 

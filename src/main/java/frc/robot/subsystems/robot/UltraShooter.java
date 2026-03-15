@@ -525,7 +525,7 @@ public class UltraShooter extends SubsystemBase {
     public void setTarget(double targetFPS) {
         boolean wasRunning = velocityTarget != 0;
         boolean willRun    = targetFPS      != 0;
-        if (wasRunning != willRun) readyLatch = false;
+        if (wasRunning != willRun || targetFPS > velocityTarget) readyLatch = false;
         velocityTarget = targetFPS;
     }
 
@@ -644,19 +644,25 @@ public class UltraShooter extends SubsystemBase {
     }
 
     /**
-     * Pre-spins the flywheel to a fraction of the physics-calculated speed when:
+     * Pre-spins the flywheel to a fraction of the physics-calculated speed.
+     *
+     * <p>When {@link Constants.UltraShooterConstants#kEnableFMSAwarePreSpinLatch} is
+     * {@code true}, pre-spin is gated by:
      * <ol>
-     *   <li>Fuel has been detected ({@code fuelReady}).</li>
      *   <li>The hub is active (within the 5-second expanded window).</li>
      *   <li>The robot is in its own alliance zone or the neutral zone.</li>
      * </ol>
-     * Runs as the default command and is automatically interrupted by any shoot command.
+     * When that constant is {@code false}, the flywheel always spins up to the
+     * pre-spin speed regardless of FMS state, fuel detection, or field position.
+     *
+     * <p>Runs as the default command and is automatically interrupted by any shoot command.
      */
     public Command preSpinCommand(BooleanSupplier fuelReady) {
         return run(() -> {
-            if (fuelReady.getAsBoolean()
-                    && GameData.isHubActiveExpanded(5.0)
-                    && Landmarks.isInScoringZone(swerve.getPose())) {
+            boolean shouldPrespin = !Constants.UltraShooterConstants.kEnableFMSAwarePreSpinLatch
+                    || (GameData.isHubActiveExpanded(5.0)
+                            && Landmarks.isInScoringZone(swerve.getPose()));
+            if (shouldPrespin) {
                 double physicsSpeed = calculateRequiredVelocityFPS(
                         swerve.getDistanceToHub(),
                         shooterTuner.getFlywheelEfficiency(),
@@ -763,7 +769,9 @@ public class UltraShooter extends SubsystemBase {
 
     private void updateNetworkTable() {
         Logger.recordOutput("UltraShooter/Velocity_fps",   getVelocity());
+        Logger.recordOutput("UltraShooter/Velocity_RPM",  getVelocity() * 60.0 / WHEEL_CIRCUMFERENCE_FEET);
         Logger.recordOutput("UltraShooter/Target_fps",     velocityTarget);
+        Logger.recordOutput("UltraShooter/Target_RPM",    velocityTarget * 60.0 / WHEEL_CIRCUMFERENCE_FEET);
         Logger.recordOutput("UltraShooter/Ramped_fps",     rampedSetpoint);
         Logger.recordOutput("UltraShooter/AvgVelocity_fps", getAverageVelocity());
         Logger.recordOutput("UltraShooter/Ready",          isReady());

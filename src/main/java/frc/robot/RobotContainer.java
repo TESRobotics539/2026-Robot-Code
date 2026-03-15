@@ -43,7 +43,7 @@ import frc.robot.subsystems.iodiagnostics.HangerIOReal;
 import frc.robot.subsystems.iodiagnostics.IntakeIOReal;
 import frc.robot.subsystems.iodiagnostics.UltraShooterIOReal;
 import frc.robot.subsystems.tuning.BumpTuner;
-import frc.robot.subsystems.tuning.ShooterAutoTuner;
+// import frc.robot.subsystems.tuning.ShooterAutoTuner;
 import frc.robot.subsystems.tuning.ShooterTuner;
 //import frc.robot.subsystems.tuning.ShooterOrca; // deprecated — replaced by UltraShooter
 
@@ -63,7 +63,7 @@ public class RobotContainer
     private final PiAprilTagVision piAprilTag    = new PiAprilTagVision();
 
     // BumpTuner must be constructed before Swerve so the reference is ready to pass in.
-    private final BumpTuner bumpTuner = new BumpTuner();
+    // private final BumpTuner bumpTuner = new BumpTuner();
 
     private final Intake intake = new Intake(new IntakeIOReal());
     private final Floor floor = new Floor(new FloorIOReal());
@@ -72,11 +72,11 @@ public class RobotContainer
     private final Limelight limelight     = new Limelight(Ports.kLimelightFront);
     private final Limelight limelightRear = new Limelight(Ports.kLimelightRear);
     private final Field2d field = new Field2d();
-    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field, bumpTuner);
+    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field, new BumpTuner());
     //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
-    private final ShooterTuner     shooterTuner     = new ShooterTuner();
-    private final UltraShooter     ultraShooter     = new UltraShooter(new UltraShooterIOReal(), drivebase, shooterTuner);
-    private final ShooterAutoTuner shooterAutoTuner = new ShooterAutoTuner(ultraShooter, shooterTuner);
+    // private final ShooterTuner     shooterTuner     = new ShooterTuner();
+    private final UltraShooter     ultraShooter     = new UltraShooter(new UltraShooterIOReal(), drivebase, new ShooterTuner());
+    // private final ShooterAutoTuner shooterAutoTuner = new ShooterAutoTuner(ultraShooter, shooterTuner);
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
     {
@@ -91,7 +91,7 @@ public class RobotContainer
         floor,
         feeder,
         ultraShooter,
-        shooterTuner,
+        new ShooterTuner(),
         () -> -driverXbox.getLeftY(),
         () -> -driverXbox.getLeftX()
     );
@@ -198,11 +198,11 @@ public class RobotContainer
                     Commands.waitSeconds(Constants.RumbleConstants.kShootPulseOffSeconds)
                 ).repeatedly(),
                 Commands.waitUntil(ultraShooter::isReady)
-                    .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
-                    .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
+                    .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
+                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
-                        Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())
+                        Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ), Set.of(ultraShooter, intake, feeder, floor))
             .finallyDo(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)));
@@ -212,11 +212,11 @@ public class RobotContainer
             Commands.defer(() -> Commands.parallel(
                 ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
                 Commands.waitUntil(ultraShooter::isReady)
-                    .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
-                    .andThen(Commands.waitSeconds(shooterTuner.getShootWaitSeconds()))
+                    .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
+                    .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
                     .andThen(Commands.parallel(
                         feeder.feedCommand(),
-                        Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()).andThen(floor.feedCommand())
+                        Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ), Set.of(ultraShooter, feeder, floor)));
 
@@ -295,6 +295,21 @@ public class RobotContainer
         // Bind to Start so it's reachable without looking down at the controller.
         driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
             .ignoringDisable(true).withName("KillAll"));
+
+        // ══ PID TUNING — delete this entire block when done ══════════════════
+        // A: toggle flywheel on/off at 50 ft/s (~2,865 RPM).
+        final double kTuningFlywheelFPS = 50.0;
+        driverXbox.a().toggleOnTrue(
+            ultraShooter.startEnd(
+                () -> ultraShooter.setTarget(kTuningFlywheelFPS),
+                ultraShooter::stop
+            ).withName("TuningFlywheelSpin"));
+        // B: run feeder + floor at 85% while held
+        driverXbox.b().whileTrue(Commands.parallel(
+            feeder.startEnd(() -> feeder.setPercentOutput(0.85), () -> feeder.setPercentOutput(0)),
+            floor.startEnd(() -> floor.setPercentOutput(0.85), () -> floor.setPercentOutput(0))
+        ).withName("TuningFeed"));
+        // ═════════════════════════════════════════════════════════════════════
     }
 
     private void configureNamedCommands() {
@@ -340,9 +355,9 @@ public class RobotContainer
             // from single-sensor vibration or noise.
             boolean pigeonOverBump = drivebase.isOverBump();
             boolean frontOverBump  = Math.abs(limelight.getAccelZ() - 1.0)
-                > bumpTuner.getLimelightAccelZDeviation();
+                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
             boolean rearOverBump   = Math.abs(limelightRear.getAccelZ() - 1.0)
-                > bumpTuner.getLimelightAccelZDeviation();
+                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
             int bumpVotes = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
             boolean overBump = bumpVotes >= 2;
 
@@ -367,7 +382,7 @@ public class RobotContainer
 
             // Wheel-slip detection — both signals must agree to avoid false positives.
             boolean isSlipping = drivebase.isWheelSlipping();
-            boolean highConf   = bestConf >= bumpTuner.getHighConfidenceThreshold();
+            boolean highConf   = bestConf >= Constants.BumpDetectionConstants.kHighConfidenceThreshold;
 
             // Publish for Elastic so drivers can verify which camera is active.
             String activeSource;
@@ -401,9 +416,9 @@ public class RobotContainer
                 // • Not slipping              → normal stddevs from getMeasurement().
                 double stdDevMultiplier;
                 if (isSlipping && highConf) {
-                    stdDevMultiplier = bumpTuner.getSlipHighConfMultiplier();
+                    stdDevMultiplier = Constants.BumpDetectionConstants.kSlipHighConfStdDevMultiplier;
                 } else if (isSlipping) {
-                    stdDevMultiplier = bumpTuner.getBumpVisionMultiplier();
+                    stdDevMultiplier = Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier;
                 } else {
                     stdDevMultiplier = 1.0;
                 }

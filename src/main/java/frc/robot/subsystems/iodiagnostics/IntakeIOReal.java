@@ -112,6 +112,11 @@ public class IntakeIOReal implements IntakeIO {
     }
 
     @Override
+    public void setRollerPercentOutput(double percent) {
+        rollerMotor.set(percent);
+    }
+
+    @Override
     public void stopRoller() {
         rollerMotor.set(0);
     }

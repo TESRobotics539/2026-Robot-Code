@@ -47,6 +47,10 @@ public class Floor extends SubsystemBase {
         io.setVoltage(speed.voltage().in(Volts));
     }
 
+    public void setPercentOutput(double percentOutput) {
+        io.setVoltage(percentOutput * 12.0);
+    }
+
     public Command feedCommand() {
         return startEnd(() -> set(Speed.FEED), () -> set(Speed.STOP));
     }

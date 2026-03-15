@@ -26,6 +26,9 @@ public interface IntakeIO {
     /** Set roller closed-loop velocity target (RPM). */
     default void setRollerRPM(double rpm) {}
 
+    /** Drive roller open-loop. */
+    default void setRollerPercentOutput(double percent) {}
+
     /** Cut roller power immediately. */
     default void stopRoller() {}
 }
