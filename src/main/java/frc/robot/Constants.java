@@ -91,7 +91,7 @@ public final class Constants {
     /** Reverse speed (RPM, magnitude) applied during the roller anti-jam pulse. */
     public static final double kRollerUnjamReverseRPM = 2500.0;
     /** Duration of the reverse pulse during roller anti-jam (seconds). */
-    public static final double kRollerUnjamReverseSeconds = 0.33;
+    public static final double kRollerUnjamReverseSeconds = 0.34;
     /** Velocity (RPM) above which the roller is considered to be running freely after an unjam. */
     public static final double kRollerFreeVelocityThresholdRPM = 3000.0;
 
