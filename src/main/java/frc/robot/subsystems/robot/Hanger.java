@@ -13,6 +13,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.subsystems.iodiagnostics.HangerIO;
 import frc.robot.subsystems.iodiagnostics.HangerIOInputsAutoLogged;
+import frc.util.LoggedTracer;
 
 public class Hanger extends SubsystemBase {
     public enum Position {
@@ -44,6 +45,7 @@ public class Hanger extends SubsystemBase {
     public void periodic() {
         io.updateInputs(inputs);
         Logger.processInputs("Hanger", inputs);
+        LoggedTracer.record("Hanger");
     }
 
     public void setPercentOutput(double percentOutput) {

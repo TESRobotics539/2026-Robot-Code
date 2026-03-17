@@ -13,6 +13,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.subsystems.iodiagnostics.FeederIO;
 import frc.robot.subsystems.iodiagnostics.FeederIOInputsAutoLogged;
+import frc.util.LoggedTracer;
 
 public class Feeder extends SubsystemBase {
     public enum Speed {
@@ -42,6 +43,7 @@ public class Feeder extends SubsystemBase {
     public void periodic() {
         io.updateInputs(inputs);
         Logger.processInputs("Feeder", inputs);
+        LoggedTracer.record("Feeder");
     }
 
     public void set(Speed speed) {

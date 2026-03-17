@@ -13,6 +13,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.subsystems.iodiagnostics.IntakeIO;
 import frc.robot.subsystems.iodiagnostics.IntakeIOInputsAutoLogged;
+import frc.util.LoggedTracer;
 
 public class Intake extends SubsystemBase {
 
@@ -139,6 +140,7 @@ public class Intake extends SubsystemBase {
             stopRoller();
             rollerRunning = false;
         }
+        LoggedTracer.record("Intake");
     }
 
     public void setPivotPosition(Position position) {

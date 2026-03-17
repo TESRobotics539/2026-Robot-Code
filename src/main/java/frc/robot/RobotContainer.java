@@ -15,8 +15,8 @@ import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
-import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -25,11 +25,9 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants.OperatorConstants;
-import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
-// import frc.robot.subsystems.vision.BallVision; // Pi-backed ball detection (disabled)
-import frc.robot.subsystems.vision.Limelight;
-// import frc.robot.subsystems.vision.PiAprilTagVision; // Pi-backed AprilTag fallback (disabled)
+import frc.robot.subsystems.vision.VisionManager;
+import frc.robot.subsystems.iodiagnostics.LimelightIOReal;
 import frc.robot.subsystems.robot.BlinkinLed;
 import frc.robot.subsystems.robot.Feeder;
 import frc.robot.subsystems.robot.Floor;
@@ -60,14 +58,17 @@ public class RobotContainer
 {
     // ── Vision ───────────────────────────────────────────────────────────────
     private final BlinkinLed blinkinLed = new BlinkinLed();
-    // private final BallVision ballVision = new BallVision(); // Pi-backed ball detection (disabled)
-    private final Limelight limelight     = new Limelight(Ports.kLimelightFront);
-    private final Limelight limelightRear = new Limelight(Ports.kLimelightRear);
-    // private final PiAprilTagVision piAprilTag = new PiAprilTagVision(); // Pi AprilTag (disabled)
 
     // ── Drive ────────────────────────────────────────────────────────────────
     private final Field2d field     = new Field2d();
     private final Swerve  drivebase = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
+
+    // VisionManager must be constructed after drivebase (it holds a reference to it).
+    private final VisionManager visionManager = new VisionManager(
+        new LimelightIOReal(Ports.kLimelightFront),
+        new LimelightIOReal(Ports.kLimelightRear),
+        drivebase
+    );
 
     // ── Subsystems ───────────────────────────────────────────────────────────
     private final Intake  intake  = new Intake(new IntakeIOReal());
@@ -125,7 +126,6 @@ public class RobotContainer
         DriverStation.silenceJoystickConnectionWarning(true);
 
         // Default commands
-        limelight.setDefaultCommand(updateVisionCommand());
         blinkinLed.setDefaultCommand(
             Commands.run(blinkinLed::setPhasePattern, blinkinLed)
                 .finallyDo(__ -> blinkinLed.setDefaultPattern()));
@@ -212,7 +212,10 @@ public class RobotContainer
                         Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ), Set.of(ultraShooter, intake, feeder, floor))
-            .finallyDo(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)));
+            .finallyDo(interrupted -> {
+                driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0);
+                Logger.recordOutput("Commands/SpinUpShoot/Interrupted", interrupted);
+            }));
 
         // X: dump shot (fixed low speed)
         driverXbox.x().whileTrue(
@@ -225,7 +228,8 @@ public class RobotContainer
                         feeder.feedCommand(),
                         Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
-            ), Set.of(ultraShooter, feeder, floor)));
+            ), Set.of(ultraShooter, feeder, floor))
+            .finallyDo(interrupted -> Logger.recordOutput("Commands/DumpShot/Interrupted", interrupted)));
 
         // Right trigger: aim + shoot (physics-based, only while hub is active)
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
@@ -246,7 +250,10 @@ public class RobotContainer
                     ).repeatedly()
                 ),
                 intake.agitateCommand()
-            ).finallyDo(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)))
+            ).finallyDo(interrupted -> {
+                driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0);
+                Logger.recordOutput("Commands/AimShoot/Interrupted", interrupted);
+            }))
             .onFalse(Commands.parallel(
                 subsystemCommands.holdAimAndSpeedCommand(1.5),
                 intake.runOnce(intake::resetFuelDetection)));
@@ -262,7 +269,8 @@ public class RobotContainer
                             .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
 
         // Y: auto climb; also spin down shooter in last 30 seconds of teleop
-        driverXbox.y().onTrue(hanger.autoClimbCommand());
+        driverXbox.y().onTrue(hanger.autoClimbCommand()
+            .finallyDo(interrupted -> Logger.recordOutput("Commands/AutoClimb/Interrupted", interrupted)));
         driverXbox.y()
             .and(() -> DriverStation.isTeleop() && DriverStation.getMatchTime() <= 30)
             .onTrue(ultraShooter.spinDownCommand());
@@ -337,105 +345,5 @@ public class RobotContainer
     public void setMotorBrake(boolean brake)
     {
       drivebase.setMotorBrake(brake);
-    }
-
-    private Command updateVisionCommand() {
-        return Commands.run(() -> {
-            final Pose2d currentRobotPose = drivebase.getPose();
-
-            // 2-of-3 majority vote across Pigeon + both Limelight accelerometers.
-            // Requires two sensors to agree to avoid false positives from single-sensor noise.
-            // When over a bump, camera shake makes tag pose estimates unreliable regardless of
-            // tag visibility, so stddevs are inflated to reduce pose estimator corruption.
-            boolean pigeonOverBump = drivebase.isOverBump();
-            boolean frontOverBump  = Math.abs(limelight.getAccelZ() - 1.0)
-                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
-            boolean rearOverBump   = Math.abs(limelightRear.getAccelZ() - 1.0)
-                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
-            int bumpVotes = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
-            boolean overBump = bumpVotes >= 2;
-
-            // Pigeon 2 orientation — forwarded to both Limelights so MegaTag2 can compensate
-            // for camera tilt during bump traversal and correct for dynamic yaw rotation.
-            double pitchDeg     = drivebase.getPitchDegrees();
-            double rollDeg      = drivebase.getRollDegrees();
-            double yawRateDegPS = drivebase.getYawRateDegPerSec();
-
-            // Request measurements from both Limelights (each call also sends SetRobotOrientation
-            // so MegaTag2 keeps a fresh heading even for the camera that isn't chosen).
-            var frontMeasurement = limelight.getMeasurement(currentRobotPose, pitchDeg, rollDeg, yawRateDegPS);
-            var rearMeasurement  = limelightRear.getMeasurement(currentRobotPose, pitchDeg, rollDeg, yawRateDegPS);
-
-            // Confidence = avgTagArea × tagCount. Larger tag area means the robot is closer to
-            // the tags and the projection error is smaller; more tags further reduce ambiguity.
-            double frontConf = frontMeasurement.map(
-                m -> m.avgTagArea * m.poseEstimate.tagCount).orElse(0.0);
-            double rearConf  = rearMeasurement.map(
-                m -> m.avgTagArea * m.poseEstimate.tagCount).orElse(0.0);
-            double bestConf  = Math.max(frontConf, rearConf);
-
-            // Wheel-slip detection — both signals must agree to avoid false positives.
-            boolean isSlipping = drivebase.isWheelSlipping();
-            boolean highConf   = bestConf >= Constants.BumpDetectionConstants.kHighConfidenceThreshold;
-
-            // Publish for Elastic so drivers can verify which camera is active.
-            String activeSource;
-            var bestMeasurement = frontMeasurement.isEmpty() && rearMeasurement.isEmpty()
-                ? java.util.Optional.<frc.robot.subsystems.vision.Limelight.Measurement>empty()
-                : (frontConf >= rearConf ? frontMeasurement : rearMeasurement);
-            if (frontMeasurement.isEmpty() && rearMeasurement.isEmpty()) {
-                activeSource = "none";
-            } else if (frontConf >= rearConf && frontMeasurement.isPresent()) {
-                activeSource = "front (" + String.format("%.3f", frontConf) + ")";
-            } else {
-                activeSource = "rear (" + String.format("%.3f", rearConf) + ")";
-            }
-            Logger.recordOutput("Vision/ActiveSource",   activeSource);
-            Logger.recordOutput("Vision/FrontConfidence", frontConf);
-            Logger.recordOutput("Vision/RearConfidence",  rearConf);
-            Logger.recordOutput("Vision/BestConfidence",  bestConf);
-            Logger.recordOutput("Vision/WheelSlipping",   isSlipping);
-            Logger.recordOutput("Vision/WheelSlipScore",  drivebase.getWheelSlipScore());
-            Logger.recordOutput("Vision/OverBump",        overBump);
-            Logger.recordOutput("Vision/BumpVotes",       bumpVotes);
-
-            if (bestMeasurement.isPresent()) {
-                var m = bestMeasurement.get();
-                // Stddev multiplier priority (highest first):
-                //
-                // • Bump + high confidence → camera shaking but solid tag fix; mild inflation
-                //                           lets close-range tags still contribute.
-                //
-                // • Bump + low confidence  → shaking camera, no reliable fix; heavy inflation
-                //                           nearly mutes vision to prevent estimator corruption.
-                //
-                // • Slipping + low conf    → neither odometry nor vision reliable; heavy inflate.
-                //
-                // • Slipping + high conf / normal → pass through stddevs unchanged.
-                double stdDevMultiplier;
-                if (overBump && highConf) {
-                    stdDevMultiplier = Constants.BumpDetectionConstants.kBumpHighConfStdDevMultiplier;
-                } else if (overBump) {
-                    stdDevMultiplier = Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier;
-                } else if (isSlipping && !highConf) {
-                    stdDevMultiplier = Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier;
-                } else {
-                    stdDevMultiplier = 1.0;
-                }
-                Logger.recordOutput("Vision/StdDevMultiplier", stdDevMultiplier);
-                double ts = m.poseEstimate.timestampSeconds;
-                // Reject timestamps of 0 or in the future — these indicate a stale or
-                // invalid Limelight frame and would corrupt the pose estimator.
-                if (ts > 0 && ts <= Timer.getFPGATimestamp()) {
-                    var stdDevs = m.standardDeviations.times(stdDevMultiplier);
-                    drivebase.addVisionMeasurement(m.poseEstimate.pose, ts, stdDevs);
-                }
-            }
-            // else if (!overBump) {
-            //     piAprilTag.getMeasurement().ifPresent(m -> drivebase.addVisionMeasurement(
-            //         m.pose, m.timestampSeconds, m.standardDeviations
-            //     ));
-            // }
-        }, limelight, limelightRear).ignoringDisable(true);
     }
 }

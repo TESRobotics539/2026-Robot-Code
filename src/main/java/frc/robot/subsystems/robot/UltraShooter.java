@@ -28,6 +28,7 @@ import frc.robot.GameData;
 import frc.robot.Landmarks;
 import frc.robot.subsystems.iodiagnostics.UltraShooterIO;
 import frc.robot.subsystems.iodiagnostics.UltraShooterIOInputsAutoLogged;
+import frc.util.LoggedTracer;
 // import frc.robot.subsystems.tuning.ShooterTuner; // Pi-backed live shooter tuning (disabled)
 
 /**
@@ -899,6 +900,7 @@ public class UltraShooter extends SubsystemBase {
         //         applyKpToMotors(newKp);
         //     }
         // }
+        LoggedTracer.record("UltraShooter");
     }
 
     @Override
