@@ -72,12 +72,20 @@ public final class SubsystemCommands {
         return aimAndFire(feedWith(feedExtra));
     }
 
-    /** Holds flywheel speed and continues aiming at the hub for the given duration, then stops both. */
+    /**
+     * Holds flywheel speed and aim for {@code seconds}, then idles the flywheel down to
+     * pre-spin speed over 1 second. The aim (and therefore the swerve requirement) is
+     * released after {@code seconds} so the driver regains drivetrain control immediately
+     * after the hold period ends.
+     */
     public Command holdAimAndSpeedCommand(double seconds) {
-        return Commands.parallel(
-            ultraShooter.holdSpeedCommand(seconds),
-            new AimAndDriveCommand(swerve, forwardInput, leftInput)
-        ).withTimeout(seconds);
+        return Commands.sequence(
+            Commands.parallel(
+                ultraShooter.run(() -> {}).withTimeout(seconds),
+                new AimAndDriveCommand(swerve, forwardInput, leftInput).withTimeout(seconds)
+            ),
+            ultraShooter.idleDownCommand()
+        );
     }
 
     public Command autoShoot() {

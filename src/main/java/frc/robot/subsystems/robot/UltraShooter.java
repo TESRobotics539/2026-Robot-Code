@@ -676,6 +676,20 @@ public class UltraShooter extends SubsystemBase {
         return run(() -> setTarget(0)).withName("SpinDown");
     }
 
+    /**
+     * Ramps the flywheel to the pre-spin speed over 1 second, then ends.
+     * The pre-spin target is recalculated each cycle so it tracks the current
+     * distance. After this command finishes, {@link #preSpinCommand} takes over
+     * at the same speed with no discontinuity.
+     */
+    public Command idleDownCommand() {
+        return run(() -> {
+            double preSpinSpeed = calculateRequiredVelocityFPS(swerve.getDistanceToHub())
+                    * Constants.UltraShooterConstants.kPreSpinFraction;
+            setTarget(preSpinSpeed);
+        }).withTimeout(1.0).withName("IdleDown");
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Internal periodic helpers
     // ─────────────────────────────────────────────────────────────────────────

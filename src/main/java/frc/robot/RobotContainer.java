@@ -255,7 +255,7 @@ public class RobotContainer
                 Logger.recordOutput("Commands/AimShoot/Interrupted", interrupted);
             }))
             .onFalse(Commands.parallel(
-                subsystemCommands.holdAimAndSpeedCommand(1.5),
+                subsystemCommands.holdAimAndSpeedCommand(1.0),
                 intake.runOnce(intake::resetFuelDetection)));
 
         // ── Feeder ───────────────────────────────────────────────────────────
