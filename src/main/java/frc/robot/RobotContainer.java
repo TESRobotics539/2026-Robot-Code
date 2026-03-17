@@ -27,7 +27,7 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
-import frc.robot.subsystems.vision.BallVision;
+// import frc.robot.subsystems.vision.BallVision; // Pi-backed ball detection (disabled)
 import frc.robot.subsystems.vision.Limelight;
 // import frc.robot.subsystems.vision.PiAprilTagVision; // Pi-backed AprilTag fallback (disabled)
 import frc.robot.subsystems.robot.BlinkinLed;
@@ -58,20 +58,25 @@ import swervelib.SwerveInputStream;
  */
 public class RobotContainer
 {
+    // ── Vision ───────────────────────────────────────────────────────────────
     private final BlinkinLed blinkinLed = new BlinkinLed();
-    private final BallVision       ballVision    = new BallVision();
-    // private final PiAprilTagVision piAprilTag = new PiAprilTagVision(); // Pi AprilTag (disabled)
-    // private final BumpTuner bumpTuner = new BumpTuner();                 // Pi bump tuning (disabled)
-
-    private final Intake intake = new Intake(new IntakeIOReal());
-    private final Floor floor = new Floor(new FloorIOReal());
-    private final Feeder feeder = new Feeder(new FeederIOReal());
-    private final Hanger hanger = new Hanger(new HangerIOReal());
+    // private final BallVision ballVision = new BallVision(); // Pi-backed ball detection (disabled)
     private final Limelight limelight     = new Limelight(Ports.kLimelightFront);
     private final Limelight limelightRear = new Limelight(Ports.kLimelightRear);
-    private final Field2d field = new Field2d();
-    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
-    //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
+    // private final PiAprilTagVision piAprilTag = new PiAprilTagVision(); // Pi AprilTag (disabled)
+
+    // ── Drive ────────────────────────────────────────────────────────────────
+    private final Field2d field     = new Field2d();
+    private final Swerve  drivebase = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
+
+    // ── Subsystems ───────────────────────────────────────────────────────────
+    private final Intake  intake  = new Intake(new IntakeIOReal());
+    private final Floor   floor   = new Floor(new FloorIOReal());
+    private final Feeder  feeder  = new Feeder(new FeederIOReal());
+    private final Hanger  hanger  = new Hanger(new HangerIOReal());
+    // private final BumpTuner bumpTuner = new BumpTuner();  // Pi bump tuning (disabled)
+
+    // ── Shooter ──────────────────────────────────────────────────────────────
     // private final ShooterTuner     shooterTuner     = new ShooterTuner();     // Pi shooter tuning (disabled)
     private final UltraShooter     ultraShooter     = new UltraShooter(new UltraShooterIOReal(), drivebase);
     // private final ShooterAutoTuner shooterAutoTuner = new ShooterAutoTuner(ultraShooter, shooterTuner);
@@ -81,9 +86,11 @@ public class RobotContainer
         ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand(intake::hasPickedUpFuel));
     }
 
+    // ── Controllers ──────────────────────────────────────────────────────────
     final CommandXboxController driverXbox = new CommandXboxController(0);
     private double lastIntakeTriggerPressTime = Double.NEGATIVE_INFINITY;
 
+    // ── Command Factories ────────────────────────────────────────────────────
     private final SubsystemCommands subsystemCommands = new SubsystemCommands(
         drivebase,
         floor,
@@ -93,13 +100,11 @@ public class RobotContainer
         () -> -driverXbox.getLeftX()
     );
 
-    // Establish a Sendable Chooser that will be able to be sent to the SmartDashboard, allowing selection of desired auto
+    // ── Auto ─────────────────────────────────────────────────────────────────
     private final SendableChooser<Command> autoChooser;
 
-    /**
-     * Converts driver input into a field-relative ChassisSpeeds that is controlled by angular velocity.
-     */
-    // Input curve: x^1.5 softens fine control near center while preserving full speed at edges.
+    // ── Drive Input Stream ───────────────────────────────────────────────────
+    // x^1.5 curve softens fine control near center while preserving full speed at edges.
     SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
                                                                   () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, 1.5),
                                                                   () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, 1.5))
@@ -111,18 +116,21 @@ public class RobotContainer
 
     public RobotContainer()
     {
+        // Auto — register named commands before building the chooser
         configureNamedCommands();
         autoChooser = AutoBuilder.buildAutoChooser();
 
+        // Bindings
         configureBindings();
         DriverStation.silenceJoystickConnectionWarning(true);
 
+        // Default commands
         limelight.setDefaultCommand(updateVisionCommand());
-
         blinkinLed.setDefaultCommand(
             Commands.run(blinkinLed::setPhasePattern, blinkinLed)
                 .finallyDo(__ -> blinkinLed.setDefaultPattern()));
 
+        // Dashboard
         SmartDashboard.putData("Auto Chooser", autoChooser);
         SmartDashboard.putData("Field", field);
     }
@@ -349,9 +357,10 @@ public class RobotContainer
         return Commands.run(() -> {
             final Pose2d currentRobotPose = drivebase.getPose();
 
-            // 2-of-3 majority vote across three independent sensors at different robot locations.
-            // Requires at least two to agree before inflating stddevs, avoiding false positives
-            // from single-sensor vibration or noise.
+            // 2-of-3 majority vote across Pigeon + both Limelight accelerometers.
+            // Requires two sensors to agree to avoid false positives from single-sensor noise.
+            // When over a bump, camera shake makes tag pose estimates unreliable regardless of
+            // tag visibility, so stddevs are inflated to reduce pose estimator corruption.
             boolean pigeonOverBump = drivebase.isOverBump();
             boolean frontOverBump  = Math.abs(limelight.getAccelZ() - 1.0)
                 > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
@@ -401,22 +410,28 @@ public class RobotContainer
             Logger.recordOutput("Vision/BestConfidence",  bestConf);
             Logger.recordOutput("Vision/WheelSlipping",   isSlipping);
             Logger.recordOutput("Vision/WheelSlipScore",  drivebase.getWheelSlipScore());
+            Logger.recordOutput("Vision/OverBump",        overBump);
+            Logger.recordOutput("Vision/BumpVotes",       bumpVotes);
 
             if (bestMeasurement.isPresent()) {
                 var m = bestMeasurement.get();
-                // Confidence-gated slip handling:
+                // Stddev multiplier priority (highest first):
                 //
-                // • Slipping + high confidence → wheels are unreliable, but Limelights have a
-                //   solid tag fix. Shrink stddevs to let vision actively correct the drifted pose.
+                // • Bump + high confidence → camera shaking but solid tag fix; mild inflation
+                //                           lets close-range tags still contribute.
                 //
-                // • Slipping + low confidence  → neither odometry nor vision is reliable.
-                //   Inflate stddevs so the bad camera pose doesn't corrupt the estimate.
+                // • Bump + low confidence  → shaking camera, no reliable fix; heavy inflation
+                //                           nearly mutes vision to prevent estimator corruption.
                 //
-                // • Not slipping              → normal stddevs from getMeasurement().
+                // • Slipping + low conf    → neither odometry nor vision reliable; heavy inflate.
+                //
+                // • Slipping + high conf / normal → pass through stddevs unchanged.
                 double stdDevMultiplier;
-                if (isSlipping && highConf) {
-                    stdDevMultiplier = Constants.BumpDetectionConstants.kSlipHighConfStdDevMultiplier;
-                } else if (isSlipping) {
+                if (overBump && highConf) {
+                    stdDevMultiplier = Constants.BumpDetectionConstants.kBumpHighConfStdDevMultiplier;
+                } else if (overBump) {
+                    stdDevMultiplier = Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier;
+                } else if (isSlipping && !highConf) {
                     stdDevMultiplier = Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier;
                 } else {
                     stdDevMultiplier = 1.0;

@@ -69,6 +69,8 @@ public class IntakeIOReal implements IntakeIO {
         config.smartCurrentLimit(80);
         config.secondaryCurrentLimit(120);
 
+        config.closedLoopRampRate(Constants.IntakeConstants.kRollerRampRateSeconds);
+
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
             .pid(Constants.IntakeConstants.kRollerP, Constants.IntakeConstants.kRollerI, Constants.IntakeConstants.kRollerD)

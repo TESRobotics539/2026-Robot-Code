@@ -23,6 +23,8 @@ public class FeederIOReal implements FeederIO {
         config.idleMode(Constants.FeederConstants.kIdleMode);
         config.smartCurrentLimit(Constants.FeederConstants.kSmartCurrentLimit);
 
+        config.closedLoopRampRate(Constants.FeederConstants.kRampRateSeconds);
+
         config.closedLoop
             .pid(Constants.FeederConstants.kP, Constants.FeederConstants.kI, Constants.FeederConstants.kD)
             .velocityFF(Constants.FeederConstants.kVelocityFF);

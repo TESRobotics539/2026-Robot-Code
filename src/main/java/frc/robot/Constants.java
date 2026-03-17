@@ -89,11 +89,15 @@ public final class Constants {
     /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
     public static final double kRollerJamVelocityThresholdRPM = 1000.0;
     /** Reverse speed (RPM, magnitude) applied during the roller anti-jam pulse. */
-    public static final double kRollerUnjamReverseRPM = 2500.0;
+    public static final double kRollerUnjamReverseRPM = 750.0;
     /** Duration of the reverse pulse during roller anti-jam (seconds). */
-    public static final double kRollerUnjamReverseSeconds = 0.2;
+    public static final double kRollerUnjamReverseSeconds = 0.5;
     /** Velocity (RPM) above which the roller is considered to be running freely after an unjam. */
     public static final double kRollerFreeVelocityThresholdRPM = 3000.0;
+
+    // ── Ramp rate ─────────────────────────────────────────────────────────
+    /** Closed-loop ramp rate for the roller (seconds from 0 to full output). Applies to both acceleration and deceleration. */
+    public static final double kRollerRampRateSeconds = 0.25;
 
     // ── Agitation (pivot motion during shooting to settle fuel) ──────────
     /** Pivot position for the upper agitation hold (absolute encoder units). */
@@ -132,11 +136,15 @@ public final class Constants {
     /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
     public static final double kJamVelocityThresholdRPM = 1000.0;
     /** Reverse speed (RPM, magnitude) applied during the anti-jam pulse. */
-    public static final double kUnjamReverseRPM = 2500.0;
+    public static final double kUnjamReverseRPM = 750.0;
     /** Duration of the reverse pulse during anti-jam (seconds). */
     public static final double kUnjamReverseSeconds = 0.5;
     /** Velocity (RPM) above which the feeder is considered to be running freely after an unjam. */
     public static final double kFreeVelocityThresholdRPM = 3000.0;
+
+    // ── Ramp rate ─────────────────────────────────────────────────────────
+    /** Closed-loop ramp rate for the feeder (seconds from 0 to full output). Applies to both acceleration and deceleration. */
+    public static final double kRampRateSeconds = 0.25;
   }
 
   // ── Floor ─────────────────────────────────────────────────────────────────
@@ -423,9 +431,15 @@ public final class Constants {
     public static final double kBumpAccelZDeviationThreshold = 0.25;
 
     /**
-     * Deviation from 1 g on the Limelight Z-axis accelerometer (g) used to
-     * confirm the bump independently. Both sensors must agree before vision
-     * measurements are rejected.
+     * Deviation from 1 g on the Limelight Z-axis accelerometer (g) used as
+     * one vote in the 2-of-3 bump majority (Pigeon + front LL + rear LL).
+     *
+     * <p><b>Tuning:</b> Log {@code Vision/BumpVotes} while driving over the bump
+     * at match speed. Decrease this value if bump traversals only register 1 vote
+     * (threshold too high); increase it if flat-ground vibration triggers false
+     * votes (threshold too low). Start around 0.20–0.35 g and adjust in 0.05 g
+     * increments. The Pigeon threshold ({@link #kBumpAccelZDeviationThreshold})
+     * should be tuned the same way via {@code Swerve/PigeonOverBump} logging.
      */
     public static final double kLimelightAccelZDeviationThreshold = 0.25;
 
@@ -440,28 +454,36 @@ public final class Constants {
 
     // ── Vision trust adjustment ───────────────────────────────────────────
     /**
-     * Standard-deviation multiplier applied to vision measurements while a
-     * confirmed bump is in progress AND vision confidence is LOW.
-     * Effectively tells the pose estimator to discount vision when the camera
-     * is tilted and we have no reliable tag fix.
+     * Standard-deviation multiplier applied when a confirmed bump is in progress
+     * AND vision confidence is LOW. Heavy inflation tells the pose estimator to
+     * nearly ignore vision — the camera is shaking and there is no reliable tag fix.
      */
     public static final double kBumpVisionStdDevMultiplier = 10.0;
 
     /**
+     * Standard-deviation multiplier applied when a confirmed bump is in progress
+     * AND vision confidence is HIGH (solid tag fix despite camera shake).
+     * Mild inflation — still somewhat discounts the noisy reading, but lets a
+     * close-range multi-tag fix contribute meaningfully to the estimate.
+     * Tune by observing pose jump magnitude on Elastic while crossing the bump
+     * near tags; increase if pose still jumps, decrease if drift goes uncorrected.
+     */
+    public static final double kBumpHighConfStdDevMultiplier = 3.0;
+
+    /**
      * Minimum vision confidence score (avgTagArea × tagCount) required to
-     * bias the pose estimator toward Limelight during detected wheel slip.
+     * distinguish high-confidence from low-confidence paths.
      * A value of ~1.0 corresponds roughly to one AprilTag visible at moderate
-     * range (~10 ft). Below this threshold the low-confidence path is used.
+     * range (~10 ft). Below this threshold the low-confidence (inflate) path is used.
      */
     public static final double kHighConfidenceThreshold = 1.0;
 
     /**
-     * Standard-deviation multiplier applied to vision measurements when
-     * wheel slip is detected AND vision confidence is HIGH.
-     * Values below 1.0 increase trust in vision; 0.5 makes the pose estimator
-     * weight the Limelight fix twice as heavily as normal, actively correcting
-     * the odometry error introduced by the slipping wheels.
+     * Standard-deviation multiplier applied when wheel slip is detected AND
+     * vision confidence is HIGH. A value of 1.0 passes through stddevs unchanged —
+     * trust vision at face value rather than artificially boosting it. The wheels
+     * are unreliable, but that is not a reason to over-weight a single vision frame.
      */
-    public static final double kSlipHighConfStdDevMultiplier = 0.5;
+    public static final double kSlipHighConfStdDevMultiplier = 1.0;
   }
 }
