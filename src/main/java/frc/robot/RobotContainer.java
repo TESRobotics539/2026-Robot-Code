@@ -303,20 +303,6 @@ public class RobotContainer
         driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
             .ignoringDisable(true).withName("KillAll"));
 
-        // ══ PID TUNING — delete this entire block when done ══════════════════
-        // A: toggle flywheel on/off at 50 ft/s (~2,865 RPM).
-        final double kTuningFlywheelFPS = 50.0;
-        driverXbox.a().toggleOnTrue(
-            ultraShooter.startEnd(
-                () -> ultraShooter.setTarget(kTuningFlywheelFPS),
-                ultraShooter::stop
-            ).withName("TuningFlywheelSpin"));
-        // B: run feeder + floor at 85% while held
-        driverXbox.b().whileTrue(Commands.parallel(
-            feeder.startEnd(() -> feeder.setPercentOutput(0.85), () -> feeder.setPercentOutput(0)),
-            floor.startEnd(() -> floor.setPercentOutput(0.85), () -> floor.setPercentOutput(0))
-        ).withName("TuningFeed"));
-        // ═════════════════════════════════════════════════════════════════════
     }
 
     private void configureNamedCommands() {
