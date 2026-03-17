@@ -28,7 +28,7 @@ import frc.robot.GameData;
 import frc.robot.Landmarks;
 import frc.robot.subsystems.iodiagnostics.UltraShooterIO;
 import frc.robot.subsystems.iodiagnostics.UltraShooterIOInputsAutoLogged;
-import frc.robot.subsystems.tuning.ShooterTuner;
+// import frc.robot.subsystems.tuning.ShooterTuner; // Pi-backed live shooter tuning (disabled)
 
 /**
  * UltraShooter — physics-based shooter subsystem.
@@ -106,9 +106,7 @@ public class UltraShooter extends SubsystemBase {
 
     private final Swerve swerve;
 
-    // ── ShooterTuner (live-adjustable parameters) ─────────────────────────────
-
-    private final ShooterTuner shooterTuner;
+    // private final ShooterTuner shooterTuner; // Pi-backed live shooter tuning (disabled)
 
     // ── NetworkTable — Pi physics engine reader entries only ──────────────────
     // These entries are READ from physics_engine.py running on the Pi.
@@ -173,10 +171,10 @@ public class UltraShooter extends SubsystemBase {
     // Construction
     // ─────────────────────────────────────────────────────────────────────────
 
-    public UltraShooter(UltraShooterIO io, Swerve swerve, ShooterTuner shooterTuner) {
-        this.io            = io;
-        this.swerve        = swerve;
-        this.shooterTuner  = shooterTuner;
+    public UltraShooter(UltraShooterIO io, Swerve swerve) {
+        this.io    = io;
+        this.swerve = swerve;
+        // this.shooterTuner = shooterTuner;
 
         // ── Mechanism2d trajectory canvas ─────────────────────────────────────
         final double hoodH = Constants.UltraShooterConstants.kHoodHeightFromFloorInches / 12.0;
@@ -500,9 +498,9 @@ public class UltraShooter extends SubsystemBase {
      */
     private double interpolateOffsetFraction(double distanceMeters) {
         final double d  = Math.max(CLOSE_ANCHOR_FT, Math.min(FAR_ANCHOR_FT, distanceMeters * METERS_TO_FEET));
-        final double p0 = shooterTuner.getCloseShotOffsetPercent();
-        final double p1 = shooterTuner.getMidShotOffsetPercent();
-        final double p2 = shooterTuner.getFarShotOffsetPercent();
+        final double p0 = Constants.UltraShooterConstants.kCloseShotOffsetPercent;
+        final double p1 = Constants.UltraShooterConstants.kMidShotOffsetPercent;
+        final double p2 = Constants.UltraShooterConstants.kFarShotOffsetPercent;
         // Lagrange basis polynomials evaluated at d (ft) — denominators precomputed.
         final double l0 = (d - MID_ANCHOR_FT) * (d - FAR_ANCHOR_FT) / LAGRANGE_D0;
         final double l1 = (d - CLOSE_ANCHOR_FT) * (d - FAR_ANCHOR_FT) / LAGRANGE_D1;
@@ -533,10 +531,6 @@ public class UltraShooter extends SubsystemBase {
      * Updates the flywheel target using the projectile-motion calculator from the
      * 1-second averaged distance, with the fine-tune offset blended in.
      *
-     * <p>When the Raspberry Pi physics engine ({@code physics_engine.py}) is
-     * live, its pre-computed physics velocity is used instead of the local
-     * calculation.  If the Pi heartbeat goes stale for more than 500 ms the
-     * fallback is automatic and transparent.
      */
     public void setPhysicsTarget() {
         // Cache field velocity once — reused for both distance selection and radial correction.
@@ -544,16 +538,12 @@ public class UltraShooter extends SubsystemBase {
         final double distance       = getAverageDistanceToHub(fieldVelocity);
         final double offsetFraction = interpolateOffsetFraction(distance);
 
-        final double physicsSpeed;
-        if (isPiResultFresh()) {
-            physicsSpeed = ntPiPhysics.getDouble(0.0);
-        } else {
-            physicsSpeed = calculateRequiredVelocityFPS(
-                    distance,
-                    shooterTuner.getFlywheelEfficiency(),
-                    shooterTuner.getDragCoefficient(),
-                    shooterTuner.getBallMassLbs());
-        }
+        // if (isPiResultFresh()) { physicsSpeed = ntPiPhysics.getDouble(0.0); } else { ... }
+        final double physicsSpeed = calculateRequiredVelocityFPS(
+                distance,
+                Constants.UltraShooterConstants.kFlywheelEfficiency,
+                Constants.UltraShooterConstants.kDragCoefficient,
+                Constants.UltraShooterConstants.kBallMassLbs);
 
         // Radial velocity compensation: if the robot is moving toward the hub,
         // the ball arrives faster and needs a lower exit speed (and vice versa).
@@ -567,7 +557,7 @@ public class UltraShooter extends SubsystemBase {
                 : 0.0;
         // Convert radial speed to flywheel-surface ft/s (same scaling as physicsSpeed).
         final double radialCorrectionFps =
-                radialVelocityMps * METERS_TO_FEET / Math.max(shooterTuner.getFlywheelEfficiency(), 0.01);
+                radialVelocityMps * METERS_TO_FEET / Math.max(Constants.UltraShooterConstants.kFlywheelEfficiency, 0.01);
         final double adjustedSpeed = Math.max(0.0, physicsSpeed - radialCorrectionFps);
 
         setTarget(adjustedSpeed * (1.0 + offsetFraction));
@@ -626,7 +616,7 @@ public class UltraShooter extends SubsystemBase {
         if (!readyLatch) {
             readyLatch = rampedSetpoint >= velocityTarget
                     && Math.abs(getAverageVelocity() - velocityTarget)
-                            < shooterTuner.getReadyTolerance();
+                            < Constants.UltraShooterConstants.kReadyTolerance;
         }
         return readyLatch;
     }
@@ -665,9 +655,9 @@ public class UltraShooter extends SubsystemBase {
             if (shouldPrespin) {
                 double physicsSpeed = calculateRequiredVelocityFPS(
                         swerve.getDistanceToHub(),
-                        shooterTuner.getFlywheelEfficiency(),
-                        shooterTuner.getDragCoefficient(),
-                        shooterTuner.getBallMassLbs());
+                        Constants.UltraShooterConstants.kFlywheelEfficiency,
+                        Constants.UltraShooterConstants.kDragCoefficient,
+                        Constants.UltraShooterConstants.kBallMassLbs);
                 setTarget(physicsSpeed * Constants.UltraShooterConstants.kPreSpinFraction);
             } else {
                 setTarget(0);
@@ -777,9 +767,9 @@ public class UltraShooter extends SubsystemBase {
         Logger.recordOutput("UltraShooter/Ready",          isReady());
         Logger.recordOutput("UltraShooter/VoltageBias_V",  voltageBias);
 
-        final double effic = shooterTuner.getFlywheelEfficiency();
-        final double drag  = shooterTuner.getDragCoefficient();
-        final double mass  = shooterTuner.getBallMassLbs();
+        final double effic = Constants.UltraShooterConstants.kFlywheelEfficiency;
+        final double drag  = Constants.UltraShooterConstants.kDragCoefficient;
+        final double mass  = Constants.UltraShooterConstants.kBallMassLbs;
         final double dist  = getAverageDistanceToHub();
 
         // Solve once — derive physFPS, TOF, and visualization v0 from a single binary search.
@@ -896,21 +886,19 @@ public class UltraShooter extends SubsystemBase {
         cachedVelocity = (inputs.leftVelocityFPS
                         + inputs.middleVelocityFPS
                         + inputs.rightVelocityFPS) / 3.0;
-        updatePiStaleness();
+        // updatePiStaleness(); // Pi physics engine (disabled)
         updateDistanceBuffer();
         updateVelocityBuffer();
         rampSetpoint();
         applyPID();
         updateNetworkTable();
 
-        // Apply any autotuner-updated kP while the robot is disabled so the
-        // motors are never reconfigured mid-match.
-        if (DriverStation.isDisabled()) {
-            double newKp = shooterTuner.getKp();
-            if (newKp != appliedKp) {
-                applyKpToMotors(newKp);
-            }
-        }
+        // if (DriverStation.isDisabled()) { // Pi live kP update path (disabled)
+        //     double newKp = shooterTuner.getKp();
+        //     if (newKp != appliedKp) {
+        //         applyKpToMotors(newKp);
+        //     }
+        // }
     }
 
     @Override

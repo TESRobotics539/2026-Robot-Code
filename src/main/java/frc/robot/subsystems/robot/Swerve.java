@@ -36,7 +36,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Config;
 import frc.robot.Constants;
 import frc.robot.Landmarks;
-import frc.robot.subsystems.tuning.BumpTuner;
+// import frc.robot.subsystems.tuning.BumpTuner; // Pi-backed live bump tuning (disabled)
 import frc.util.LowPassFilter;
 import frc.util.MetricTracker;
 import frc.util.SwerveSetpoint;
@@ -66,7 +66,7 @@ public class Swerve extends SubsystemBase
   private final SwerveDrive swerveDrive;
 
   private final Field2d field;
-  private final BumpTuner bumpTuner;
+  // private final BumpTuner bumpTuner; // Pi-backed live bump tuning (disabled)
 
   // Pigeon 2 accelerometer filtering — rejects transient spikes from bump traversal.
   // Retrieved from YAGSL after swerveDrive construction so we share the same Phoenix 6
@@ -79,6 +79,8 @@ public class Swerve extends SubsystemBase
   private StatusSignal<?> pigeonAccelZ;
   private StatusSignal<?> pigeonPitch;
   private StatusSignal<?> pigeonRoll;
+  /** Cached Pigeon 2 world-frame yaw-rate signal — refreshed alongside the other Pigeon signals each cycle. */
+  private StatusSignal<?> pigeonYawRate;
   private final LowPassFilter accelXFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelYFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelZFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
@@ -121,14 +123,13 @@ public class Swerve extends SubsystemBase
    *
    * @param directory  Directory of swerve drive config files.
    * @param field      Field2d object for visualizing the robot's position on the field.
-   * @param bumpTuner  Live-tunable bump detection parameters (from the Pi).
    */
-  public Swerve(File directory, Field2d field, BumpTuner bumpTuner)
+  public Swerve(File directory, Field2d field)
   {
     // Configure the Telemetry before creating the SwerveDrive to avoid unnecessary objects being created.
-    SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
+    SwerveDriveTelemetry.verbosity = TelemetryVerbosity.LOW; // HIGH causes loop overruns in competition
     this.field = field;
-    this.bumpTuner = bumpTuner;
+    // this.bumpTuner = bumpTuner;
 
     try
     {
@@ -139,14 +140,18 @@ public class Swerve extends SubsystemBase
       throw new RuntimeException(e);
     }
 
-    pigeon2      = (Pigeon2) swerveDrive.getGyro().getIMU();
-    pigeonAccelX = pigeon2.getAccelerationX();
-    pigeonAccelY = pigeon2.getAccelerationY();
-    pigeonAccelZ = pigeon2.getAccelerationZ();
-    pigeonPitch  = pigeon2.getPitch();
-    pigeonRoll   = pigeon2.getRoll();
+    pigeon2       = (Pigeon2) swerveDrive.getGyro().getIMU();
+    pigeonAccelX  = pigeon2.getAccelerationX();
+    pigeonAccelY  = pigeon2.getAccelerationY();
+    pigeonAccelZ  = pigeon2.getAccelerationZ();
+    pigeonPitch   = pigeon2.getPitch();
+    pigeonRoll    = pigeon2.getRoll();
+    pigeonYawRate = pigeon2.getAngularVelocityZWorld();
     BaseStatusSignal.setUpdateFrequencyForAll(50.0,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll);
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+    // Block until the first valid frame arrives so initial reads are not stale.
+    BaseStatusSignal.waitForAll(0.1,
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
 
     swerveDrive.setHeadingCorrection(false); // Heading correction should only be used while controlling the robot via angle.
     swerveDrive.setCosineCompensator(false); // Disables cosine compensation for simulations since it causes discrepancies not seen in real life.
@@ -168,26 +173,28 @@ public class Swerve extends SubsystemBase
    * @param driveCfg      SwerveDriveConfiguration for the swerve.
    * @param controllerCfg Swerve Controller.
    * @param field         Field2d object for visualizing the robot's position on the field.
-   * @param bumpTuner     Live-tunable bump detection parameters (from the Pi).
    */
-  public Swerve(SwerveDriveConfiguration driveCfg, SwerveControllerConfiguration controllerCfg, Field2d field, BumpTuner bumpTuner)
+  public Swerve(SwerveDriveConfiguration driveCfg, SwerveControllerConfiguration controllerCfg, Field2d field)
   {
     this.field = field;
-    this.bumpTuner = bumpTuner;
+    // this.bumpTuner = bumpTuner;
 
     swerveDrive = new SwerveDrive(driveCfg,
                                   controllerCfg,
                                   Constants.DrivetrainConstants.kMaxSpeed,
                                   new Pose2d(new Translation2d(Meter.of(2), Meter.of(0)),
                                              Rotation2d.fromDegrees(0)));
-    pigeon2      = (Pigeon2) swerveDrive.getGyro().getIMU();
-    pigeonAccelX = pigeon2.getAccelerationX();
-    pigeonAccelY = pigeon2.getAccelerationY();
-    pigeonAccelZ = pigeon2.getAccelerationZ();
-    pigeonPitch  = pigeon2.getPitch();
-    pigeonRoll   = pigeon2.getRoll();
+    pigeon2       = (Pigeon2) swerveDrive.getGyro().getIMU();
+    pigeonAccelX  = pigeon2.getAccelerationX();
+    pigeonAccelY  = pigeon2.getAccelerationY();
+    pigeonAccelZ  = pigeon2.getAccelerationZ();
+    pigeonPitch   = pigeon2.getPitch();
+    pigeonRoll    = pigeon2.getRoll();
+    pigeonYawRate = pigeon2.getAngularVelocityZWorld();
     BaseStatusSignal.setUpdateFrequencyForAll(50.0,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll);
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+    BaseStatusSignal.waitForAll(0.1,
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
 
     setupAutoBuilder();
     initSetpointGenerator();
@@ -279,7 +286,7 @@ public class Swerve extends SubsystemBase
     // Filtered Pigeon 2 accelerometer — bump spikes are smoothed out.
     // refreshAll() guarantees all five signals come from the same CAN frame before
     // the low-pass filters and wheel-slip rolling averages consume them.
-    BaseStatusSignal.refreshAll(pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll);
+    BaseStatusSignal.refreshAll(pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
     double rawX = pigeonAccelX.getValueAsDouble();
     double rawY = pigeonAccelY.getValueAsDouble();
     double rawZ = pigeonAccelZ.getValueAsDouble();
@@ -746,7 +753,8 @@ public class Swerve extends SubsystemBase
    */
   public double getYawRateDegPerSec()
   {
-    return pigeon2.getAngularVelocityZWorld().getValueAsDouble();
+    // pigeonYawRate is refreshed each cycle in periodic() — no per-call CAN overhead.
+    return pigeonYawRate.getValueAsDouble();
   }
 
   /**
@@ -796,8 +804,8 @@ public class Swerve extends SubsystemBase
   public boolean isOverBump() {
     double pitchDeg   = Math.abs(swerveDrive.getPitch().getDegrees());
     double zDeviation = Math.abs(accelZFilter.get() - 1.0);
-    return pitchDeg   > bumpTuner.getBumpPitchThresholdDeg()
-        || zDeviation > bumpTuner.getBumpAccelZDeviation();
+    return pitchDeg   > Constants.BumpDetectionConstants.kBumpPitchThresholdDegrees
+        || zDeviation > Constants.BumpDetectionConstants.kBumpAccelZDeviationThreshold;
   }
 
   /**
@@ -822,7 +830,7 @@ public class Swerve extends SubsystemBase
    */
   public boolean isWheelSlipping() {
     return isOverBump()
-        && wheelSlipScore > bumpTuner.getWheelSlipThresholdMps2();
+        && wheelSlipScore > Constants.BumpDetectionConstants.kWheelSlipDetectionThresholdMps2;
   }
 
   public double getDistanceToHub() {

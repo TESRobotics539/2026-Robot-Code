@@ -16,14 +16,14 @@ import frc.robot.subsystems.robot.Feeder;
 import frc.robot.subsystems.robot.Floor;
 import frc.robot.subsystems.robot.Swerve;
 import frc.robot.subsystems.robot.UltraShooter;
-import frc.robot.subsystems.tuning.ShooterTuner;
+// import frc.robot.subsystems.tuning.ShooterTuner; // Pi-backed live shooter tuning (disabled)
 
 public final class SubsystemCommands {
     private final Swerve swerve;
     private final Floor floor;
     private final Feeder feeder;
     private final UltraShooter ultraShooter;
-    private final ShooterTuner shooterTuner;
+    // private final ShooterTuner shooterTuner; // Pi-backed live shooter tuning (disabled)
 
     private final DoubleSupplier forwardInput;
     private final DoubleSupplier leftInput;
@@ -33,7 +33,6 @@ public final class SubsystemCommands {
         Floor floor,
         Feeder feeder,
         UltraShooter ultraShooter,
-        ShooterTuner shooterTuner,
         DoubleSupplier forwardInput,
         DoubleSupplier leftInput
     ) {
@@ -41,7 +40,6 @@ public final class SubsystemCommands {
         this.floor = floor;
         this.feeder = feeder;
         this.ultraShooter = ultraShooter;
-        this.shooterTuner = shooterTuner;
 
         this.forwardInput = forwardInput;
         this.leftInput = leftInput;
@@ -51,10 +49,9 @@ public final class SubsystemCommands {
         Swerve swerve,
         Floor floor,
         Feeder feeder,
-        UltraShooter ultraShooter,
-        ShooterTuner shooterTuner
+        UltraShooter ultraShooter
     ) {
-        this(swerve, floor, feeder, ultraShooter, shooterTuner, () -> 0, () -> 0);
+        this(swerve, floor, feeder, ultraShooter, () -> 0, () -> 0);
     }
 
     public Command shootManually() {
@@ -90,7 +87,7 @@ public final class SubsystemCommands {
                 ultraShooter.spinUpPhysicsCommand(),
                 aimCommand,
                 Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
-                    .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
+                    .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
                     .andThen(longFeed())
             ).withTimeout(4.0);
         }, Set.of(swerve, ultraShooter, feeder, floor));
@@ -103,7 +100,7 @@ public final class SubsystemCommands {
                 ultraShooter.spinUpPhysicsCommand(),
                 aimCommand,
                 Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
-                    .withTimeout(shooterTuner.getShootReadyTimeoutSeconds())
+                    .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
                     .andThen(feedCommand)
             );
 
@@ -128,9 +125,11 @@ public final class SubsystemCommands {
             final Translation2d hubPos   = Landmarks.hubPosition();
             final double dist = startPos.getDistance(hubPos);
 
-            // Unit vector pointing from hub toward robot (away from hub)
-            final double awayX = dist > 0.01 ? (startPos.getX() - hubPos.getX()) / dist : 1.0;
-            final double awayY = dist > 0.01 ? (startPos.getY() - hubPos.getY()) / dist : 0.0;
+            // Unit vector pointing from hub toward robot (away from hub).
+            // Clamp denominator to avoid divide-by-zero if robot spawns on top of the hub.
+            final double safeDist = Math.max(dist, 0.01);
+            final double awayX = (startPos.getX() - hubPos.getX()) / safeDist;
+            final double awayY = (startPos.getY() - hubPos.getY()) / safeDist;
 
             final double speed = Constants.UltraShooterConstants.kCloseRangeBackupSpeedFps * 0.3048;
             return swerve.driveFieldOriented(() -> new ChassisSpeeds(awayX * speed, awayY * speed, 0))
@@ -146,7 +145,7 @@ public final class SubsystemCommands {
         return Commands.parallel(
             feeder.feedCommand(),
             Commands.defer(
-                () -> Commands.waitSeconds(shooterTuner.getFloorFeedDelaySeconds()),
+                () -> Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds),
                 Set.of()
             ).andThen(floor.feedCommand()),
             Commands.parallel(extras)

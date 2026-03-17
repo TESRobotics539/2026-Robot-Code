@@ -75,7 +75,8 @@ public class IntakeIOReal implements IntakeIO {
             .velocityFF(12.0 / Constants.IntakeConstants.kRollerFreeSpeedRPM);
 
         config.signals
-            .primaryEncoderPositionPeriodMs(500);
+            .primaryEncoderPositionPeriodMs(500)
+            .primaryEncoderVelocityPeriodMs(20); // 20 ms needed for anti-jam current+velocity checks
 
         rollerMotor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
     }

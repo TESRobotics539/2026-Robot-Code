@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<!--
+  Shot Arc Visualizer — Helga the Viking Princess (FRC 539)
+  =========================================================
+  Standalone NT4 dashboard page. Open in any browser while connected to the
+  robot or Driver Station. Reads shooter telemetry from AdvantageKit's NT4
+  publisher and renders a live parabolic arc side-view.
+
+  NT4 topics consumed (all under /AdvantageKit/RealOutputs/UltraShooter/):
+    Distance_ft, Physics_fps, AvgVelocity_fps, Target_fps,
+    LaunchAngle_deg, HoodHeight_in, HubHeight_in, TimeOfFlight_s, Ready
+
+  No external dependencies — msgpack decoder is bundled inline.
+  Physics model mirrors UltraShooter.java (drag, ball efficiency, etc.)
+
+  Default robot IP: 10.5.39.2  (change in the top input or edit DEFAULT_IP).
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shot Arc — 539 Helga</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --green:     #3fb950;
+      --yellow:    #e3b341;
+      --red:       #f85149;
+      --blue:      #58a6ff;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      height: 38px;
+      flex-shrink: 0;
+    }
+
+    #status-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: var(--red);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    #status-dot.connected  { background: var(--green); }
+    #status-dot.connecting { background: var(--yellow); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    #status-text { color: var(--muted); font-size: 11px; }
+
+    .spacer { flex: 1; }
+
+    label { color: var(--muted); font-size: 11px; }
+
+    #ip-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      width: 130px;
+      outline: none;
+    }
+    #ip-input:focus { border-color: var(--blue); }
+
+    #connect-btn {
+      background: #1f6feb;
+      border: 1px solid #388bfd;
+      color: white;
+      padding: 3px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    #connect-btn:hover { background: #388bfd; }
+
+    #popout-btn {
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 3px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #popout-btn:hover { border-color: var(--blue); color: var(--text); }
+
+    #title-text {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: bold;
+      letter-spacing: 0.05em;
+    }
+
+    #canvas-wrap {
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 38px);
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div id="status-dot" class="connecting"></div>
+  <span id="status-text">Connecting…</span>
+  <span id="title-text">SHOT ARC VISUALIZER · 539</span>
+  <span class="spacer"></span>
+  <label for="ip-input">Robot IP:</label>
+  <input id="ip-input" type="text" value="10.5.39.2" spellcheck="false">
+  <button id="connect-btn" onclick="userReconnect()">Connect</button>
+  <button id="popout-btn" onclick="popOut()" title="Open as floating widget window">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M1.5 1h5a.5.5 0 0 1 0 1H2v11h11v-4.5a.5.5 0 0 1 1 0V14a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+      <path d="M15 1H9.5a.5.5 0 0 0 0 1h4.293L7.146 8.646a.5.5 0 0 0 .708.708L14.5 2.707V7a.5.5 0 0 0 1 0V1.5a.5.5 0 0 0-.5-.5z"/>
+    </svg>
+    Pop Out
+  </button>
+</div>
+<div id="canvas-wrap">
+  <canvas id="arc"></canvas>
+</div>
+
+<script>
+/* ============================================================
+   MINIMAL MSGPACK DECODER
+   Covers all types NT4 will send: fixint, fixarray, fixstr,
+   bool, float32, float64, uint8-64, int8-64, str8-16-32,
+   array16-32, bin8-32 (skipped), ext (skipped).
+   ============================================================ */
+const Msgpack = (() => {
+  const td = new TextDecoder();
+  function decode(buf) {
+    const u8  = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    const dv  = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    let pos = 0;
+
+    function r() {
+      const b = u8[pos++];
+
+      // positive fixint 0x00–0x7f
+      if (b <= 0x7f) return b;
+      // fixmap 0x80–0x8f (skip — NT4 doesn't use maps in value frames)
+      if ((b & 0xf0) === 0x80) {
+        const n = b & 0x0f;
+        const obj = {};
+        for (let i = 0; i < n; i++) { const k = r(); obj[k] = r(); }
+        return obj;
+      }
+      // fixarray 0x90–0x9f
+      if ((b & 0xf0) === 0x90) {
+        const n = b & 0x0f;
+        const arr = new Array(n);
+        for (let i = 0; i < n; i++) arr[i] = r();
+        return arr;
+      }
+      // fixstr 0xa0–0xbf
+      if ((b & 0xe0) === 0xa0) {
+        const n = b & 0x1f;
+        const s = td.decode(u8.subarray(pos, pos + n));
+        pos += n; return s;
+      }
+      // negative fixint 0xe0–0xff
+      if ((b & 0xe0) === 0xe0) return b - 256;
+
+      switch (b) {
+        case 0xc0: return null;
+        case 0xc2: return false;
+        case 0xc3: return true;
+        // bin8 / bin16 / bin32 — skip bytes, return Uint8Array
+        case 0xc4: { const n=u8[pos++];         const v=u8.subarray(pos,pos+n); pos+=n; return v; }
+        case 0xc5: { const n=dv.getUint16(pos,false);pos+=2;const v=u8.subarray(pos,pos+n);pos+=n;return v;}
+        case 0xc6: { const n=dv.getUint32(pos,false);pos+=4;const v=u8.subarray(pos,pos+n);pos+=n;return v;}
+        // float32
+        case 0xca: { const v=dv.getFloat32(pos,false); pos+=4; return v; }
+        // float64 (double)
+        case 0xcb: { const v=dv.getFloat64(pos,false); pos+=8; return v; }
+        // uint8-64
+        case 0xcc: return u8[pos++];
+        case 0xcd: { const v=dv.getUint16(pos,false); pos+=2; return v; }
+        case 0xce: { const v=dv.getUint32(pos,false); pos+=4; return v; }
+        case 0xcf: {
+          const hi=dv.getUint32(pos,false), lo=dv.getUint32(pos+4,false);
+          pos+=8; return hi*4294967296+lo;
+        }
+        // int8-64
+        case 0xd0: { const v=dv.getInt8(pos);   pos+=1; return v; }
+        case 0xd1: { const v=dv.getInt16(pos,false); pos+=2; return v; }
+        case 0xd2: { const v=dv.getInt32(pos,false); pos+=4; return v; }
+        case 0xd3: {
+          const hi=dv.getInt32(pos,false), lo=dv.getUint32(pos+4,false);
+          pos+=8; return hi*4294967296+lo;
+        }
+        // fixext (skip)
+        case 0xd4: pos+=2;  return null;
+        case 0xd5: pos+=3;  return null;
+        case 0xd6: pos+=5;  return null;
+        case 0xd7: pos+=9;  return null;
+        case 0xd8: pos+=17; return null;
+        // str8-16-32
+        case 0xd9: { const n=u8[pos++]; const s=td.decode(u8.subarray(pos,pos+n)); pos+=n; return s; }
+        case 0xda: { const n=dv.getUint16(pos,false);pos+=2;const s=td.decode(u8.subarray(pos,pos+n));pos+=n;return s;}
+        case 0xdb: { const n=dv.getUint32(pos,false);pos+=4;const s=td.decode(u8.subarray(pos,pos+n));pos+=n;return s;}
+        // array16 / array32
+        case 0xdc: {
+          const n=dv.getUint16(pos,false); pos+=2;
+          const arr=new Array(n); for(let i=0;i<n;i++) arr[i]=r(); return arr;
+        }
+        case 0xdd: {
+          const n=dv.getUint32(pos,false); pos+=4;
+          const arr=new Array(n); for(let i=0;i<n;i++) arr[i]=r(); return arr;
+        }
+        // map16 / map32
+        case 0xde: {
+          const n=dv.getUint16(pos,false); pos+=2;
+          const obj={}; for(let i=0;i<n;i++){const k=r();obj[k]=r();} return obj;
+        }
+        case 0xdf: {
+          const n=dv.getUint32(pos,false); pos+=4;
+          const obj={}; for(let i=0;i<n;i++){const k=r();obj[k]=r();} return obj;
+        }
+        // ext8-16-32 (skip)
+        case 0xc7: { const n=u8[pos++]; pos+=1+n; return null; }
+        case 0xc8: { const n=dv.getUint16(pos,false); pos+=2+1+n; return null; }
+        case 0xc9: { const n=dv.getUint32(pos,false); pos+=4+1+n; return null; }
+        default:
+          throw new Error(`msgpack: unknown byte 0x${b.toString(16)} at offset ${pos-1}`);
+      }
+    }
+    return r();
+  }
+  return { decode };
+})();
+
+/* ============================================================
+   NT4 CLIENT
+   Subscribes to a fixed list of double/boolean topics.
+   Reconnects automatically on close.
+   ============================================================ */
+const PREFIX     = '/AdvantageKit/RealOutputs/UltraShooter/';
+const GAME_PREFIX = '/AdvantageKit/RealOutputs/GameData/';
+const TOPICS  = [
+  PREFIX + 'Distance_ft',
+  PREFIX + 'Physics_fps',
+  PREFIX + 'AvgVelocity_fps',
+  PREFIX + 'Target_fps',
+  PREFIX + 'LaunchAngle_deg',
+  PREFIX + 'HoodHeight_in',
+  PREFIX + 'HubHeight_in',
+  PREFIX + 'TimeOfFlight_s',
+  PREFIX + 'Ready',
+  GAME_PREFIX + 'HubActive',
+];
+
+// Live state updated by NT4 callbacks — read by the draw loop.
+const S = {
+  distanceFt:     12.0,
+  physicsFps:     0,
+  avgVelocityFps: 0,
+  targetFps:      0,
+  launchAngleDeg: 75,
+  hoodHeightIn:   27,
+  hubHeightIn:    72,
+  timeOfFlightS:  0,
+  ready:          false,
+  hubActive:      true,   // GameData/HubActive — hub lights up when shift is active
+};
+
+const NT_HANDLERS = {
+  [PREFIX + 'Distance_ft']:         v => S.distanceFt     = v,
+  [PREFIX + 'Physics_fps']:         v => S.physicsFps     = v,
+  [PREFIX + 'AvgVelocity_fps']:     v => S.avgVelocityFps = v,
+  [PREFIX + 'Target_fps']:          v => S.targetFps      = v,
+  [PREFIX + 'LaunchAngle_deg']:     v => S.launchAngleDeg = v,
+  [PREFIX + 'HoodHeight_in']:       v => S.hoodHeightIn   = v,
+  [PREFIX + 'HubHeight_in']:        v => S.hubHeightIn    = v,
+  [PREFIX + 'TimeOfFlight_s']:      v => S.timeOfFlightS  = v,
+  [PREFIX + 'Ready']:               v => S.ready          = !!v,
+  [GAME_PREFIX + 'HubActive']:      v => S.hubActive      = !!v,
+};
+
+let ws         = null;
+let idToName   = {};   // topicId (int) → topic name string
+let subUid     = 1;
+let connected  = false;
+
+function setStatus(state) {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  dot.className = state;          // 'connected' | 'connecting' | ''
+  if (state === 'connected')   text.textContent = 'Connected';
+  else if (state === 'connecting') text.textContent = 'Connecting…';
+  else                         text.textContent = 'Disconnected — retrying in 2 s';
+}
+
+function connect(ip) {
+  const url = `ws://${ip}:5810/nt/ShotArcViz-539`;
+  setStatus('connecting');
+  ws = new WebSocket(url, ['networktables.v4.1+msgpack']);
+  ws.binaryType = 'arraybuffer';
+
+  ws.onopen = () => {
+    connected = true;
+    idToName  = {};
+    setStatus('connected');
+    // Subscribe to all shooter topics in one request.
+    ws.send(JSON.stringify({
+      method: 'subscribe',
+      params: {
+        topics:  TOPICS,
+        subuid:  subUid++,
+        options: { periodic: 0.04, all: false, topicsonly: false, prefix: false },
+      },
+    }));
+  };
+
+  ws.onmessage = evt => {
+    if (typeof evt.data === 'string') {
+      // Control frame (JSON text)
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.method === 'announce') {
+          idToName[msg.params.id] = msg.params.name;
+        }
+      } catch { /* ignore malformed */ }
+      return;
+    }
+    // Value frame (msgpack binary)
+    try {
+      const decoded = Msgpack.decode(new Uint8Array(evt.data));
+      // NT4 binary frame: single update [ts_us, server_ts_us, type, topicId, value]
+      // Some implementations batch: [[...], [...]]
+      const updates = Array.isArray(decoded) && Array.isArray(decoded[0]) ? decoded : [decoded];
+      for (const update of updates) {
+        if (!Array.isArray(update) || update.length < 5) continue;
+        // eslint-disable-next-line no-unused-vars
+        const [_ts, _sts, _type, topicId, value] = update;
+        const name = idToName[topicId];
+        if (name && NT_HANDLERS[name] !== undefined) {
+          NT_HANDLERS[name](value);
+        }
+      }
+    } catch (e) {
+      // Uncomment to debug NT4 frame issues:
+      // console.warn('NT4 decode error:', e, evt.data);
+    }
+  };
+
+  ws.onclose = () => {
+    connected = false;
+    setStatus('');
+    setTimeout(() => connect(document.getElementById('ip-input').value.trim()), 2000);
+  };
+
+  ws.onerror = () => {
+    // onclose fires after onerror — let it handle reconnect.
+  };
+}
+
+/**
+ * Opens this page in a borderless popup window sized for use as a floating
+ * widget alongside Elastic. Pass the current robot IP through so the popup
+ * connects immediately.
+ */
+function popOut() {
+  const ip  = document.getElementById('ip-input').value.trim();
+  const url = location.href.split('?')[0] + '?ip=' + encodeURIComponent(ip);
+  // ~16:9 at a reasonable dashboard widget size
+  window.open(url, 'ShotArcViz',
+    'width=900,height=520,menubar=no,toolbar=no,location=no,' +
+    'status=no,scrollbars=no,resizable=yes');
+}
+
+function userReconnect() {
+  if (ws) { ws.onclose = null; ws.close(); }
+  connected = false;
+  idToName  = {};
+  connect(document.getElementById('ip-input').value.trim());
+}
+
+/* ============================================================
+   PHYSICS — mirrors UltraShooter.java
+   Euler integration with quadratic drag (in SI units),
+   output converted to feet for display.
+   ============================================================ */
+// From Constants.UltraShooterConstants:
+const BALL_EFFICIENCY   = 0.60;   // flywheel → ball speed transfer
+const DRAG_COEFF_KG_M   = 0.00525; // B (kg/m)
+const BALL_MASS_KG      = 0.595 * 0.453592; // ~0.270 kg
+const DRAG_PER_MASS_INV_M = DRAG_COEFF_KG_M / BALL_MASS_KG; // ~0.0194 m⁻¹
+const G_M_S2            = 9.81;
+const FT_PER_M          = 3.28084;
+
+/**
+ * Compute parabolic arc points using Euler integration with drag.
+ * @param {number} v0_fps      Ball exit speed (ft/s) — already efficiency-scaled.
+ * @param {number} angleDeg    Launch angle (degrees above horizontal).
+ * @param {number} originX_ft  Scene X of launch point (feet from scene origin).
+ * @param {number} originY_ft  Scene Y of launch point (feet above floor).
+ * @returns {Array<[number, number]>}  Points as [x_ft, y_ft] in scene space.
+ */
+function computeArc(v0_fps, angleDeg, originX_ft, originY_ft) {
+  if (v0_fps < 0.5) return [];
+  const v0   = v0_fps / FT_PER_M;                  // → m/s
+  const th   = angleDeg * Math.PI / 180;
+  let vx = v0 * Math.cos(th);
+  let vy = v0 * Math.sin(th);
+  let xm = 0, ym = 0;
+  const DT   = 0.005;  // 5 ms (matches Java solver)
+  const pts  = [];
+
+  for (let i = 0; i < 3000; i++) {
+    const spd = Math.sqrt(vx * vx + vy * vy);
+    vx += (-DRAG_PER_MASS_INV_M * spd * vx) * DT;
+    vy += (-G_M_S2 - DRAG_PER_MASS_INV_M * spd * vy) * DT;
+    xm += vx * DT;
+    ym += vy * DT;
+    const xf = originX_ft + xm * FT_PER_M;
+    const yf = originY_ft + ym * FT_PER_M;
+    pts.push([xf, yf]);
+    if (ym < -0.5 || xm > 30) break;
+  }
+  return pts;
+}
+
+/* ============================================================
+   CANVAS / DRAW
+   ============================================================ */
+const canvas = document.getElementById('arc');
+const ctx    = canvas.getContext('2d');
+
+// Robot geometry in scene feet.
+const ROBOT_W_FT = 2.5;  // width; hood exit is at the front/back edge
+
+// Palette
+const C = {
+  floor:       '#3a3f47',
+  gridLine:    'rgba(255,255,255,0.06)',
+  gridText:    '#555d68',
+  robot:       '#1c2e45',
+  robotEdge:   '#2d6a9f',
+  hood:        '#3fb950',
+  arcReady:    '#3fb950',
+  arcSpinup:   '#e3b341',
+  arcOff:      '#f85149',
+  arcIdle:     '#484f58',
+  arcGhost:    'rgba(255,255,255,0.12)',
+  // Hub body (47"×47" steel frame)
+  hubBody:     'rgba(35,42,52,0.85)',
+  hubBodyEdge: '#4a5568',
+  // Funnel (polycarbonate panels — slightly lighter/translucent)
+  hubFunnel:   'rgba(50,60,75,0.70)',
+  hubFunnelEdge:'#6a7a8a',
+  // Opening — colour shifts with hub active state
+  hubOpenActive:  '#3fb950',    // green when hub is active (shift live)
+  hubOpenInactive:'#484f58',    // grey when hub inactive
+  hubOpenPulse:   '#e3b341',    // yellow for deactivation warning (unused for now)
+  // AprilTag marker
+  aprilTagFill:  '#e55a00',
+  aprilTagText:  '#ffffff',
+  // Dimension text
+  hubDimText:  '#6a7a8a',
+  // Fuel ball / target dot
+  fuelBall:    '#f1c40f',
+  panelBg:     'rgba(22,27,34,0.90)',
+  panelBdr:    '#30363d',
+  text:        '#e6edf3',
+  textMuted:   '#8b949e',
+  labelBlue:   '#79c0ff',
+};
+
+function resizeCanvas() {
+  const wrap = canvas.parentElement;
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+}
+window.addEventListener('resize', () => { resizeCanvas(); draw(); });
+resizeCanvas();
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const hoodFt = S.hoodHeightIn / 12.0;
+  const hubFt  = S.hubHeightIn  / 12.0;
+  // Launch point in scene: robot front edge + hood height above floor
+  const launchX = ROBOT_W_FT;
+  const launchY = hoodFt;
+
+  // Hub geometry from 2026 REBUILT field drawings (TE-26300)
+  // hubSceneX = centre of the hub (distanceFt = robot-centre → hub-centre).
+  const HUB_HALF_W_FT     = 47.0 / 24;        // 1.958 ft  (47" total width)
+  const HUB_BODY_H_FT     = 55.972 / 12;      // 4.664 ft  (main vertical beam)
+  const HUB_FUNNEL_TOP_FT = 72.0 / 12;        // 6.000 ft  (opening front edge = target)
+  const HUB_OPENING_HW_FT = 41.7 / 24;        // 1.738 ft  (half of 41.7" hex opening)
+  const HUB_APRILTAG_H_FT = 49.5 / 12;        // 4.125 ft  (AprilTag centre height)
+  const HUB_APRILTAG_S_FT = 10.5 / 12;        // 0.875 ft  (AprilTag square side)
+
+  // Scene bounding box (feet): leave extra headroom for high arcs.
+  const maxArcY  = Math.max(hubFt * 2.2, 14);
+  const sceneW   = Math.max(S.distanceFt + HUB_HALF_W_FT + 4, 28);
+  const sceneH   = Math.max(maxArcY, 12);
+
+  // Canvas margins
+  const ML = 52, MR = 22, MT = 24, MB = 52;
+  const dW = W - ML - MR, dH = H - MT - MB;
+  const sx = dW / sceneW, sy = dH / sceneH;
+
+  const px = (x) => ML + x * sx;
+  const py = (y) => MT + dH - y * sy;
+
+  // ── Background ─────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Grid lines (vertical, every 5 ft) ─────────────────────────────────────
+  ctx.setLineDash([3, 5]);
+  ctx.strokeStyle = C.gridLine;
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= sceneW + 1; x += 5) {
+    ctx.beginPath(); ctx.moveTo(px(x), MT); ctx.lineTo(px(x), py(0)); ctx.stroke();
+    ctx.fillStyle = C.gridText;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${x}ft`, px(x), py(0) + 16);
+  }
+  // Horizontal height markers (every 2 ft)
+  for (let y = 2; y < sceneH; y += 2) {
+    ctx.beginPath(); ctx.moveTo(ML, py(y)); ctx.lineTo(ML + dW, py(y)); ctx.stroke();
+    ctx.fillStyle = C.gridText;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${y}ft`, ML - 4, py(y) + 3);
+  }
+  ctx.setLineDash([]);
+
+  // ── Floor ──────────────────────────────────────────────────────────────────
+  ctx.strokeStyle = C.floor;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(px(0), py(0)); ctx.lineTo(px(sceneW), py(0)); ctx.stroke();
+
+  // ── Robot box ─────────────────────────────────────────────────────────────
+  const rh = 3.5; // robot render height (ft) — decorative
+  ctx.fillStyle   = C.robot;
+  ctx.strokeStyle = C.robotEdge;
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(px(0), py(rh), px(ROBOT_W_FT) - px(0), py(0) - py(rh));
+  ctx.strokeRect(px(0), py(rh), px(ROBOT_W_FT) - px(0), py(0) - py(rh));
+
+  // Robot label
+  ctx.fillStyle  = C.textMuted;
+  ctx.font       = 'bold 10px monospace';
+  ctx.textAlign  = 'center';
+  ctx.fillText('539', px(ROBOT_W_FT / 2), py(rh) - 6);
+
+  // ── Hood exit point & launch angle indicator ───────────────────────────────
+  const hx = px(launchX), hy = py(launchY);
+  // Angle arrow (30 px long)
+  const aRad  = S.launchAngleDeg * Math.PI / 180;
+  const alen  = 28;
+  ctx.strokeStyle = C.hood;
+  ctx.lineWidth   = 2.5;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(hx + alen * Math.cos(aRad), hy - alen * Math.sin(aRad));
+  ctx.stroke();
+  ctx.fillStyle = C.hood;
+  ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fill();
+
+  // Launch angle label
+  ctx.fillStyle  = C.hood;
+  ctx.font       = '10px monospace';
+  ctx.textAlign  = 'left';
+  ctx.fillText(`θ=${S.launchAngleDeg.toFixed(0)}°`, hx + alen + 4, hy - 4);
+
+  // ── Hub — 2026 REBUILT (TE-26300 field drawings) ─────────────────────────
+  // S.distanceFt = robot centre → hub centre (from swerve.getDistanceToHub())
+  const hubCX = S.distanceFt;           // hub centre X in scene coords
+  const hbL   = hubCX - HUB_HALF_W_FT; // hub left  (robot-facing) face X
+  const hbR   = hubCX + HUB_HALF_W_FT; // hub right (far) face X
+  const fnL   = hubCX - HUB_OPENING_HW_FT; // funnel opening left  edge
+  const fnR   = hubCX + HUB_OPENING_HW_FT; // funnel opening right edge
+
+  // ── 1. Hub body fill (47" × 55.972" rectangular steel frame) ─────────────
+  ctx.fillStyle   = C.hubBody;
+  ctx.strokeStyle = C.hubBodyEdge;
+  ctx.lineWidth   = 1.5;
+  ctx.fillRect(px(hbL), py(HUB_BODY_H_FT), px(hbR) - px(hbL), py(0) - py(HUB_BODY_H_FT));
+  ctx.strokeRect(px(hbL), py(HUB_BODY_H_FT), px(hbR) - px(hbL), py(0) - py(HUB_BODY_H_FT));
+
+  // ── 2. Funnel (polycarbonate panels, trapezoidal top) ────────────────────
+  // Side profile: trapezoid from body-top corners down to opening edges at 72".
+  //   Front slope: (hbL, bodyH) → (fnL, 72")
+  //   Back  slope: (hbR, bodyH) → (fnR, 72")
+  ctx.fillStyle   = C.hubFunnel;
+  ctx.strokeStyle = C.hubFunnelEdge;
+  ctx.lineWidth   = 1.5;
+  ctx.lineJoin    = 'round';
+  ctx.beginPath();
+  ctx.moveTo(px(hbL), py(HUB_BODY_H_FT));
+  ctx.lineTo(px(fnL), py(HUB_FUNNEL_TOP_FT));
+  ctx.lineTo(px(fnR), py(HUB_FUNNEL_TOP_FT));
+  ctx.lineTo(px(hbR), py(HUB_BODY_H_FT));
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // ── 3. Opening line — colour driven by HubActive state ───────────────────
+  const openColor = S.hubActive ? C.hubOpenActive : C.hubOpenInactive;
+  ctx.strokeStyle = openColor;
+  ctx.lineWidth   = 3;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(px(fnL), py(HUB_FUNNEL_TOP_FT));
+  ctx.lineTo(px(fnR), py(HUB_FUNNEL_TOP_FT));
+  ctx.stroke();
+
+  // Glow halo on the opening when active
+  if (S.hubActive) {
+    ctx.strokeStyle = 'rgba(63,185,80,0.25)';
+    ctx.lineWidth   = 9;
+    ctx.beginPath();
+    ctx.moveTo(px(fnL), py(HUB_FUNNEL_TOP_FT));
+    ctx.lineTo(px(fnR), py(HUB_FUNNEL_TOP_FT));
+    ctx.stroke();
+  }
+
+  // ── 4. Fuel ball target dot (centre of opening) ───────────────────────────
+  ctx.fillStyle = S.hubActive ? C.fuelBall : C.arcIdle;
+  ctx.beginPath();
+  ctx.arc(px(hubCX), py(HUB_FUNNEL_TOP_FT), 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── 5. AprilTag marker on the hub front face ──────────────────────────────
+  // 10.5" square orange panel, centred horizontally on the front face at 49.5".
+  const atHalf = HUB_APRILTAG_S_FT / 2;
+  const atCX   = hubCX;   // centred on hub
+  ctx.fillStyle   = C.aprilTagFill;
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth   = 1;
+  ctx.fillRect(
+    px(atCX - atHalf), py(HUB_APRILTAG_H_FT + atHalf),
+    px(atCX + atHalf) - px(atCX - atHalf),
+    py(HUB_APRILTAG_H_FT - atHalf) - py(HUB_APRILTAG_H_FT + atHalf),
+  );
+  // Cross-hatch pattern (simplified AprilTag look)
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth   = 0.5;
+  const atPxW = px(atCX + atHalf) - px(atCX - atHalf);
+  const atPxH = py(HUB_APRILTAG_H_FT - atHalf) - py(HUB_APRILTAG_H_FT + atHalf);
+  const atPxX = px(atCX - atHalf);
+  const atPxY = py(HUB_APRILTAG_H_FT + atHalf);
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(atPxX + atPxW * i / 4, atPxY);
+    ctx.lineTo(atPxX + atPxW * i / 4, atPxY + atPxH);
+    ctx.moveTo(atPxX, atPxY + atPxH * i / 4);
+    ctx.lineTo(atPxX + atPxW, atPxY + atPxH * i / 4);
+    ctx.stroke();
+  }
+  // "AT" label above the tag
+  ctx.fillStyle  = C.aprilTagFill;
+  ctx.font       = '9px monospace';
+  ctx.textAlign  = 'center';
+  ctx.fillText('AT 49.5"', px(atCX), py(HUB_APRILTAG_H_FT + atHalf) - 3);
+
+  // ── 6. Dimension annotations ──────────────────────────────────────────────
+  ctx.fillStyle  = C.hubDimText;
+  ctx.font       = '10px monospace';
+  ctx.textAlign  = 'left';
+  // Opening height label at right edge
+  ctx.fillText(`72" opening`, px(hbR) + 5, py(HUB_FUNNEL_TOP_FT) + 3);
+  // Hub width label below body (only if space allows)
+  if (px(hbR) - px(hbL) > 40) {
+    ctx.textAlign  = 'center';
+    ctx.fillText('47"', px(hubCX), py(0) + 16);
+  }
+  // Active / inactive badge
+  ctx.font      = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = S.hubActive ? C.hubOpenActive : C.arcIdle;
+  ctx.fillText(S.hubActive ? '● ACTIVE' : '○ INACTIVE', px(hubCX), py(HUB_BODY_H_FT) - 6);
+
+  // ── Distance annotation (robot hood → hub centre) ────────────────────────
+  if (S.distanceFt > 1) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px(launchX), py(0.08));
+    ctx.lineTo(px(hubCX), py(0.08));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const midX = (launchX + hubCX) / 2;
+    ctx.fillStyle  = 'rgba(255,255,255,0.4)';
+    ctx.font       = '11px monospace';
+    ctx.textAlign  = 'center';
+    ctx.fillText(`${S.distanceFt.toFixed(1)} ft`, px(midX), py(0.08) - 5);
+  }
+
+  // ── Trajectory arcs ────────────────────────────────────────────────────────
+  if (S.physicsFps > 0.5 && S.distanceFt > 1) {
+    const v0Ball_fps = S.physicsFps * BALL_EFFICIENCY;
+
+    // Ghost arc: physics target (ideal)
+    const idealPts = computeArc(v0Ball_fps, S.launchAngleDeg, launchX, launchY);
+    drawArcPath(idealPts, C.arcGhost, 1.5, px, py);
+
+    // Live arc: actual measured flywheel speed
+    const v0Live_fps = S.avgVelocityFps * BALL_EFFICIENCY;
+    let liveColor;
+    if (S.ready)                               liveColor = C.arcReady;
+    else if (v0Live_fps > v0Ball_fps * 0.55)   liveColor = C.arcSpinup;
+    else if (S.avgVelocityFps > 1)             liveColor = C.arcOff;
+    else                                       liveColor = C.arcIdle;
+
+    const livePts = computeArc(
+      v0Live_fps > 0.5 ? v0Live_fps : v0Ball_fps,
+      S.launchAngleDeg, launchX, launchY,
+    );
+    drawArcPath(livePts, liveColor, v0Live_fps > 0.5 ? 2.5 : 1.5, px, py);
+
+    // Ball tip dot on live arc
+    if (livePts.length > 0) {
+      const tip = livePts[livePts.length - 1];
+      const tipY = Math.max(0, tip[1]);
+      ctx.fillStyle = liveColor;
+      ctx.beginPath(); ctx.arc(px(tip[0]), py(tipY), 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Where the live arc crosses the funnel opening height (72") —
+    // green if it lands inside the 41.7" opening, red if it misses.
+    const hubCrossing = arcXAtHeight(livePts, HUB_FUNNEL_TOP_FT);
+    if (hubCrossing !== null) {
+      const inOpening = hubCrossing >= fnL && hubCrossing <= fnR;
+      const crossColor = inOpening ? C.arcReady : C.arcOff;
+      // Vertical tick at the crossing point
+      ctx.strokeStyle = crossColor;
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(px(hubCrossing), py(HUB_FUNNEL_TOP_FT - 0.6));
+      ctx.lineTo(px(hubCrossing), py(HUB_FUNNEL_TOP_FT + 0.6));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Error label: how far from hub centre
+      const errIn = (hubCrossing - hubCX) * 12; // convert ft → inches
+      if (Math.abs(errIn) > 1) {
+        ctx.fillStyle  = crossColor;
+        ctx.font       = '10px monospace';
+        ctx.textAlign  = errIn < 0 ? 'right' : 'left';
+        ctx.fillText(
+          `${errIn > 0 ? '+' : ''}${errIn.toFixed(0)}"`,
+          px(hubCrossing) + (errIn < 0 ? -3 : 3),
+          py(HUB_FUNNEL_TOP_FT) - 8,
+        );
+      }
+    }
+  }
+
+  // ── Info panel ─────────────────────────────────────────────────────────────
+  drawInfoPanel(W);
+}
+
+/** Renders an array of [x_ft, y_ft] points as a polyline on the canvas. */
+function drawArcPath(pts, color, lw, px, py) {
+  if (pts.length < 2) return;
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = lw;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  ctx.beginPath();
+  ctx.moveTo(px(pts[0][0]), py(pts[0][1]));
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(px(pts[i][0]), py(pts[i][1]));
+  ctx.stroke();
+}
+
+/** Returns the x_ft where the arc first crosses targetY_ft, or null. */
+function arcXAtHeight(pts, targetY) {
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1];
+    const [x1, y1] = pts[i];
+    if ((y0 >= targetY) !== (y1 >= targetY)) {
+      const t = (targetY - y0) / (y1 - y0);
+      return x0 + t * (x1 - x0);
+    }
+  }
+  return null;
+}
+
+function drawInfoPanel(W) {
+  // Determine ready color
+  const liveV0 = S.avgVelocityFps * BALL_EFFICIENCY;
+  const tgtV0  = S.physicsFps     * BALL_EFFICIENCY;
+  let readyColor, readyLabel;
+  if (S.ready) {
+    readyColor = C.arcReady;  readyLabel = 'READY';
+  } else if (liveV0 > tgtV0 * 0.55) {
+    readyColor = C.arcSpinup; readyLabel = 'SPINNING UP';
+  } else if (S.avgVelocityFps > 1) {
+    readyColor = C.arcOff;    readyLabel = 'NOT READY';
+  } else {
+    readyColor = C.arcIdle;   readyLabel = 'IDLE';
+  }
+
+  const hubStateColor = S.hubActive ? C.arcReady : C.arcIdle;
+  const rows = [
+    { label: 'Distance',     value: S.distanceFt.toFixed(1)     + ' ft',                                 color: C.labelBlue  },
+    { label: 'Physics spd',  value: S.physicsFps.toFixed(1)     + ' ft/s',                               color: C.text       },
+    { label: 'Current spd',  value: S.avgVelocityFps.toFixed(1) + ' ft/s',                               color: readyColor   },
+    { label: 'Target spd',   value: S.targetFps.toFixed(1)      + ' ft/s',                               color: C.text       },
+    { label: 'Time of flt',  value: S.timeOfFlightS.toFixed(3)  + ' s',                                  color: C.text       },
+    { label: 'Launch angle', value: S.launchAngleDeg.toFixed(0) + '°',                                   color: C.text       },
+    { label: 'Hub shift',    value: S.hubActive ? 'ACTIVE' : 'INACTIVE',                                 color: hubStateColor },
+  ];
+
+  const panelW  = 215, rowH = 18, padX = 10, padY = 10;
+  const panelH  = padY * 2 + rows.length * rowH + 28; // extra for ready badge
+  const panelX  = W - panelW - 12;
+  const panelY  = 12;
+
+  // Background + border
+  ctx.fillStyle   = C.panelBg;
+  ctx.strokeStyle = C.panelBdr;
+  ctx.lineWidth   = 1;
+  _roundRect(panelX, panelY, panelW, panelH, 6);
+  ctx.fill(); ctx.stroke();
+
+  // Rows
+  rows.forEach((row, i) => {
+    const ry = panelY + padY + i * rowH + 11;
+    ctx.font       = '11px monospace';
+    ctx.textAlign  = 'left';
+    ctx.fillStyle  = C.textMuted;
+    ctx.fillText(row.label, panelX + padX, ry);
+    ctx.textAlign  = 'right';
+    ctx.fillStyle  = row.color;
+    ctx.fillText(row.value, panelX + panelW - padX, ry);
+  });
+
+  // Ready badge
+  const badgeY = panelY + padY + rows.length * rowH + 16;
+  ctx.fillStyle = readyColor;
+  ctx.beginPath(); ctx.arc(panelX + padX + 5, badgeY, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.font       = 'bold 12px monospace';
+  ctx.textAlign  = 'left';
+  ctx.fillStyle  = readyColor;
+  ctx.fillText(readyLabel, panelX + padX + 14, badgeY + 4);
+}
+
+function _roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    // Fallback for older browsers
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+}
+
+/* ============================================================
+   MAIN LOOP + INIT
+   ============================================================ */
+function loop() {
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Allow ?ip=x.x.x.x in the URL to pre-fill the robot IP (used by Pop Out).
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.has('ip')) {
+  document.getElementById('ip-input').value = urlParams.get('ip');
+}
+
+// Start NT4 connection, begin render loop.
+const DEFAULT_IP = document.getElementById('ip-input').value.trim();
+connect(DEFAULT_IP);
+loop();
+</script>
+</body>
+</html>

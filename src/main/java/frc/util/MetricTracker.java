@@ -32,11 +32,12 @@ public class MetricTracker {
     /** Maximum buffered rows before older data is silently dropped. */
     public static final int MAX_ROWS = 3000; // ~60 s at 50 Hz
 
-    private static MetricTracker instance;
+    // Eager initialization — safe for single-threaded FRC use and avoids a null-check
+    // data race if getInstance() were ever called from multiple threads concurrently.
+    private static final MetricTracker instance = new MetricTracker();
 
-    /** Returns the singleton instance, creating it on first call. */
+    /** Returns the singleton instance. */
     public static MetricTracker getInstance() {
-        if (instance == null) instance = new MetricTracker();
         return instance;
     }
 

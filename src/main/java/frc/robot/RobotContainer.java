@@ -29,7 +29,7 @@ import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
 import frc.robot.subsystems.vision.BallVision;
 import frc.robot.subsystems.vision.Limelight;
-import frc.robot.subsystems.vision.PiAprilTagVision;
+// import frc.robot.subsystems.vision.PiAprilTagVision; // Pi-backed AprilTag fallback (disabled)
 import frc.robot.subsystems.robot.BlinkinLed;
 import frc.robot.subsystems.robot.Feeder;
 import frc.robot.subsystems.robot.Floor;
@@ -42,9 +42,9 @@ import frc.robot.subsystems.iodiagnostics.FloorIOReal;
 import frc.robot.subsystems.iodiagnostics.HangerIOReal;
 import frc.robot.subsystems.iodiagnostics.IntakeIOReal;
 import frc.robot.subsystems.iodiagnostics.UltraShooterIOReal;
-import frc.robot.subsystems.tuning.BumpTuner;
-// import frc.robot.subsystems.tuning.ShooterAutoTuner;
-import frc.robot.subsystems.tuning.ShooterTuner;
+// import frc.robot.subsystems.tuning.BumpTuner;       // Pi-backed live bump tuning (disabled)
+// import frc.robot.subsystems.tuning.ShooterAutoTuner; // Pi-backed auto shooter tuning (disabled)
+// import frc.robot.subsystems.tuning.ShooterTuner;     // Pi-backed live shooter tuning (disabled)
 //import frc.robot.subsystems.tuning.ShooterOrca; // deprecated — replaced by UltraShooter
 
 import java.io.File;
@@ -60,10 +60,8 @@ public class RobotContainer
 {
     private final BlinkinLed blinkinLed = new BlinkinLed();
     private final BallVision       ballVision    = new BallVision();
-    private final PiAprilTagVision piAprilTag    = new PiAprilTagVision();
-
-    // BumpTuner must be constructed before Swerve so the reference is ready to pass in.
-    // private final BumpTuner bumpTuner = new BumpTuner();
+    // private final PiAprilTagVision piAprilTag = new PiAprilTagVision(); // Pi AprilTag (disabled)
+    // private final BumpTuner bumpTuner = new BumpTuner();                 // Pi bump tuning (disabled)
 
     private final Intake intake = new Intake(new IntakeIOReal());
     private final Floor floor = new Floor(new FloorIOReal());
@@ -72,10 +70,10 @@ public class RobotContainer
     private final Limelight limelight     = new Limelight(Ports.kLimelightFront);
     private final Limelight limelightRear = new Limelight(Ports.kLimelightRear);
     private final Field2d field = new Field2d();
-    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field, new BumpTuner());
+    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
     //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
-    // private final ShooterTuner     shooterTuner     = new ShooterTuner();
-    private final UltraShooter     ultraShooter     = new UltraShooter(new UltraShooterIOReal(), drivebase, new ShooterTuner());
+    // private final ShooterTuner     shooterTuner     = new ShooterTuner();     // Pi shooter tuning (disabled)
+    private final UltraShooter     ultraShooter     = new UltraShooter(new UltraShooterIOReal(), drivebase);
     // private final ShooterAutoTuner shooterAutoTuner = new ShooterAutoTuner(ultraShooter, shooterTuner);
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
@@ -91,7 +89,6 @@ public class RobotContainer
         floor,
         feeder,
         ultraShooter,
-        new ShooterTuner(),
         () -> -driverXbox.getLeftY(),
         () -> -driverXbox.getLeftX()
     );
@@ -122,7 +119,9 @@ public class RobotContainer
 
         limelight.setDefaultCommand(updateVisionCommand());
 
-        blinkinLed.setDefaultCommand(Commands.run(blinkinLed::setPhasePattern, blinkinLed));
+        blinkinLed.setDefaultCommand(
+            Commands.run(blinkinLed::setPhasePattern, blinkinLed)
+                .finallyDo(__ -> blinkinLed.setDefaultPattern()));
 
         SmartDashboard.putData("Auto Chooser", autoChooser);
         SmartDashboard.putData("Field", field);
@@ -423,20 +422,19 @@ public class RobotContainer
                     stdDevMultiplier = 1.0;
                 }
                 Logger.recordOutput("Vision/StdDevMultiplier", stdDevMultiplier);
-                var stdDevs = m.standardDeviations.times(stdDevMultiplier);
-                drivebase.addVisionMeasurement(
-                    m.poseEstimate.pose,
-                    m.poseEstimate.timestampSeconds,
-                    stdDevs
-                );
-            } else if (!overBump) {
-                // Fallback: Pi AprilTag camera — skip entirely during confirmed bumps.
-                piAprilTag.getMeasurement().ifPresent(m -> drivebase.addVisionMeasurement(
-                    m.pose,
-                    m.timestampSeconds,
-                    m.standardDeviations
-                ));
+                double ts = m.poseEstimate.timestampSeconds;
+                // Reject timestamps of 0 or in the future — these indicate a stale or
+                // invalid Limelight frame and would corrupt the pose estimator.
+                if (ts > 0 && ts <= Timer.getFPGATimestamp()) {
+                    var stdDevs = m.standardDeviations.times(stdDevMultiplier);
+                    drivebase.addVisionMeasurement(m.poseEstimate.pose, ts, stdDevs);
+                }
             }
-        }, limelight, limelightRear, piAprilTag).ignoringDisable(true);
+            // else if (!overBump) {
+            //     piAprilTag.getMeasurement().ifPresent(m -> drivebase.addVisionMeasurement(
+            //         m.pose, m.timestampSeconds, m.standardDeviations
+            //     ));
+            // }
+        }, limelight, limelightRear).ignoringDisable(true);
     }
 }

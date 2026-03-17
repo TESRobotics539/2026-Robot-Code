@@ -91,10 +91,9 @@ public class Hanger extends SubsystemBase {
     public Command reverseClimbIfNeededCommand() {
         return Commands.defer(() -> {
             if (!autoClimbCompleted || climbEncoderTicks == 0) return Commands.none();
-            double ticks = climbEncoderTicks;
             autoClimbCompleted = false;
             return run(() -> setPercentOutput(-Constants.HangerConstants.kAutoClimbFullPower))
-                .until(() -> Math.signum(ticks) * inputs.encoderPositionRot <= kDeclimbReturnThresholdRotations)
+                .until(() -> Math.abs(inputs.encoderPositionRot) <= kDeclimbReturnThresholdRotations)
                 .andThen(runOnce(() -> setPercentOutput(0)));
         }, java.util.Set.of(this));
     }

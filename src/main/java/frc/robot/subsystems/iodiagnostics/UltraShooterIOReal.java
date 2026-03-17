@@ -116,6 +116,8 @@ public class UltraShooterIOReal implements UltraShooterIO {
 
     @Override
     public void setKp(double kP) {
+        // configure() is an expensive CAN write — only safe to call while disabled.
+        if (!edu.wpi.first.wpilibj.DriverStation.isDisabled()) return;
         SparkFlexConfig cfg = new SparkFlexConfig();
         cfg.closedLoop
            .feedbackSensor(FeedbackSensor.kPrimaryEncoder)

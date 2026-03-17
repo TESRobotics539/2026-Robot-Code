@@ -128,7 +128,7 @@ public final class Constants {
 
     // ── Anti-jam ──────────────────────────────────────────────────────────
     /** Current (amps) above which a jam is suspected while feeding. */
-    public static final double kJamCurrentThreshold = 35.0;
+    public static final double kJamCurrentThreshold = 60.0;
     /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
     public static final double kJamVelocityThresholdRPM = 1000.0;
     /** Reverse speed (RPM, magnitude) applied during the anti-jam pulse. */

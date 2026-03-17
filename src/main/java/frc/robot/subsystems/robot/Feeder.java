@@ -65,45 +65,43 @@ public class Feeder extends SubsystemBase {
      * <p>Never finishes on its own; interrupt to stop.
      */
     public Command feedCommand() {
-        // final int FEEDING = 0, REVERSING = 1, RECOVERING = 2;
-        // final int[] state = {FEEDING};
-        // final Timer unjamTimer = new Timer();
+        final int FEEDING = 0, REVERSING = 1, RECOVERING = 2;
+        final int[] state = {FEEDING};
+        final Timer unjamTimer = new Timer();
 
-        return startEnd(() -> setPercentOutput(0.9), () -> setPercentOutput(0));
-        // Anti-jam state machine (disabled)
-        // return runOnce(() -> {
-        //     setPercentOutput(0.9);
-        //     state[0] = FEEDING;
-        // }).andThen(run(() -> {
-        //     boolean jammed = inputs.outputCurrentAmps > Constants.FeederConstants.kJamCurrentThreshold
-        //         && Math.abs(inputs.velocityRPM) < Constants.FeederConstants.kJamVelocityThresholdRPM;
-        //     boolean free = inputs.velocityRPM > Constants.FeederConstants.kFreeVelocityThresholdRPM;
-        //
-        //     Logger.recordOutput("Feeder/UnjamState",
-        //         state[0] == FEEDING ? "FEEDING" : state[0] == REVERSING ? "REVERSING" : "RECOVERING");
-        //
-        //     if (state[0] == FEEDING) {
-        //         setPercentOutput(0.9);
-        //         if (jammed) {
-        //             setPercentOutput(-0.9);
-        //             unjamTimer.restart();
-        //             state[0] = REVERSING;
-        //         }
-        //     } else if (state[0] == REVERSING) {
-        //         if (unjamTimer.hasElapsed(Constants.FeederConstants.kUnjamReverseSeconds)) {
-        //             setPercentOutput(0.9);
-        //             state[0] = RECOVERING;
-        //         }
-        //     } else { // RECOVERING
-        //         if (free) {
-        //             state[0] = FEEDING;
-        //         } else if (jammed) {
-        //             setPercentOutput(-0.9);
-        //             unjamTimer.restart();
-        //             state[0] = REVERSING;
-        //         }
-        //     }
-        // })).finallyDo(interrupted -> setPercentOutput(0));
+        return runOnce(() -> {
+            setPercentOutput(0.9);
+            state[0] = FEEDING;
+        }).andThen(run(() -> {
+            boolean jammed = inputs.outputCurrentAmps > Constants.FeederConstants.kJamCurrentThreshold
+                && Math.abs(inputs.velocityRPM) < Constants.FeederConstants.kJamVelocityThresholdRPM;
+            boolean free = inputs.velocityRPM > Constants.FeederConstants.kFreeVelocityThresholdRPM;
+
+            Logger.recordOutput("Feeder/UnjamState",
+                state[0] == FEEDING ? "FEEDING" : state[0] == REVERSING ? "REVERSING" : "RECOVERING");
+
+            if (state[0] == FEEDING) {
+                setPercentOutput(0.9);
+                if (jammed) {
+                    setPercentOutput(-0.9);
+                    unjamTimer.restart();
+                    state[0] = REVERSING;
+                }
+            } else if (state[0] == REVERSING) {
+                if (unjamTimer.hasElapsed(Constants.FeederConstants.kUnjamReverseSeconds)) {
+                    setPercentOutput(0.9);
+                    state[0] = RECOVERING;
+                }
+            } else { // RECOVERING
+                if (free) {
+                    state[0] = FEEDING;
+                } else if (jammed) {
+                    setPercentOutput(-0.9);
+                    unjamTimer.restart();
+                    state[0] = REVERSING;
+                }
+            }
+        })).finallyDo(interrupted -> setPercentOutput(0));
     }
 
     public Command reverseCommand() {

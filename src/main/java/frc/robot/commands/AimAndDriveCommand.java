@@ -14,6 +14,13 @@ import frc.robot.subsystems.robot.Swerve;
 import frc.robot.subsystems.robot.UltraShooter;
 import frc.util.GeometryUtil;
 
+/**
+ * Continuously turns the robot to face the hub while allowing translational driving.
+ *
+ * <p><b>Never finishes on its own</b> — always wrap with {@code .withTimeout()} or compose
+ * inside a {@code Commands.parallel()} that has a terminating deadline. An unguarded
+ * {@code AimAndDriveCommand} will stall an autonomous sequence indefinitely.
+ */
 public class AimAndDriveCommand extends Command {
     private static final Angle kAimTolerance = Degrees.of(3);
 
