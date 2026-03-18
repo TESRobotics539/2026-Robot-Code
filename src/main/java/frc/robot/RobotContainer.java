@@ -98,6 +98,7 @@ public class RobotContainer
         floor,
         feeder,
         ultraShooter,
+        intake,
         () -> -driverXbox.getLeftY(),
         () -> -driverXbox.getLeftX()
     );
@@ -255,7 +256,7 @@ public class RobotContainer
                     Commands.waitSeconds(Constants.RumbleConstants.kShootAnnouncementOnSeconds),
                     Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0))
                 ),
-                subsystemCommands.shootMapWithFeedExtra(
+                subsystemCommands.shootPhysicsWithFeedExtra(
                     // Supplier so a fresh command is created each execution (avoids composed-command reuse).
                     () -> Commands.sequence(
                         Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kShootPulseIntensity)),
@@ -331,13 +332,13 @@ public class RobotContainer
         // ── Utility ──────────────────────────────────────────────────────────
         // Emergency stop — cancels every running command immediately.
         // Bind to Start so it's reachable without looking down at the controller.
-        driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
-            .ignoringDisable(true).withName("KillAll"));
+        // driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
+        //     .ignoringDisable(true).withName("KillAll"));
 
     }
 
     private void configureNamedCommands() {
-      NamedCommands.registerCommand("Shoot Command", subsystemCommands.shootMap().withTimeout(5.0));
+      NamedCommands.registerCommand("Shoot Command", subsystemCommands.shootPhysics().withTimeout(5.0));
       NamedCommands.registerCommand("Auto Shoot", subsystemCommands.autoShoot().andThen(ultraShooter.spinDownCommand()));
       NamedCommands.registerCommand("Climber Toggle Command", hanger.toggleCommand());
       NamedCommands.registerCommand("Climber Down and Hold", hanger.autoClimbCommand());
