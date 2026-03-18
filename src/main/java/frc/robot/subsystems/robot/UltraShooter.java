@@ -580,8 +580,13 @@ public class UltraShooter extends SubsystemBase {
         }
     }
 
+    /** Cuts motor output immediately and resets all ramp state; motors coast down uncontrolled. */
     public void stop() {
-        setTarget(0);
+        velocityTarget  = 0;
+        rampedSetpoint  = 0;
+        voltageBias     = 0;
+        readyLatch      = false;
+        io.stop();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -739,7 +744,8 @@ public class UltraShooter extends SubsystemBase {
             rampedSetpoint = Math.min(
                     rampedSetpoint + Constants.UltraShooterConstants.kRampUpRate, velocityTarget);
         } else if (rampedSetpoint > velocityTarget) {
-            rampedSetpoint = velocityTarget; // coast down — no active braking
+            rampedSetpoint = Math.max(
+                    rampedSetpoint - Constants.UltraShooterConstants.kRampDownRate, velocityTarget);
         }
     }
 

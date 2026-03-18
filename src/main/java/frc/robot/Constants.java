@@ -27,7 +27,7 @@ public final class Constants {
      * Limits how aggressively modules accelerate between cycles to prevent wheel slip
      * and excessive current draw during rapid direction changes.
      */
-    public static final double kMaxAccelerationMps2 = 15.0;
+    public static final double kMaxAccelerationMps2 = 12; // 40 ft/s²
 
     /**
      * Maximum module azimuth angular velocity used by the setpoint generator (rad/s).
