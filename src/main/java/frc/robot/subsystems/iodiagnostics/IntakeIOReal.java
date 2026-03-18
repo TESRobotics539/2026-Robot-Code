@@ -110,6 +110,13 @@ public class IntakeIOReal implements IntakeIO {
     }
 
     @Override
+    public void setPivotOutputRange(double min, double max) {
+        SparkMaxConfig config = new SparkMaxConfig();
+        config.closedLoop.outputRange(min, max);
+        pivotMotor.configure(config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
+    }
+
+    @Override
     public void setRollerRPM(double rpm) {
         rollerController.setSetpoint(rpm, ControlType.kVelocity);
     }

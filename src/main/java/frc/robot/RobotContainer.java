@@ -85,7 +85,7 @@ public class RobotContainer
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
     // TODO: re-enable after PID tuning
     // {
-    //     ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand(intake::hasPickedUpFuel));
+    //     ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand());
     // }
 
     // ── Controllers ──────────────────────────────────────────────────────────

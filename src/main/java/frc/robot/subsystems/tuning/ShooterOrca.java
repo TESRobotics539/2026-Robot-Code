@@ -16,7 +16,6 @@ import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
 
-import java.util.function.BooleanSupplier;
 
 import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
 import edu.wpi.first.networktables.NetworkTable;
@@ -354,13 +353,12 @@ public class ShooterOrca extends SubsystemBase {
      * <p>Intended to run as the shooter's default command so it is automatically
      * interrupted by any real shoot command and resumes afterward.
      */
-    public Command preSpinCommand(BooleanSupplier fuelReady) {
+    public Command preSpinCommand() {
         return run(() -> {
             if (DriverStation.isAutonomous()) {
                 // Auton: spin at full map speed immediately, no conditions
                 setShooterMap();
-            } else if (fuelReady.getAsBoolean()
-                    && GameData.isHubActiveExpanded(5.0)
+            } else if (GameData.isHubActiveExpanded(5.0)
                     && Landmarks.isInScoringZone(m_swerveSubsystem.getPose())) {
                 double distanceToHub = m_swerveSubsystem.getDistanceToHub();
                 double mapSpeed = shooterSpeedMap.get(distanceToHub);

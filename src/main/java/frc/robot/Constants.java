@@ -27,7 +27,7 @@ public final class Constants {
      * Limits how aggressively modules accelerate between cycles to prevent wheel slip
      * and excessive current draw during rapid direction changes.
      */
-    public static final double kMaxAccelerationMps2 = 12; // 40 ft/s²
+    public static final double kMaxAccelerationMps2 = 12; // ~40 ft/s²
 
     /**
      * Maximum module azimuth angular velocity used by the setpoint generator (rad/s).
@@ -46,7 +46,7 @@ public final class Constants {
     /** Maximum seconds between two trigger pulls to count as a double-tap. */
     public static final double kDoubleTapWindowSeconds = 0.4;
     /** Seconds the roller can run without a load spike before being automatically cut off. */
-    public static final double kRollerNoLoadTimeoutSeconds = 15.0;
+    public static final double kRollerNoLoadTimeoutSeconds = 12.0;
 
     // ── Roller ───────────────────────────────────────────────────────────
     public static final IdleMode kRollerIdleMode = IdleMode.kCoast;
@@ -97,17 +97,17 @@ public final class Constants {
 
     // ── Ramp rate ─────────────────────────────────────────────────────────
     /** Closed-loop ramp rate for the roller (seconds from 0 to full output). Applies to both acceleration and deceleration. */
-    public static final double kRollerRampRateSeconds = 0.25;
+    public static final double kRollerRampRateSeconds = 0.33;
 
     // ── Agitation (pivot motion during shooting to settle fuel) ──────────
-    /** Pivot position for the upper agitation hold (absolute encoder units). */
-    public static final double kAgitateHighPosition = 0.210;
-    /** Pivot position for the lower agitation hold (absolute encoder units). */
-    public static final double kAgitateLowPosition  = 0.15;
-    /** Duration to hold the upper agitation position (seconds). */
-    public static final double kAgitateUpSeconds = 0.33;
-    /** Duration to hold the lower agitation position (seconds). */
-    public static final double kAgitateDownSeconds = 0.2;
+    /** Fraction (0 = deployed hard-stop, 1 = stowed) for the upper agitation bound. */
+    public static final double kAgitateHighPercent = 0.447;
+    /** Fraction (0 = deployed hard-stop, 1 = stowed) for the lower agitation bound. */
+    public static final double kAgitateLowPercent  = 0.209;
+    /** Duration of one full oscillation cycle (seconds). */
+    public static final double kAgitatePeriodSeconds = 1.0;
+    /** Pivot closed-loop output range during agitation (symmetric ±). Controls how fast the pivot tracks the oscillating setpoint. */
+    public static final double kAgitateOutputRangeMax = 0.35;
   }
 
   // ── Feeder ────────────────────────────────────────────────────────────────
@@ -276,9 +276,9 @@ public final class Constants {
     // ── Voltage bias (971-style integral flywheel) ────────────────────────
     /** Volts added to feedforward per ft/s of velocity error, per 20 ms cycle.
      *  Accumulates only after the ramp has reached target — no spinup windup. */
-    public static final double kVoltageBiasRate = 0.003;
+    public static final double kVoltageBiasRate = 0.004;
     /** Maximum absolute feedforward voltage bias (V). Caps the integrator. */
-    public static final double kMaxVoltageBias  = 1.5;
+    public static final double kMaxVoltageBias  = 2.0;
 
     // ── Parabolic fine-tune offsets ───────────────────────────────────────
     // Three anchor points define a parabola (Lagrange quadratic) that is
@@ -318,7 +318,7 @@ public final class Constants {
      * Change this when swapping game pieces; kDragCoefficient must be updated
      * accordingly: B = 0.5 x Cd x rho_air x pi x (diameter_m / 2)^2
      */
-    public static final double kBallDiameterInches = 6.0;
+    public static final double kBallDiameterInches = 5.9;
 
     /**
      * Ball mass (lbs).  Used in the aerodynamic drag term (B / m).
@@ -341,7 +341,7 @@ public final class Constants {
 
     /**
      * If true, the FMS-aware pre-spin state machine is active: the flywheel only
-     * spins up to pre-spin speed when fuel has been detected, the hub is within
+     * spins up to pre-spin speed when the hub is within
      * its active window, and the robot is in the scoring zone.
      *
      * <p>Set to {@code false} to always pre-spin to the pre-spin speed regardless
@@ -364,10 +364,10 @@ public final class Constants {
     public static final double kCloseRangeThresholdInches = 35.0;
 
     /** Distance (inches) to drive away from the hub before aiming when backup triggers. */
-    public static final double kCloseRangeBackupInches = 12.0;
+    public static final double kCloseRangeBackupInches = 18.0;
 
     /** Speed (ft/s) at which the robot drives away from the hub during backup. */
-    public static final double kCloseRangeBackupSpeedFps = 3.0;
+    public static final double kCloseRangeBackupSpeedFps = 4.0;
   }
 
   // ── Rumble ────────────────────────────────────────────────────────────────
@@ -383,11 +383,11 @@ public final class Constants {
 
     // ── Shoot pulse (bumper spin-up + trigger feed phase) ─────────────────
     /** Rumble intensity during the repeating shoot pulse (0.0–1.0). */
-    public static final double kShootPulseIntensity  = 0.85;
+    public static final double kShootPulseIntensity  = 0.70;
     /** Duration of the on-phase of each shoot pulse (seconds). */
-    public static final double kShootPulseOnSeconds  = 0.15;
+    public static final double kShootPulseOnSeconds  = 0.10;
     /** Duration of the off-phase of each shoot pulse (seconds). */
-    public static final double kShootPulseOffSeconds = 0.15;
+    public static final double kShootPulseOffSeconds = 0.10;
 
     // ── Shoot announcement (right-trigger sequence start) ─────────────────
     /** Duration of the single announcement pulse when the aim-and-fire sequence begins (seconds). */

@@ -6,7 +6,6 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
 
 import java.util.Arrays;
-import java.util.function.BooleanSupplier;
 
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
@@ -648,11 +647,11 @@ public class UltraShooter extends SubsystemBase {
      *   <li>The robot is in its own alliance zone or the neutral zone.</li>
      * </ol>
      * When that constant is {@code false}, the flywheel always spins up to the
-     * pre-spin speed regardless of FMS state, fuel detection, or field position.
+     * pre-spin speed regardless of FMS state or field position.
      *
      * <p>Runs as the default command and is automatically interrupted by any shoot command.
      */
-    public Command preSpinCommand(BooleanSupplier fuelReady) {
+    public Command preSpinCommand() {
         return run(() -> {
             boolean shouldPrespin = !Constants.UltraShooterConstants.kEnableFMSAwarePreSpinLatch
                     || (GameData.isHubActiveExpanded(5.0)

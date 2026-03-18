@@ -8,7 +8,6 @@ import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.subsystems.iodiagnostics.IntakeIO;
@@ -30,6 +29,8 @@ public class Intake extends SubsystemBase {
 
     private static final double kMinPosition = Constants.IntakeConstants.kMinPosition;
     private static final double kMaxPosition = Constants.IntakeConstants.kMaxPosition;
+    /** Maximum deviation from kStowedPosition at which a measured position is accepted as a valid stow calibration. */
+    private static final double kStowCalibrationTolerance = 0.05;
 
     private final IntakeIO io;
     private final IntakeIOInputsAutoLogged inputs = new IntakeIOInputsAutoLogged();
@@ -49,11 +50,13 @@ public class Intake extends SubsystemBase {
     private static final int ROLLER_RECOVERING = 2;
     private int rollerUnjamState = ROLLER_RUNNING;
     private final Timer rollerUnjamTimer = new Timer();
+    private boolean hasZeroed = false;
     private boolean matchStowLocked = false;
     private boolean deployedPositionCalibrated = false;
     private boolean initialDeployEnabled = false;
     private double  deployStartPosition   = 0.0;
     private double  calibratedDeployedPosition = Double.NaN;
+    private double  calibratedStowedPosition   = Double.NaN;
     private final Debouncer deployCurrentDebouncer = new Debouncer(Constants.IntakeConstants.kPivotDeployedCurrentDebounceSeconds, DebounceType.kRising);
 
     public Intake(IntakeIO io) {
@@ -65,6 +68,18 @@ public class Intake extends SubsystemBase {
     public void periodic() {
         io.updateInputs(inputs);
         Logger.processInputs("Intake", inputs);
+
+        // On first cycle, snapshot the current encoder position so the PID has a valid
+        // target before any match period begins (e.g., during testing or teleop-only runs).
+        if (!hasZeroed) {
+            double currentPos = inputs.pivotAbsEncoderPosition;
+            targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, currentPos));
+            if (Math.abs(currentPos - Constants.IntakeConstants.kStowedPosition) <= kStowCalibrationTolerance) {
+                calibratedStowedPosition = currentPos;
+            }
+            hasSetpoint = true;
+            hasZeroed = true;
+        }
 
         if (matchStowLocked) {
             usePercentOutput = false;
@@ -151,6 +166,12 @@ public class Intake extends SubsystemBase {
             deployedPositionCalibrated = false;
             deployStartPosition = inputs.pivotAbsEncoderPosition;
             deployCurrentDebouncer.calculate(false); // reset debouncer state
+            // Always run current-spike calibration on the very first deploy (before any
+            // match-start trigger fires), so the hard-stop zero is captured regardless of
+            // which code path initiates the deploy.
+            if (Double.isNaN(calibratedDeployedPosition)) {
+                initialDeployEnabled = true;
+            }
             targetPivotPosition = !Double.isNaN(calibratedDeployedPosition)
                 ? calibratedDeployedPosition
                 : Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
@@ -164,7 +185,8 @@ public class Intake extends SubsystemBase {
 
     /**
      * Deploys the intake and enables current-spike calibration for this deploy.
-     * Call only from the automatic match-start deploy trigger.
+     * Called from the automatic match-start deploy trigger. Note: calibration also
+     * runs automatically on the very first deploy after code startup.
      */
     public void setInitialDeployPosition() {
         initialDeployEnabled = true;
@@ -183,6 +205,9 @@ public class Intake extends SubsystemBase {
     public void lockCurrentPositionAsStow() {
         double currentPos = inputs.pivotAbsEncoderPosition;
         targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, currentPos));
+        if (Math.abs(currentPos - Constants.IntakeConstants.kStowedPosition) <= kStowCalibrationTolerance) {
+            calibratedStowedPosition = currentPos;
+        }
         hasSetpoint = true;
         usePercentOutput = false;
         matchStowLocked = Constants.IntakeConstants.kStowIntakeForMatch;
@@ -263,23 +288,40 @@ public class Intake extends SubsystemBase {
     }
 
     /**
-     * Repeatedly pulses the intake pivot to agitate fuel during shooting.
-     * Restores position control when interrupted.
+     * Linearly interpolates between the calibrated deployed and stowed positions.
+     * {@code percent = 0} → deployed hard-stop, {@code percent = 1} → stowed.
+     * Falls back to the nominal constants if either endpoint hasn't been calibrated yet.
+     */
+    private double agitatePosition(double percent) {
+        double deployed = Double.isNaN(calibratedDeployedPosition)
+            ? Position.DEPLOYED.value : calibratedDeployedPosition;
+        double stowed = Double.isNaN(calibratedStowedPosition)
+            ? Position.STOWED.value : calibratedStowedPosition;
+        return deployed + percent * (stowed - deployed);
+    }
+
+    /**
+     * Sinusoidally oscillates the intake pivot between the low and high agitation positions.
+     * Reduces the pivot output range to {@code kAgitateOutputRangeMax} for the duration and
+     * restores the normal range when interrupted.
      */
     public Command agitateCommand() {
-        return Commands.sequence(
-            runOnce(() -> {
+        return runOnce(() -> io.setPivotOutputRange(
+                -Constants.IntakeConstants.kAgitateOutputRangeMax,
+                 Constants.IntakeConstants.kAgitateOutputRangeMax))
+            .andThen(run(() -> {
+                double phase = (Timer.getFPGATimestamp() % Constants.IntakeConstants.kAgitatePeriodSeconds)
+                    / Constants.IntakeConstants.kAgitatePeriodSeconds;
+                double alpha = (1.0 - Math.cos(2.0 * Math.PI * phase)) / 2.0;
                 usePercentOutput = false;
-                targetPivotPosition = Constants.IntakeConstants.kAgitateHighPosition;
+                targetPivotPosition = agitatePosition(
+                    Constants.IntakeConstants.kAgitateLowPercent
+                    + alpha * (Constants.IntakeConstants.kAgitateHighPercent - Constants.IntakeConstants.kAgitateLowPercent));
                 hasSetpoint = true;
-            }),
-            Commands.waitSeconds(Constants.IntakeConstants.kAgitateUpSeconds),
-            runOnce(() -> {
-                targetPivotPosition = Constants.IntakeConstants.kAgitateLowPosition;
-                hasSetpoint = true;
-            }),
-            Commands.waitSeconds(Constants.IntakeConstants.kAgitateDownSeconds)
-        ).repeatedly();
+            }))
+            .finallyDo(() -> io.setPivotOutputRange(
+                Constants.IntakeConstants.kPivotOutputRangeMin,
+                Constants.IntakeConstants.kPivotOutputRangeMax));
     }
 
     @Override
