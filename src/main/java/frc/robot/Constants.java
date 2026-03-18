@@ -78,10 +78,10 @@ public final class Constants {
     public static final double kPivotOutputRangeMax =  0.4;
 
     // ── Pivot positions (absolute encoder, 0.0–1.0) ──────────────────────
-    public static final double kStowedPosition   = 0.35;
-    public static final double kDeployedPosition = 0.108;
-    public static final double kMinPosition       = 0.07;
-    public static final double kMaxPosition       = 0.41;
+    public static final double kStowedPosition   = 0.350;
+    public static final double kDeployedPosition = 0.097;
+    public static final double kMinPosition       = 0.100;
+    public static final double kMaxPosition       = 0.200;
 
     // ── Roller anti-jam ──────────────────────────────────────────────────
     /** Current (amps) above which a roller jam is suspected while intaking. */
@@ -120,7 +120,7 @@ public final class Constants {
 
     // ── Setpoints ────────────────────────────────────────────────────────
     /** Feed target speed (RPM, positive = forward). */
-    public static final double kFeedRPM    =  5500.0;
+    public static final double kFeedRPM    =  4500.0;
     /** Reverse target speed (RPM, negative = backward). */
     public static final double kReverseRPM = -5500.0;
 
@@ -132,7 +132,7 @@ public final class Constants {
 
     // ── Anti-jam ──────────────────────────────────────────────────────────
     /** Current (amps) above which a jam is suspected while feeding. */
-    public static final double kJamCurrentThreshold = 60.0;
+    public static final double kJamCurrentThreshold = 80.0;
     /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
     public static final double kJamVelocityThresholdRPM = 1000.0;
     /** Reverse speed (RPM, magnitude) applied during the anti-jam pulse. */
@@ -219,11 +219,12 @@ public final class Constants {
      * Height of the hood exit (ball launch point) above the floor (inches).
      * Measure from the ground to the center of the shooter barrel exit.
      */
-    public static final double kHoodHeightFromFloorInches = 27.0;
+    public static final double kHoodHeightFromFloorInches = 26.5;
 
     /**
      * Height of the hub center (scoring target) above the floor (inches).
      * Look this up from the game manual or measure on the field.
+     * DO NOT CHANGE!!!
      */
     public static final double kHubCenterHeightFromFloorInches = 72.0;
 
@@ -233,7 +234,7 @@ public final class Constants {
      * ADDED to the odometry distance (robot center → hub) to get the true
      * shooter-to-hub range used by the physics model.
      */
-    public static final double kShooterCenterlineOffsetInches = 8.0;
+    public static final double kShooterCenterlineOffsetInches = 10.5;
 
     /**
      * Fixed launch angle above horizontal (degrees). With a static hood this
@@ -252,18 +253,21 @@ public final class Constants {
     //   kP: 0.0003/RPM × 57.3 ≈ 0.017/fps
     //   kD: 0.01/RPM  × 57.3 ≈ 0.57/fps
     //   kS: 0.21 V — same units, direct copy
-    public static final double kP = 0.017;
+    public static final double kP = 0.025;
     public static final double kI = 0.000;
-    public static final double kD = 0.57;
-    public static final double kS = 0.21;
+    public static final double kD = 0.0;
+    public static final double kS = 0.1;
+    /** KV feedforward: V/(ft/s). Derived from Neo Vortex free speed (6784 RPM) and wheel size.
+     *  At target speed, motor voltage ≈ kS + kV * velocityFPS. */
+    public static final double kV = 11.0 / (6784.0 * Math.PI * (4.0 / 12.0) / 60.0);
 
     // ── Flywheel behavior ─────────────────────────────────────────────────
     /** Setpoint ramp-up rate (ft/s per 20 ms cycle). */
     public static final double kRampUpRate   = 200.0 * (Math.PI * (4.0 / 12.0) / 60.0);
     /** Setpoint ramp-down rate (ft/s per 20 ms cycle). */
     public static final double kRampDownRate = 400.0 * (Math.PI * (4.0 / 12.0) / 60.0);
-    /** Rolling-average window for encoder noise filtering (samples at 50 Hz). */
-    public static final int kVelocityAvgSamples = 8;
+    /** Rolling-average window for encoder noise filtering (samples at 50 Hz). 3 × 20 ms = 60 ms. */
+    public static final int kVelocityAvgSamples = 3;
     /** Flywheel is "ready" within this tolerance of target (ft/s). */
     public static final double kReadyTolerance = 100.0 * (Math.PI * (4.0 / 12.0) / 60.0);
     /** Fraction of the physics-calculated speed used for pre-spin (0.0–1.0). */
@@ -272,7 +276,7 @@ public final class Constants {
     // ── Voltage bias (971-style integral flywheel) ────────────────────────
     /** Volts added to feedforward per ft/s of velocity error, per 20 ms cycle.
      *  Accumulates only after the ramp has reached target — no spinup windup. */
-    public static final double kVoltageBiasRate = 0.001;
+    public static final double kVoltageBiasRate = 0.003;
     /** Maximum absolute feedforward voltage bias (V). Caps the integrator. */
     public static final double kMaxVoltageBias  = 1.5;
 
@@ -307,7 +311,7 @@ public final class Constants {
      * Tune on the field via ShooterTuner/Params/FlywheelEfficiency.
      * Applied as: ball_exit_speed = flywheel_surface_speed × efficiency.
      */
-    public static final double kFlywheelEfficiency = 0.60;
+    public static final double kFlywheelEfficiency = 0.6;
 
     /**
      * Ball diameter (inches). Used to compute cross-sectional area for drag.

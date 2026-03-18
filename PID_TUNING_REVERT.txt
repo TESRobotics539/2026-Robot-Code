@@ -1,0 +1,73 @@
+PID TUNING TEMPORARY CHANGES — REVERT BEFORE MERGE
+====================================================
+Created: 2026-03-17
+
+All items below must be undone after flywheel PID tuning is complete.
+
+──────────────────────────────────────────────────────────────────────
+1. RobotContainer.java — Pre-spin disabled
+──────────────────────────────────────────────────────────────────────
+Location: ~line 85
+
+RESTORE (uncomment):
+    // Pre-spin during hub-active windows; interrupted automatically by any shoot command
+    {
+        ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand(intake::hasPickedUpFuel));
+    }
+
+──────────────────────────────────────────────────────────────────────
+2. RobotContainer.java — PID tuning button bindings block
+──────────────────────────────────────────────────────────────────────
+Location: ~line 217 (marked with ══ PID TUNING ══ comments)
+
+DELETE the entire block between:
+    // ══ PID TUNING — delete this entire block when done ══════════════════
+    ...
+    // ═════════════════════════════════════════════════════════════════════
+
+Which includes:
+  - A button: toggleOnTrue flywheel at 3,000 RPM ("TuningFlywheelSpin")
+  - X button: feeder + floor at 85% ("TuningFeed")
+  - B button: dump shot (moved from X, lost .finallyDo() logging — restore below)
+  - D-pad up/down: ±1,000 RPM flywheel speed nudge (Commands.runOnce, no subsystem)
+
+RESTORE original X button dump shot binding:
+    // X: dump shot (fixed low speed)
+    driverXbox.x().whileTrue(
+        Commands.defer(() -> Commands.parallel(
+            ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
+            Commands.waitUntil(ultraShooter::isReady)
+                .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
+                .andThen(Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds))
+                .andThen(Commands.parallel(
+                    feeder.feedCommand(),
+                    Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
+                ))
+        ), Set.of(ultraShooter, feeder, floor))
+        .finallyDo(interrupted -> Logger.recordOutput("Commands/DumpShot/Interrupted", interrupted)));
+
+RESTORE original hanger D-pad bindings (~line 277):
+    driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
+                      .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+    driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
+                        .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+
+──────────────────────────────────────────────────────────────────────
+3. UltraShooter.java — Velocity averaging bypassed
+──────────────────────────────────────────────────────────────────────
+Location: getAverageVelocity(), ~line 600
+
+RESTORE:
+    public double getAverageVelocity() {
+        return velocityBufferSum / Constants.UltraShooterConstants.kVelocityAvgSamples;
+    }
+
+(Remove the "return cachedVelocity; // no filter" line and the TODO comment)
+
+──────────────────────────────────────────────────────────────────────
+NOTES
+──────────────────────────────────────────────────────────────────────
+- kVelocityAvgSamples is currently 3 (60 ms). Original value was 8. Decide
+  which to keep after tuning is complete.
+- The local variables kTuning200RpmInFPS and kTuningInitialFPS in
+  RobotContainer are only used by the tuning block — they go away with it.

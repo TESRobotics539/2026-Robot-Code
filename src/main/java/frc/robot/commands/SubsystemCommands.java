@@ -2,6 +2,7 @@ package frc.robot.commands;
 
 import java.util.Set;
 import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 
 import edu.wpi.first.math.util.Units;
 
@@ -61,15 +62,17 @@ public final class SubsystemCommands {
     }
 
     public Command shootMap() {
-        return aimAndFire(feed());
+        return aimAndFire(this::feed);
     }
 
     /**
      * Physics-based map shot with an extra command run in parallel during the feed phase
      * (after flywheel ready + aim settled). Use this to inject rumble, LEDs, etc.
+     *
+     * @param feedExtraSupplier called fresh each execution to avoid composed-command reuse
      */
-    public Command shootMapWithFeedExtra(Command feedExtra) {
-        return aimAndFire(feedWith(feedExtra));
+    public Command shootMapWithFeedExtra(Supplier<Command> feedExtraSupplier) {
+        return aimAndFire(() -> feedWith(feedExtraSupplier.get()));
     }
 
     /**
@@ -101,7 +104,7 @@ public final class SubsystemCommands {
         }, Set.of(swerve, ultraShooter, feeder, floor));
     }
 
-    private Command aimAndFire(Command feedCommand) {
+    private Command aimAndFire(Supplier<Command> feedCommandSupplier) {
         return Commands.defer(() -> {
             AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
             Command shootSequence = Commands.parallel(
@@ -109,7 +112,7 @@ public final class SubsystemCommands {
                 aimCommand,
                 Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
                     .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
-                    .andThen(feedCommand)
+                    .andThen(feedCommandSupplier.get())
             );
 
             boolean needsBackup = Constants.UltraShooterConstants.kEnableCloseRangeBackup
