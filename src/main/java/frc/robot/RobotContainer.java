@@ -4,6 +4,7 @@
 
 package frc.robot;
 
+import java.util.Optional;
 import java.util.Set;
 
 import com.pathplanner.lib.auto.NamedCommands;
@@ -346,12 +347,27 @@ public class RobotContainer
     }
 
     private Command updateVisionCommand() {
+        // Tracks whether we have already seeded odometry during the current disabled period.
+        // Array trick lets us mutate from inside the lambda while satisfying "effectively final".
+        final boolean[] disabledSeedDone = {false};
+        final boolean[] prevEnabled      = {false};
+
         return Commands.run(() -> {
             final Pose2d currentRobotPose = drivebase.getPose();
+            final boolean isEnabled = DriverStation.isEnabled();
+
+            // Reset seed flag at the start of each enabled period so the next disabled
+            // period can seed again with fresh field placement.
+            if (isEnabled && !prevEnabled[0]) {
+                disabledSeedDone[0] = false;
+            }
+            prevEnabled[0] = isEnabled;
 
             // 2-of-3 majority vote across three independent sensors at different robot locations.
             // Requires at least two to agree before inflating stddevs, avoiding false positives
             // from single-sensor vibration or noise.
+            // NOTE: getAccelZ() reads the Limelight's physical accelerometer and is independent
+            // of IMU mode — the mode-switching in Limelight.periodic() does not affect this vote.
             boolean pigeonOverBump = drivebase.isOverBump();
             boolean frontOverBump  = Math.abs(limelight.getAccelZ() - 1.0)
                 > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
@@ -360,16 +376,43 @@ public class RobotContainer
             int bumpVotes = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
             boolean overBump = bumpVotes >= 2;
 
-            // Pigeon 2 orientation — forwarded to both Limelights so MegaTag2 can compensate
-            // for camera tilt during bump traversal and correct for dynamic yaw rotation.
-            double pitchDeg     = drivebase.getPitchDegrees();
-            double rollDeg      = drivebase.getRollDegrees();
-            double yawRateDegPS = drivebase.getYawRateDegPerSec();
+            // Pigeon 2 full orientation — forwarded to both Limelights so MegaTag2 can compensate
+            // for camera tilt during bump traversal and correct for dynamic rotation on all axes.
+            double pitchDeg        = drivebase.getPitchDegrees();
+            double pitchRateDegPS  = drivebase.getPitchRateDegPerSec();
+            double rollDeg         = drivebase.getRollDegrees();
+            double rollRateDegPS   = drivebase.getRollRateDegPerSec();
+            double yawRateDegPS    = drivebase.getYawRateDegPerSec();
+
+            // ── Disabled-period odometry seeding ─────────────────────────────
+            // While disabled, Limelights are in SyncInternalImu mode so MT1 can solve heading
+            // independently from tag geometry — no gyro dependency. Seed odometry once per
+            // disabled period from the camera with the most tags (≥2 required).
+            if (!isEnabled && !disabledSeedDone[0]) {
+                var frontMT1 = limelight.getMT1Pose();
+                var rearMT1  = limelightRear.getMT1Pose();
+                Optional<Pose2d> seedPose = Optional.empty();
+                if (frontMT1.isPresent() && rearMT1.isPresent()) {
+                    // Both cameras have a fix — prefer the front (arbitrary tiebreak; both are valid).
+                    seedPose = frontMT1;
+                } else if (frontMT1.isPresent()) {
+                    seedPose = frontMT1;
+                } else if (rearMT1.isPresent()) {
+                    seedPose = rearMT1;
+                }
+                if (seedPose.isPresent()) {
+                    drivebase.resetOdometry(seedPose.get());
+                    disabledSeedDone[0] = true;
+                    Logger.recordOutput("Vision/DisabledSeed", seedPose.get());
+                }
+            }
 
             // Request measurements from both Limelights (each call also sends SetRobotOrientation
             // so MegaTag2 keeps a fresh heading even for the camera that isn't chosen).
-            var frontMeasurement = limelight.getMeasurement(currentRobotPose, pitchDeg, rollDeg, yawRateDegPS);
-            var rearMeasurement  = limelightRear.getMeasurement(currentRobotPose, pitchDeg, rollDeg, yawRateDegPS);
+            var frontMeasurement = limelight.getMeasurement(
+                currentRobotPose, pitchDeg, pitchRateDegPS, rollDeg, rollRateDegPS, yawRateDegPS);
+            var rearMeasurement  = limelightRear.getMeasurement(
+                currentRobotPose, pitchDeg, pitchRateDegPS, rollDeg, rollRateDegPS, yawRateDegPS);
 
             // Confidence = avgTagArea × tagCount. Larger tag area means the robot is closer to
             // the tags and the projection error is smaller; more tags further reduce ambiguity.
@@ -401,6 +444,8 @@ public class RobotContainer
             Logger.recordOutput("Vision/BestConfidence",  bestConf);
             Logger.recordOutput("Vision/WheelSlipping",   isSlipping);
             Logger.recordOutput("Vision/WheelSlipScore",  drivebase.getWheelSlipScore());
+            Logger.recordOutput("Vision/Healthy",         limelight.isVisionHealthy() || limelightRear.isVisionHealthy());
+            Logger.recordOutput("Vision/TotalTagCount",   limelight.getLastTagCount() + limelightRear.getLastTagCount());
 
             if (bestMeasurement.isPresent()) {
                 var m = bestMeasurement.get();
