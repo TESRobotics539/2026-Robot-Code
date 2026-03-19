@@ -222,7 +222,7 @@ public class RobotContainer
                 Logger.recordOutput("Commands/SpinUpShoot/Interrupted", interrupted);
             }));
 
-        // ══ PID TUNING — delete this entire block when done ══════════════════
+        // == PID TUNING -- delete this entire block when done ====================
         // A: toggle flywheel on/off at 3,000 RPM
         final double kTuning200RpmInFPS  = 1000.0 * Math.PI * (4.0 / 12.0) / 60.0;
         final double kTuningInitialFPS   = 3000.0 * Math.PI * (4.0 / 12.0) / 60.0;
@@ -248,7 +248,7 @@ public class RobotContainer
                         Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ), Set.of(ultraShooter, feeder, floor)));
-        // ═════════════════════════════════════════════════════════════════════
+        // =====================================================================
 
         // Right trigger: aim + shoot (physics-based, only while hub is active)
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(Constants.ShooterConstants.kHubActiveExpansionSeconds)).whileTrue(
@@ -282,7 +282,7 @@ public class RobotContainer
 
         // ── Hanger ───────────────────────────────────────────────────────────
         // D-pad up/down → manual hanger control
-        // ══ PID TUNING: hanger bindings temporarily replaced by flywheel speed adjust ══
+        // == PID TUNING: hanger bindings temporarily replaced by flywheel speed adjust ==
         // driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
         //                   .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
         // driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
@@ -293,7 +293,7 @@ public class RobotContainer
             () -> ultraShooter.setTarget(ultraShooter.getTarget() + kTuning200RpmInFPS)));
         driverXbox.povDown().onTrue(Commands.runOnce(
             () -> ultraShooter.setTarget(ultraShooter.getTarget() - kTuning200RpmInFPS)));
-        // ═════════════════════════════════════════════════════════════════════
+        // =====================================================================
 
         // Y: auto climb; also spin down shooter in last 30 seconds of teleop
         driverXbox.y().onTrue(hanger.autoClimbCommand()
@@ -378,9 +378,12 @@ public class RobotContainer
       drivebase.setMotorBrake(brake);
     }
 
-    private Command updateVisionCommand() {
-        // Tracks whether we have already seeded odometry during the current disabled period.
-        // Array trick lets us mutate from inside the lambda while satisfying "effectively final".
+    // updateVisionCommand() removed — replaced by VisionManager.periodic(), which runs
+    // automatically as a SubsystemBase and handles bump detection, pose fusion, and odometry seeding.
+    //
+    // OLD METHOD BODY (limelight / limelightRear fields no longer exist):
+    /*
+    private Command updateVisionCommand_OLD() {
         final boolean[] disabledSeedDone = {false};
         final boolean[] prevEnabled      = {false};
 
@@ -534,4 +537,5 @@ public class RobotContainer
             // }
         }, limelight, limelightRear).ignoringDisable(true);
     }
+    */
 }
