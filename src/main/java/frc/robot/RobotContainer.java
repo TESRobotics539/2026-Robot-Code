@@ -121,7 +121,7 @@ public class RobotContainer
     {
         // Auto — register named commands before building the chooser
         configureNamedCommands();
-        autoChooser = AutoBuilder.buildAutoChooser();
+        autoChooser = AutoBuilder.buildAutoChooser("Center Auto");
 
         // Bindings
         configureBindings();
