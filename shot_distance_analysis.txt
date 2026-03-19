@@ -1,0 +1,108 @@
+================================================================================
+  HELGA (FRC 539) — UltraShooter Physics Simulation
+  2026 REBUILT Season
+  Generated: 2026-03-18
+================================================================================
+
+ROBOT CONFIGURATION
+-------------------
+  Hood exit height      : 26.5 in above floor
+  Hub center height     : 72.0 in above floor
+  Vertical rise (h)     : 45.5 in (1.156 m)
+  Launch angle          : 75.0 deg above horizontal
+  Flywheel efficiency   : 60%  (ball exit speed / flywheel surface speed)
+  Shooter offset        : 10.5 in behind robot center
+  Ball mass             : 0.595 lbs
+  Drag coefficient      : 0.00525 kg/m
+  Flywheel motors       : 3x Neo Vortex, 4 in wheel
+  Max flywheel (free)   : 118.4 ft/s
+  Practical FW max (85%): 100.6 ft/s
+
+SIMULATION NOTES
+----------------
+  "Dist(ft)"    = robot center to hub center, feet
+  "Hood->Hub"   = hood exit to hub center (adds 10.5 in shooter offset)
+  "FW_vac"      = flywheel speed required — vacuum (no air drag)
+  "FW_drag"     = flywheel speed required — with air drag (real world)
+  "ToF"         = time of flight from hood exit to hub center, seconds
+  "MaxH(ft)"    = peak height of ball above hood exit, feet
+  "Entry(deg)"  = angle ball enters hub below horizontal (higher = more vertical)
+  "OK?"         = YES if FW_drag <= 100.6 ft/s practical max
+
+FULL DISTANCE TABLE
+-------------------
+
+ Dist(ft)  Hood->Hub  FW_vac(fps)  FW_drag(fps)   ToF(s)  MaxH(ft)  Entry(deg)   OK?
+ --------  ---------  -----------  ------------  --------  --------  ----------  ----
+        2       2.88         28.2          28.7     0.660       4.2        48.6   YES
+        3       3.88         30.6          31.3     0.820       4.9        61.5   YES
+        4       4.88         33.2          34.1     0.954       5.8        66.2   YES
+        5       5.88         35.6          36.8     1.072       6.7        68.6   YES
+        6       6.88         38.0          39.4     1.178       7.7        70.1   YES  <-- sweet spot begins
+        7       7.88         40.2          41.9     1.278       8.6        71.2   YES
+        8       8.88         42.3          44.3     1.370       9.6        72.0   YES  <-- IDEAL (commanded distance)
+        9       9.88         44.4          46.7     1.456      10.6        72.6   YES
+       10      10.88         46.3          49.0     1.540      11.6        73.1   YES  <-- sweet spot ends
+       11      11.88         48.2          51.2     1.618      12.6        73.5   YES
+       12      12.88         50.0          53.4     1.696      13.6        73.9   YES
+       13      13.88         51.7          55.6     1.768      14.6        74.2   YES
+       14      14.88         53.4          57.7     1.840      15.7        74.5   YES
+       15      15.88         55.1          59.8     1.908      16.7        74.7   YES
+       17      17.88         58.2          63.8     2.040      18.8        75.2   YES
+       20      20.88         62.6          69.8     2.228      22.0        75.8   YES
+       25      25.88         69.4          79.6     2.516      27.6        76.6   YES
+       30      30.88         75.6          89.2     2.784      33.3        77.3   YES
+
+OPTIMAL RANGE ANALYSIS
+----------------------
+
+  Recommended range    : 6 – 10 ft from hub center
+  Commanded distance   : 8 ft (midpoint of sweet spot)
+  Tolerance            : ±6 in (±0.5 ft)
+
+WHY 6–10 FT?
+
+  1. FLYWHEEL HEADROOM
+     At 6 ft: 39.4 fps (39% of max). At 10 ft: 49.0 fps (49% of max).
+     The flywheel is nowhere near its limit across the entire 2–30 ft range
+     (89.2 fps at 30 ft). Distance is not what constrains the shooter —
+     the limiting factors are entry angle, trajectory height, and cycle time.
+
+  2. ENTRY ANGLE — 70–73° (nearly vertical)
+     Above 6 ft the ball enters the hub at >70° from horizontal (steep, clean drop).
+     At 2 ft the entry is only 48.6° — shallow, more likely to rattle out.
+     The 70–73° window maximizes scoring consistency.
+
+  3. TIME OF FLIGHT — 1.18–1.54 s
+     Short enough that the velocity-compensation code in UltraShooter can
+     meaningfully correct for robot motion. Above 20 ft, ToF exceeds 2.2 s
+     and aim latency becomes a real accuracy concern.
+
+  4. PEAK HEIGHT — 7.7–11.6 ft above hood (10–14 ft above floor)
+     Well within venue ceiling clearance everywhere. At 20 ft the ball peaks
+     22 ft above the hood (~24 ft off the floor); at 25 ft it peaks ~30 ft
+     off the floor — marginal in low-ceiling venues.
+
+  5. CYCLE TIME
+     Closer position = less drive distance per cycle = more balls per match.
+     6–10 ft is close enough to reload quickly while staying out of hub
+     collision range.
+
+PARABOLIC TUNING ANCHORS (Constants.java)
+-----------------------------------------
+  Close anchor : 3 ft  → collect data points at 6, 8, 10 ft first
+  Mid anchor   : 12 ft → valid secondary range, acceptable accuracy
+  Far anchor   : 20 ft → feasible but not recommended for primary play
+
+  Priority for calibration runs: 6 ft → 8 ft → 10 ft (sweet spot coverage)
+
+COMMANDED ROBOT ACTION
+-----------------------
+  Button   : Start (Xbox controller)
+  Behavior : Drives the robot radially toward or away from the hub
+             until it reaches exactly 8 ft from hub center (±6 in).
+             Proportional speed control — slows as it approaches target.
+             Releases drivetrain control when target is reached.
+  Code     : SubsystemCommands.driveToIdealShootingDistanceCommand()
+
+================================================================================

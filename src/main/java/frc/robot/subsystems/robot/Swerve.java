@@ -79,8 +79,10 @@ public class Swerve extends SubsystemBase
   private StatusSignal<?> pigeonAccelZ;
   private StatusSignal<?> pigeonPitch;
   private StatusSignal<?> pigeonRoll;
-  /** Cached Pigeon 2 world-frame yaw-rate signal — refreshed alongside the other Pigeon signals each cycle. */
+  /** Cached Pigeon 2 world-frame yaw/pitch/roll-rate signals — refreshed alongside the other Pigeon signals each cycle. */
   private StatusSignal<?> pigeonYawRate;
+  private StatusSignal<?> pigeonPitchRate; // AngularVelocityYWorld — nose up/down
+  private StatusSignal<?> pigeonRollRate;  // AngularVelocityXWorld — left/right tilt
   private final LowPassFilter accelXFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelYFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
   private final LowPassFilter accelZFilter = new LowPassFilter(Constants.BumpDetectionConstants.kAccelFilterAlpha);
@@ -104,7 +106,7 @@ public class Swerve extends SubsystemBase
   // Setpoint generator — enforces kinematic limits (max accel, max steering velocity)
   // on robot-relative ChassisSpeeds before passing to YAGSL. Adapted from frc5687/2023-robot
   // (originally Team 254). Prevents wheel scrub and motor torque violations on rapid inputs.
-  private static final double MODULE_OFFSET_M = 0.276225; // 10.875 in from center
+  private static final double MODULE_OFFSET_M = Constants.DrivetrainConstants.kModuleOffsetMeters;
   private static final KinematicLimits KINEMATIC_LIMITS = new KinematicLimits(
       Constants.DrivetrainConstants.kMaxSpeed,
       Constants.DrivetrainConstants.kMaxAccelerationMps2,
@@ -144,14 +146,18 @@ public class Swerve extends SubsystemBase
     pigeonAccelX  = pigeon2.getAccelerationX();
     pigeonAccelY  = pigeon2.getAccelerationY();
     pigeonAccelZ  = pigeon2.getAccelerationZ();
-    pigeonPitch   = pigeon2.getPitch();
-    pigeonRoll    = pigeon2.getRoll();
-    pigeonYawRate = pigeon2.getAngularVelocityZWorld();
+    pigeonPitch     = pigeon2.getPitch();
+    pigeonRoll      = pigeon2.getRoll();
+    pigeonYawRate   = pigeon2.getAngularVelocityZWorld();
+    pigeonPitchRate = pigeon2.getAngularVelocityYWorld();
+    pigeonRollRate  = pigeon2.getAngularVelocityXWorld();
     BaseStatusSignal.setUpdateFrequencyForAll(50.0,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll,
+        pigeonYawRate, pigeonPitchRate, pigeonRollRate);
     // Block until the first valid frame arrives so initial reads are not stale.
     BaseStatusSignal.waitForAll(0.1,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll,
+        pigeonYawRate, pigeonPitchRate, pigeonRollRate);
 
     swerveDrive.setHeadingCorrection(false); // Heading correction should only be used while controlling the robot via angle.
     swerveDrive.setCosineCompensator(false); // Disables cosine compensation for simulations since it causes discrepancies not seen in real life.
@@ -188,13 +194,17 @@ public class Swerve extends SubsystemBase
     pigeonAccelX  = pigeon2.getAccelerationX();
     pigeonAccelY  = pigeon2.getAccelerationY();
     pigeonAccelZ  = pigeon2.getAccelerationZ();
-    pigeonPitch   = pigeon2.getPitch();
-    pigeonRoll    = pigeon2.getRoll();
-    pigeonYawRate = pigeon2.getAngularVelocityZWorld();
+    pigeonPitch     = pigeon2.getPitch();
+    pigeonRoll      = pigeon2.getRoll();
+    pigeonYawRate   = pigeon2.getAngularVelocityZWorld();
+    pigeonPitchRate = pigeon2.getAngularVelocityYWorld();
+    pigeonRollRate  = pigeon2.getAngularVelocityXWorld();
     BaseStatusSignal.setUpdateFrequencyForAll(50.0,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll,
+        pigeonYawRate, pigeonPitchRate, pigeonRollRate);
     BaseStatusSignal.waitForAll(0.1,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll,
+        pigeonYawRate, pigeonPitchRate, pigeonRollRate);
 
     setupAutoBuilder();
     initSetpointGenerator();
@@ -286,7 +296,8 @@ public class Swerve extends SubsystemBase
     // Filtered Pigeon 2 accelerometer — bump spikes are smoothed out.
     // refreshAll() guarantees all five signals come from the same CAN frame before
     // the low-pass filters and wheel-slip rolling averages consume them.
-    BaseStatusSignal.refreshAll(pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+    BaseStatusSignal.refreshAll(pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll,
+        pigeonYawRate, pigeonPitchRate, pigeonRollRate);
     double rawX = pigeonAccelX.getValueAsDouble();
     double rawY = pigeonAccelY.getValueAsDouble();
     double rawZ = pigeonAccelZ.getValueAsDouble();
@@ -753,8 +764,20 @@ public class Swerve extends SubsystemBase
    */
   public double getYawRateDegPerSec()
   {
-    // pigeonYawRate is refreshed each cycle in periodic() — no per-call CAN overhead.
+    // All pigeon rate signals are refreshed each cycle in periodic() — no per-call CAN overhead.
     return pigeonYawRate.getValueAsDouble();
+  }
+
+  /** Returns Pigeon 2 pitch rate in degrees per second. Positive = nose pitching up. */
+  public double getPitchRateDegPerSec()
+  {
+    return pigeonPitchRate.getValueAsDouble();
+  }
+
+  /** Returns Pigeon 2 roll rate in degrees per second. Positive = left side rolling up. */
+  public double getRollRateDegPerSec()
+  {
+    return pigeonRollRate.getValueAsDouble();
   }
 
   /**

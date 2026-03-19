@@ -29,8 +29,6 @@ public class Intake extends SubsystemBase {
 
     private static final double kMinPosition = Constants.IntakeConstants.kMinPosition;
     private static final double kMaxPosition = Constants.IntakeConstants.kMaxPosition;
-    /** Maximum deviation from kStowedPosition at which a measured position is accepted as a valid stow calibration. */
-    private static final double kStowCalibrationTolerance = 0.05;
 
     private final IntakeIO io;
     private final IntakeIOInputsAutoLogged inputs = new IntakeIOInputsAutoLogged();
@@ -74,7 +72,7 @@ public class Intake extends SubsystemBase {
         if (!hasZeroed) {
             double currentPos = inputs.pivotAbsEncoderPosition;
             targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, currentPos));
-            if (Math.abs(currentPos - Constants.IntakeConstants.kStowedPosition) <= kStowCalibrationTolerance) {
+            if (Math.abs(currentPos - Constants.IntakeConstants.kStowedPosition) <= Constants.IntakeConstants.kStowCalibrationTolerance) {
                 calibratedStowedPosition = currentPos;
             }
             hasSetpoint = true;
@@ -115,22 +113,22 @@ public class Intake extends SubsystemBase {
                     : rollerUnjamState == ROLLER_REVERSING ? "REVERSING" : "RECOVERING");
 
             if (rollerUnjamState == ROLLER_RUNNING) {
-                io.setRollerPercentOutput(0.9);
+                io.setRollerPercentOutput(Constants.IntakeConstants.kRollerForwardPercent);
                 if (jammed) {
-                    io.setRollerPercentOutput(-0.9);
+                    io.setRollerPercentOutput(Constants.IntakeConstants.kRollerReversePercent);
                     rollerUnjamTimer.restart();
                     rollerUnjamState = ROLLER_REVERSING;
                 }
             } else if (rollerUnjamState == ROLLER_REVERSING) {
                 if (rollerUnjamTimer.hasElapsed(Constants.IntakeConstants.kRollerUnjamReverseSeconds)) {
-                    io.setRollerPercentOutput(0.9);
+                    io.setRollerPercentOutput(Constants.IntakeConstants.kRollerForwardPercent);
                     rollerUnjamState = ROLLER_RECOVERING;
                 }
             } else { // RECOVERING
                 if (free) {
                     rollerUnjamState = ROLLER_RUNNING;
                 } else if (jammed) {
-                    io.setRollerPercentOutput(-0.9);
+                    io.setRollerPercentOutput(Constants.IntakeConstants.kRollerReversePercent);
                     rollerUnjamTimer.restart();
                     rollerUnjamState = ROLLER_REVERSING;
                 }
@@ -205,7 +203,7 @@ public class Intake extends SubsystemBase {
     public void lockCurrentPositionAsStow() {
         double currentPos = inputs.pivotAbsEncoderPosition;
         targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, currentPos));
-        if (Math.abs(currentPos - Constants.IntakeConstants.kStowedPosition) <= kStowCalibrationTolerance) {
+        if (Math.abs(currentPos - Constants.IntakeConstants.kStowedPosition) <= Constants.IntakeConstants.kStowCalibrationTolerance) {
             calibratedStowedPosition = currentPos;
         }
         hasSetpoint = true;
@@ -254,7 +252,7 @@ public class Intake extends SubsystemBase {
     }
 
     private boolean isDeployed() {
-        return targetPivotPosition != 0.0 && targetPivotPosition < Position.STOWED.value - 0.05;
+        return targetPivotPosition != 0.0 && targetPivotPosition < Position.STOWED.value - Constants.IntakeConstants.kIsDeployedTolerance;
     }
 
     /**

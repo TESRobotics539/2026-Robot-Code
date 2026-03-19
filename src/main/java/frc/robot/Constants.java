@@ -19,7 +19,11 @@ public final class Constants {
 
   // ── Drivetrain ────────────────────────────────────────────────────────────
   public static class DrivetrainConstants {
-    /** Maximum drivetrain translation speed (meters per second). SDS MK4 L1 (8.14:1). */
+    /**
+     * Maximum drivetrain translation speed used as the setpoint generator velocity ceiling (m/s).
+     * SDS Mk4i L1 (8.14:1) theoretical max is ~4.11 m/s (~13.5 ft/s); 13 ft/s is the tuned
+     * match limit, leaving a small margin below theoretical for controllability headroom.
+     */
     public static final double kMaxSpeed = Units.feetToMeters(13);
 
     /**
@@ -31,10 +35,26 @@ public final class Constants {
 
     /**
      * Maximum module azimuth angular velocity used by the setpoint generator (rad/s).
-     * NEO at 5676 RPM through 21.43:1 steering gear → ~27.7 rad/s theoretical;
-     * 75% of theoretical used as a practical cap to protect the steering motor.
+     * NEO 550 at 5676 RPM through 21.43:1 steering gear → ~27.7 rad/s theoretical;
+     * 20 rad/s (~72% of theoretical) is a practical cap to protect the steering motor.
      */
     public static final double kMaxSteeringVelocityRadPerSec = 20.0;
+
+    /**
+     * Center-to-module distance (meters) used by the setpoint generator kinematics.
+     * SDS Mk4i on our frame: 10.875 in (276.225 mm) from robot center to each module pivot.
+     * Must match the module positions in the YAGSL swerve JSON configs.
+     * DO NOT CHANGE without also updating swerve/ORCA2026/*.json.
+     */
+    public static final double kModuleOffsetMeters = 0.276225; // 10.875 in
+
+    /**
+     * Exponent for the joystick input power curve: {@code output = copyDirectionPow(input, n)}.
+     * A value of 1.5 softens fine control near the joystick center while preserving full
+     * speed at the edges. Applied to all three axes (forward, strafe, rotation).
+     * Increase toward 2.0 for even softer center feel; decrease toward 1.0 for more linear response.
+     */
+    public static final double kDriveInputCurvePower = 1.5;
   }
 
   // ── Intake ────────────────────────────────────────────────────────────────
@@ -82,6 +102,38 @@ public final class Constants {
     public static final double kDeployedPosition = 0.097;
     public static final double kMinPosition       = 0.100;
     public static final double kMaxPosition       = 0.200;
+
+    // ── Roller duty cycle ─────────────────────────────────────────────────
+    /**
+     * Roller duty cycle (0.0–1.0) applied during normal intaking and the post-jam
+     * recovery phase.  The roller PID runs in RPM mode for steady-state; this
+     * open-loop percent output is used by the anti-jam state machine so that the
+     * jam recovery path is independent of the closed-loop controller.
+     */
+    public static final double kRollerForwardPercent = 0.9;
+    /**
+     * Roller duty cycle applied during the anti-jam reverse pulse (negative = backward).
+     * Magnitude matched to {@link #kRollerForwardPercent} so the reverse pulse clears
+     * the jam with the same authority as normal intaking.
+     */
+    public static final double kRollerReversePercent = -0.9;
+
+    // ── Stow calibration ──────────────────────────────────────────────────
+    /**
+     * Maximum absolute encoder deviation from {@link #kStowedPosition} that is still
+     * accepted as a valid stow calibration reading at boot.  Within ±0.05 encoder units
+     * the robot is effectively stowed; outside this window the stow position is not
+     * snapshotted and the nominal constant is used as the PID target instead.
+     */
+    public static final double kStowCalibrationTolerance = 0.05;
+
+    /**
+     * Minimum encoder gap between the current target position and {@link #kStowedPosition}
+     * required for the pivot to be considered deployed.  The pivot target must be more than
+     * 0.05 units below the stowed position; values above this threshold are treated as stowed
+     * regardless of commanded direction.
+     */
+    public static final double kIsDeployedTolerance = 0.05;
 
     // ── Roller anti-jam ──────────────────────────────────────────────────
     /** Current (amps) above which a roller jam is suspected while intaking. */
@@ -164,12 +216,73 @@ public final class Constants {
     public static final double kShootReadyTimeoutSeconds = 1.33;
     /** Delay before floor motor starts feeding, so the feeder gets the fuel first. */
     public static final double kFloorFeedDelaySeconds = 0.25;
+    /**
+     * Maximum seconds the feeder + floor run in autonomous shoot sequences before cutting off.
+     * Acts as a safety timeout so a jammed autonomous sequence doesn't block the rest of the auto.
+     */
+    public static final double kLongFeedTimeoutSeconds = 7.0;
 
     // ── Setpoints ────────────────────────────────────────────────────────
     /** Fraction of the distance-based map speed to hold during pre-spin (0.0–1.0). */
     public static final double kPreSpinFraction = 0.60;
     /** Flywheel speed for the close-range dump shot (ft/s, converted from 1850 RPM with 4" wheel). */
     public static final double kDumpShotFlywheelSpeed = 32.0;
+
+    // ── Aim tolerance ─────────────────────────────────────────────────────
+    /**
+     * Heading error (degrees) below which the robot is considered "aimed" at the hub.
+     * {@link frc.robot.commands.AimAndDriveCommand#isAimed()} returns true when the
+     * absolute heading difference is within this window.  Decrease for tighter aim
+     * gates (more accurate shots); increase if the robot oscillates around the target
+     * before shots are allowed to release.
+     */
+    public static final double kAimToleranceDegrees = 3.0;
+
+    // ── Drive-to-ideal-distance command ───────────────────────────────────
+    /**
+     * Target distance from hub center for {@code driveToIdealShootingDistanceCommand()} (ft).
+     * Chosen as the midpoint of the 6–10 ft high-efficiency zone from physics simulation.
+     * Adjust if empirical testing shows a different optimal distance.
+     */
+    public static final double kIdealShootDistanceFt = 8.0;
+    /**
+     * Stopping tolerance for {@code driveToIdealShootingDistanceCommand()} (ft).
+     * The command ends when the robot is within ±½ ft (~6 in) of the target distance.
+     */
+    public static final double kIdealShootToleranceFt = 0.5;
+    /**
+     * Proportional gain for the drive-to-ideal-distance P controller (ft/s per ft of error).
+     * Also reused as the proportional gain for the close-range backup command.
+     * Increase to reach the target faster; decrease if the robot overshoots.
+     */
+    public static final double kIdealShootKpFps = 1.5;
+    /**
+     * Maximum speed cap for the drive-to-ideal-distance command (ft/s).
+     * Prevents the P controller from commanding dangerous speeds when far from the target.
+     */
+    public static final double kIdealShootMaxSpeedFps = 10.0;
+
+    // ── Sequencing ────────────────────────────────────────────────────────
+    /**
+     * Seconds the right-trigger aim-and-fire sequence holds flywheel speed and heading after
+     * the driver releases the trigger.  Allows the last ball to clear the barrel before the
+     * flywheel spins down.  After this window, the flywheel idles to pre-spin speed.
+     */
+    public static final double kHoldAimAndSpeedSeconds = 1.0;
+
+    /**
+     * Delay (seconds) before the intake automatically deploys at the start of teleop
+     * when no auto climb occurred.  Gives the drivetrain and Limelight time to initialise
+     * before the pivot moves.
+     */
+    public static final double kTeleopIntakeDeployDelaySeconds = 1.0;
+
+    /**
+     * Seconds before or after the hub-shift boundary where the hub is treated as active
+     * for the right-trigger shoot gate.  This small expansion prevents the gate from closing
+     * right as the driver pulls the trigger on a hub that just switched states.
+     */
+    public static final double kHubActiveExpansionSeconds = 5.0;
   }
 
   // ── Hanger ────────────────────────────────────────────────────────────────
@@ -209,6 +322,27 @@ public final class Constants {
     public static final double kHomingPower = -0.05;
     /** Current threshold (amps) used to detect the homing hard stop. */
     public static final double kHomingCurrentThreshold = 7.0;
+    /**
+     * Maximum seconds to wait for the homing current spike before giving up.
+     * If the hard stop is never reached (e.g., mechanical obstruction or disconnected motor)
+     * the homing command times out here rather than running forever.
+     */
+    public static final double kHomingTimeoutSeconds = 10.0;
+
+    // ── Declimb / teleop reversal ──────────────────────────────────────────
+    /**
+     * Encoder position (rotations, absolute value from zero) within which the declimb
+     * reversal command considers itself finished.  After an autonomous climb the encoder
+     * is reset to zero at the climb start; the reverse runs until the position falls back
+     * inside this window, indicating the arm is near its starting height.
+     */
+    public static final double kDeclimbReturnThresholdRotations = 10.0;
+    /**
+     * Minimum distance (meters) the robot must drive away from its teleop-start position
+     * after the declimb sequence before the intake is deployed.  Ensures the robot has
+     * cleared the tower structure before the intake swings out.
+     */
+    public static final double kDeclimbDriveDistanceMeters = 2.0;
   }
 
   // ── UltraShooter Physics ──────────────────────────────────────────────────
@@ -350,6 +484,50 @@ public final class Constants {
      */
     public static final boolean kEnableFMSAwarePreSpinLatch = false;
 
+    // ── Pi physics engine ─────────────────────────────────────────────────
+    /**
+     * Cycles without a heartbeat change before the Pi physics engine is declared
+     * disconnected and the local Java physics fallback is used instead (20 ms/cycle → 500 ms).
+     * Matches the staleness threshold used by {@link frc.robot.subsystems.vision.PiAprilTagVision}.
+     */
+    public static final int kPiStaleThreshold = 25;
+
+    // ── Distance rolling average ──────────────────────────────────────────
+    /**
+     * Number of samples in the hub-distance rolling average buffer (1 second at 50 Hz).
+     * When the robot is stationary, the average smooths odometry noise.  When moving,
+     * the instantaneous distance is used to avoid the lag this window would introduce.
+     * See {@link frc.robot.subsystems.robot.UltraShooter#getAverageDistanceToHub()}.
+     */
+    public static final int kDistanceAvgSamples = 50; // 50 Hz × 1 s
+
+    /**
+     * Robot speed (ft/s) above which the instantaneous hub distance is used instead of the
+     * rolling average.  Below this threshold the robot is considered stationary and the
+     * smoothed average is preferred to reject odometry noise from small drivetrain vibrations.
+     */
+    public static final double kMovingSpeedThresholdFps = 1.0;
+
+    /**
+     * Robot speed (ft/s) above which the physics dashboard cache is bypassed and the
+     * binary-search + TOF simulation runs live every cycle.  When the robot is moving
+     * this fast the target distance is changing quickly enough that a stale cached result
+     * would introduce meaningful aim error.  Below this threshold the cache is reused
+     * unless the robot has moved more than {@link #kPhysicsCacheDistanceThresholdFeet}.
+     * Tune upward if live recalculation causes loop overruns while driving; tune downward
+     * if displayed physics values lag noticeably during fast approaches.
+     */
+    public static final double kShootOnMoveSpeedThresholdFps = 2.0;
+
+    /**
+     * Minimum change in hub distance (ft) that invalidates the physics dashboard cache
+     * and triggers a fresh binary-search + TOF simulation.  6 inches (0.5 ft) is a
+     * reasonable starting point — at typical shot distances a 6-inch change in range
+     * produces a measurable change in required flywheel speed.  Reduce if the displayed
+     * physics values appear to lag during a slow approach.
+     */
+    public static final double kPhysicsCacheDistanceThresholdFeet = 0.5; // 6 inches
+
     // ── Close-range backup ─────────────────────────────────────────────────
 
     /**
@@ -408,6 +586,130 @@ public final class Constants {
     public static final double kClimbSuccessPulseOffSeconds = 0.1;
     /** Maximum duration of the climb-success rumble sequence (seconds). */
     public static final double kClimbSuccessDurationSeconds = 15.0;
+  }
+
+  // ── Vision ────────────────────────────────────────────────────────────────
+  public static class VisionConstants {
+
+    // ── Limelight MegaTag2 rejection filters ─────────────────────────────
+
+    /**
+     * Measurements older than this threshold are rejected before fusing into the pose estimator.
+     * High latency means the image was captured when the robot was in a meaningfully different
+     * position, which can corrupt the estimate rather than improve it.
+     * (Adapted from frc5687/2025-robot VisionSubsystem: MAX_LATENCY_MS = 100 ms.)
+     */
+    public static final double kMaxMeasurementLatencyMs = 100.0;
+
+    /**
+     * MegaTag2 XY estimates become unreliable above this rotation rate even when heading is
+     * provided via {@code SetRobotOrientation}: angular blur during the exposure and the
+     * heading-at-capture vs. heading-at-publish gap both corrupt the projection geometry.
+     * 300 deg/s is more conservative than Limelight's hard ceiling of 720 deg/s;
+     * matches the threshold used by ORCA3136 and provides a wider safety margin.
+     */
+    public static final double kMaxYawRateDegPerSec = 300.0;
+
+    /**
+     * Hard cutoff on average tag distance (meters, ~14.8 ft).
+     * Beyond this range pixel projection error and sensor noise dominate regardless
+     * of tag area.  Matches the 4–4.5 m threshold used by Teams 180, 353, and 177/429 in 2025.
+     */
+    public static final double kMaxTagDistanceMeters = 4.5;
+
+    // ── Limelight MegaTag2 standard deviation formula ─────────────────────
+
+    /**
+     * Leading coefficient for the MegaTag2 XY standard deviation formula:
+     * <pre>xyStdDev = kMt2StddevCoeff × dist^1.2 / tagCount^2</pre>
+     *
+     * <p>Adapted from Team 190 (2k25-Robot-Code), who use 0.00015 for LL3G/LL4 — essentially
+     * perfect trust. Our value (0.005, ~33× more conservative) provides meaningful confidence
+     * at close range while preserving the distance- and tag-count-scaling shape.
+     *
+     * <p>Sample outputs (clamped floor 0.03 m):
+     * <ul>
+     *   <li>2 m, 2 tags → 0.003 m → floored to <b>0.03 m</b></li>
+     *   <li>3 m, 1 tag  → <b>0.019 m</b></li>
+     *   <li>4 m, 1 tag  → <b>0.026 m</b></li>
+     * </ul>
+     */
+    public static final double kMt2StddevCoeff = 0.005;
+
+    // ── Field boundary (for rejecting impossible pose solves) ─────────────
+
+    /**
+     * 2026 REBUILT field width (meters) — 651.2 in / 25.4 mm/in = 16.541 m (54 ft 3.2 in).
+     * Derived from the official field drawing; verify against layout sheets before competition.
+     */
+    public static final double kFieldWidthMeters  = 16.541;
+
+    /**
+     * 2026 REBUILT field height (meters) — 317.7 in / 25.4 mm/in = 8.071 m (26 ft 5.7 in).
+     * Derived from the official field drawing; verify against layout sheets before competition.
+     */
+    public static final double kFieldHeightMeters = 8.071;
+
+    /**
+     * Margin (meters) beyond the true field boundary that is still accepted as a valid pose.
+     * Prevents rejecting legitimate estimates when the robot's center is near the physical wall.
+     */
+    public static final double kFieldMarginMeters = 0.5;
+
+    // ── Limelight IMU lifecycle ────────────────────────────────────────────
+
+    /**
+     * Cycles to wait after an IMU mode switch before accepting measurements (~300 ms at 50 Hz).
+     * Gives the Limelight time to apply the new mode and stabilise its heading reference.
+     * (Matches ORCA3136/ORCABot2026 VisionSubsystem.kImuSettleCycles.)
+     */
+    public static final int kImuSettleCycles = 15;
+
+    /**
+     * If no measurement is accepted within this many seconds, the Limelight is reported
+     * unhealthy.  Triggers a dashboard warning so drivers know vision is degraded.
+     */
+    public static final double kVisionHealthyTimeoutSec = 0.5;
+
+    // ── Raspberry Pi AprilTag vision ──────────────────────────────────────
+
+    /**
+     * Cycles without a Pi heartbeat change before the Pi is declared disconnected (500 ms).
+     * At 50 Hz, 25 stale cycles = 500 ms, matching the timeout used in UltraShooter for
+     * the physics engine heartbeat.
+     */
+    public static final int kPiStaleThreshold = 25;
+
+    /**
+     * Approximate camera + processing pipeline latency subtracted from
+     * {@link edu.wpi.first.wpilibj.Timer#getFPGATimestamp()} to produce the Pi measurement
+     * timestamp.  Increase if the robot overshoots in autos (measurement is too fresh);
+     * decrease if it undershoots (measurement is too stale).
+     */
+    public static final double kPiPipelineLatencySeconds = 0.10;
+
+    /**
+     * Minimum AprilTag decision margin accepted from the Pi.  Mirrors
+     * {@code MIN_DECISION_MARGIN} in {@code apriltag_vision.py} — the Pi already filters
+     * on this value; this is a secondary Java-side gate to handle any Python-side changes.
+     * Higher values require more-confident tag detections but reject more frames.
+     */
+    public static final double kPiMinDecisionMargin = 35.0;
+
+    /**
+     * Pi single-tag pose XY standard deviation (meters).
+     * Higher uncertainty than Limelight due to an uncalibrated consumer USB camera.
+     */
+    public static final double kPiSingleTagXyStddev = 0.7;
+    /** Pi single-tag pose heading standard deviation (radians). High — single-tag heading is ambiguous. */
+    public static final double kPiSingleTagThetaStddev = 25.0;
+    /**
+     * Pi multi-tag pose XY standard deviation (meters).
+     * Improved over single-tag because multiple tags reduce pose ambiguity.
+     */
+    public static final double kPiMultiTagXyStddev = 0.3;
+    /** Pi multi-tag pose heading standard deviation (radians). */
+    public static final double kPiMultiTagThetaStddev = 15.0;
   }
 
   // ── Drivetrain IMU / Bump Detection ───────────────────────────────────────

@@ -16,6 +16,7 @@ import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants;
 
 /**
  * Reads AprilTag-based robot pose estimates published by {@code apriltag_vision.py}
@@ -60,24 +61,7 @@ public class PiAprilTagVision extends SubsystemBase {
     }
 
     // ── Constants ─────────────────────────────────────────────────────────────
-
-    /** Cycles without heartbeat change → Pi considered disconnected (500 ms). */
-    private static final int STALE_THRESHOLD = 25;
-
-    /**
-     * Approximate camera + processing pipeline latency subtracted from
-     * {@link Timer#getFPGATimestamp()} to produce the measurement timestamp.
-     * Increase if the robot overshoots during autos (measurement is too fresh);
-     * decrease if it undershoots (measurement is too stale).
-     */
-    private static final double PIPELINE_LATENCY_SECONDS = 0.10;
-
-    /**
-     * Minimum decision margin accepted from the Pi for a measurement to be
-     * published.  Mirrors {@code MIN_DECISION_MARGIN} in {@code apriltag_vision.py}.
-     * The Pi already filters on this; this is a secondary Java-side gate.
-     */
-    private static final double MIN_DECISION_MARGIN = 35.0;
+    // All tunable values live in Constants.VisionConstants — see that class for full documentation.
 
     // ── NetworkTables ─────────────────────────────────────────────────────────
 
@@ -92,7 +76,7 @@ public class PiAprilTagVision extends SubsystemBase {
     // ── Staleness tracking ────────────────────────────────────────────────────
 
     private long lastHeartbeat = Long.MIN_VALUE;
-    private int  staleFrames   = STALE_THRESHOLD;
+    private int  staleFrames   = Constants.VisionConstants.kPiStaleThreshold;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -117,7 +101,7 @@ public class PiAprilTagVision extends SubsystemBase {
         int    tagCount = (int) ntTagCount.getInteger(0);
         double margin   = ntMargin.getDouble(0.0);
 
-        if (tagCount == 0 || margin < MIN_DECISION_MARGIN) return Optional.empty();
+        if (tagCount == 0 || margin < Constants.VisionConstants.kPiMinDecisionMargin) return Optional.empty();
 
         Pose2d pose = new Pose2d(
             ntX.getDouble(0.0),
@@ -127,17 +111,17 @@ public class PiAprilTagVision extends SubsystemBase {
 
         // Higher uncertainty than Limelight; improves with more tags.
         Matrix<N3, N1> stdDevs = tagCount >= 2
-            ? VecBuilder.fill(0.3, 0.3, 15.0)
-            : VecBuilder.fill(0.7, 0.7, 25.0);
+            ? VecBuilder.fill(Constants.VisionConstants.kPiMultiTagXyStddev,  Constants.VisionConstants.kPiMultiTagXyStddev,  Constants.VisionConstants.kPiMultiTagThetaStddev)
+            : VecBuilder.fill(Constants.VisionConstants.kPiSingleTagXyStddev, Constants.VisionConstants.kPiSingleTagXyStddev, Constants.VisionConstants.kPiSingleTagThetaStddev);
 
-        double timestamp = Timer.getFPGATimestamp() - PIPELINE_LATENCY_SECONDS;
+        double timestamp = Timer.getFPGATimestamp() - Constants.VisionConstants.kPiPipelineLatencySeconds;
 
         return Optional.of(new Measurement(pose, timestamp, stdDevs));
     }
 
     /** True when the Pi heartbeat has advanced within the last 500 ms. */
     public boolean isConnected() {
-        return staleFrames < STALE_THRESHOLD;
+        return staleFrames < Constants.VisionConstants.kPiStaleThreshold;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

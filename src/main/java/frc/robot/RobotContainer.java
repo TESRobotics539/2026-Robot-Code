@@ -18,7 +18,6 @@ import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
@@ -107,11 +106,11 @@ public class RobotContainer
     private final SendableChooser<Command> autoChooser;
 
     // ── Drive Input Stream ───────────────────────────────────────────────────
-    // x^1.5 curve softens fine control near center while preserving full speed at edges.
+    // Exponential input curve — see Constants.DrivetrainConstants.kDriveInputCurvePower.
     SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
-                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, 1.5),
-                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, 1.5))
-                                                              .withControllerRotationAxis(() -> MathUtil.copyDirectionPow(driverXbox.getRightX() * -1, 1.5))
+                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower),
+                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower))
+                                                              .withControllerRotationAxis(() -> MathUtil.copyDirectionPow(driverXbox.getRightX() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower))
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(1.0)
@@ -121,7 +120,7 @@ public class RobotContainer
     {
         // Auto — register named commands before building the chooser
         configureNamedCommands();
-        autoChooser = AutoBuilder.buildAutoChooser();
+        autoChooser = AutoBuilder.buildAutoChooser("Center Auto");
 
         // Bindings
         configureBindings();
@@ -162,10 +161,10 @@ public class RobotContainer
                     return hanger.reverseClimbIfNeededCommand()
                         .andThen(Commands.waitUntil(() ->
                             drivebase.getPose().getTranslation()
-                                .getDistance(startPose.getTranslation()) >= 2.0))
+                                .getDistance(startPose.getTranslation()) >= Constants.HangerConstants.kDeclimbDriveDistanceMeters))
                         .andThen(intake.runOnce(intake::setInitialDeployPosition));
                 } else {
-                    return Commands.waitSeconds(1.0)
+                    return Commands.waitSeconds(Constants.ShooterConstants.kTeleopIntakeDeployDelaySeconds)
                         .andThen(intake.runOnce(intake::setInitialDeployPosition));
                 }
             }, Set.of(hanger, intake)));
@@ -219,7 +218,7 @@ public class RobotContainer
                 Logger.recordOutput("Commands/SpinUpShoot/Interrupted", interrupted);
             }));
 
-        // ══ PID TUNING — delete this entire block when done ══════════════════
+        // == PID TUNING -- delete this entire block when done ====================
         // A: toggle flywheel on/off at 3,000 RPM
         final double kTuning200RpmInFPS  = 1000.0 * Math.PI * (4.0 / 12.0) / 60.0;
         final double kTuningInitialFPS   = 3000.0 * Math.PI * (4.0 / 12.0) / 60.0;
@@ -245,10 +244,10 @@ public class RobotContainer
                         Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ), Set.of(ultraShooter, feeder, floor)));
-        // ═════════════════════════════════════════════════════════════════════
+        // =====================================================================
 
         // Right trigger: aim + shoot (physics-based, only while hub is active)
-        driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
+        driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(Constants.ShooterConstants.kHubActiveExpansionSeconds)).whileTrue(
             Commands.parallel(
                 // Single announcement pulse the moment the shot sequence begins.
                 Commands.sequence(
@@ -271,7 +270,7 @@ public class RobotContainer
                 Logger.recordOutput("Commands/AimShoot/Interrupted", interrupted);
             }))
             .onFalse(Commands.parallel(
-                subsystemCommands.holdAimAndSpeedCommand(1.0),
+                subsystemCommands.holdAimAndSpeedCommand(Constants.ShooterConstants.kHoldAimAndSpeedSeconds),
                 intake.runOnce(intake::resetFuelDetection)));
 
         // ── Feeder ───────────────────────────────────────────────────────────
@@ -279,7 +278,7 @@ public class RobotContainer
 
         // ── Hanger ───────────────────────────────────────────────────────────
         // D-pad up/down → manual hanger control
-        // ══ PID TUNING: hanger bindings temporarily replaced by flywheel speed adjust ══
+        // == PID TUNING: hanger bindings temporarily replaced by flywheel speed adjust ==
         // driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
         //                   .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
         // driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
@@ -290,7 +289,7 @@ public class RobotContainer
             () -> ultraShooter.setTarget(ultraShooter.getTarget() + kTuning200RpmInFPS)));
         driverXbox.povDown().onTrue(Commands.runOnce(
             () -> ultraShooter.setTarget(ultraShooter.getTarget() - kTuning200RpmInFPS)));
-        // ═════════════════════════════════════════════════════════════════════
+        // =====================================================================
 
         // Y: auto climb; also spin down shooter in last 30 seconds of teleop
         driverXbox.y().onTrue(hanger.autoClimbCommand()
@@ -330,8 +329,12 @@ public class RobotContainer
                 .withName("FuelPickupRumble"));
 
         // ── Utility ──────────────────────────────────────────────────────────
+        // Start: drive to ideal shooting distance (8 ft from hub, physics sim sweet spot 6–10 ft).
+        // Holds button to execute; releases drivetrain when within 6 in of target.
+        driverXbox.start().whileTrue(subsystemCommands.driveToIdealShootingDistanceCommand()
+            .withName("DriveToIdealShootingDistance"));
+
         // Emergency stop — cancels every running command immediately.
-        // Bind to Start so it's reachable without looking down at the controller.
         // driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
         //     .ignoringDisable(true).withName("KillAll"));
 
@@ -370,4 +373,5 @@ public class RobotContainer
     {
       drivebase.setMotorBrake(brake);
     }
+
 }

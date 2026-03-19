@@ -87,15 +87,33 @@ public class UltraShooter extends SubsystemBase {
     /** Throttles trajectory visualization to ~10 Hz (every 5 cycles at 50 Hz). */
     private int vizSkipCounter = 0;
 
+    // ── Physics dashboard cache ───────────────────────────────────────────────
+    // The binary-search + TOF simulation in updateNetworkTable() is expensive (~300k
+    // iterations worst case).  We cache the result and only rerun when the robot has
+    // moved more than kPhysicsCacheDistanceThresholdFeet, or is moving faster than
+    // kShootOnMoveSpeedThresholdFps (in which case we always run live).
+    /** Hub distance (m) at which the cached result was last computed. NaN = not yet computed. */
+    private double physCacheDistM   = Double.NaN;
+    private double physCacheV0Mps   = 0;
+    private double physCachePhysFps = 0;
+    private double physCacheTofS    = 0;
+
+    // ── setPhysicsTarget() speed cache ───────────────────────────────────────
+    // Caches the expensive calculateRequiredVelocityFPS() result (binary search).
+    // Radial velocity correction is always computed live since it is cheap.
+    // Same invalidation rules as the dashboard cache above.
+    /** Hub distance (m) used for the last cached physics speed. NaN = not yet computed. */
+    private double targetCacheDistM      = Double.NaN;
+    private double targetCachePhysSpeedFps = 0;
+
     /** Circular buffer for rolling-average velocity filtering. */
     private final double[] velocityBuffer =
             new double[Constants.UltraShooterConstants.kVelocityAvgSamples];
     private int    velocityBufferIndex = 0;
     private double velocityBufferSum   = 0.0;
 
-    /** Circular buffer for 1-second (50-sample) rolling-average distance filtering. */
-    private static final int DISTANCE_AVG_SAMPLES = 50; // 50 Hz × 1 s
-    private final double[] distanceBuffer = new double[DISTANCE_AVG_SAMPLES];
+    /** Circular buffer for 1-second rolling-average distance filtering. Size from {@link Constants.UltraShooterConstants#kDistanceAvgSamples}. */
+    private final double[] distanceBuffer = new double[Constants.UltraShooterConstants.kDistanceAvgSamples];
     private int    distanceBufferIndex = 0;
     private double distanceBufferSum   = 0.0;
 
@@ -157,9 +175,7 @@ public class UltraShooter extends SubsystemBase {
     /** Last heartbeat counter seen from the Pi. */
     private long piLastHeartbeat = Long.MIN_VALUE;
     /** Cycles since the heartbeat last changed (each cycle = 20 ms). */
-    private int  piStaleFrames   = PI_STALE_THRESHOLD;
-    /** A Pi is considered disconnected after this many stale cycles (500 ms). */
-    private static final int PI_STALE_THRESHOLD = 25;
+    private int  piStaleFrames   = Constants.UltraShooterConstants.kPiStaleThreshold;
 
     /** kP value most recently written to the SparkFlex controllers. */
     private double appliedKp = Constants.UltraShooterConstants.kP;
@@ -530,21 +546,32 @@ public class UltraShooter extends SubsystemBase {
      *
      */
     public void setPhysicsTarget() {
-        // Cache field velocity once — reused for both distance selection and radial correction.
+        // Cache field velocity once — reused for speed check, distance selection, and radial correction.
         final ChassisSpeeds fieldVelocity = swerve.getFieldVelocity();
-        final double distance       = getAverageDistanceToHub(fieldVelocity);
+        final double distance    = getAverageDistanceToHub(fieldVelocity);
+        final double speedFps    = Math.hypot(fieldVelocity.vxMetersPerSecond,
+                                              fieldVelocity.vyMetersPerSecond) * METERS_TO_FEET;
+        final boolean shootOnMove = speedFps >= Constants.UltraShooterConstants.kShootOnMoveSpeedThresholdFps;
+        final boolean cacheStale  = Double.isNaN(targetCacheDistM)
+                || Math.abs(distance - targetCacheDistM) * METERS_TO_FEET
+                       >= Constants.UltraShooterConstants.kPhysicsCacheDistanceThresholdFeet;
+
+        // Only rerun the expensive binary search when shoot-on-the-move is active
+        // (distance changing fast) or the robot has moved more than the cache threshold.
+        if (shootOnMove || cacheStale) {
+            // if (isPiResultFresh()) { targetCachePhysSpeedFps = ntPiPhysics.getDouble(0.0); } else { ... }
+            targetCachePhysSpeedFps = calculateRequiredVelocityFPS(
+                    distance,
+                    Constants.UltraShooterConstants.kFlywheelEfficiency,
+                    Constants.UltraShooterConstants.kDragCoefficient,
+                    Constants.UltraShooterConstants.kBallMassLbs);
+            targetCacheDistM = distance;
+        }
+
         final double offsetFraction = interpolateOffsetFraction(distance);
 
-        // if (isPiResultFresh()) { physicsSpeed = ntPiPhysics.getDouble(0.0); } else { ... }
-        final double physicsSpeed = calculateRequiredVelocityFPS(
-                distance,
-                Constants.UltraShooterConstants.kFlywheelEfficiency,
-                Constants.UltraShooterConstants.kDragCoefficient,
-                Constants.UltraShooterConstants.kBallMassLbs);
-
-        // Radial velocity compensation: if the robot is moving toward the hub,
-        // the ball arrives faster and needs a lower exit speed (and vice versa).
-        // Project field velocity onto the robot→hub unit vector.
+        // Radial velocity compensation is always computed live — it is cheap and
+        // must reflect the robot's current velocity, not a cached snapshot.
         final Translation2d robotToHub =
                 Landmarks.hubPosition().minus(swerve.getPose().getTranslation());
         final double distNorm = robotToHub.getNorm();
@@ -555,17 +582,17 @@ public class UltraShooter extends SubsystemBase {
         // Convert radial speed to flywheel-surface ft/s (same scaling as physicsSpeed).
         final double radialCorrectionFps =
                 radialVelocityMps * METERS_TO_FEET / Math.max(Constants.UltraShooterConstants.kFlywheelEfficiency, 0.01);
-        final double adjustedSpeed = Math.max(0.0, physicsSpeed - radialCorrectionFps);
+        final double adjustedSpeed = Math.max(0.0, targetCachePhysSpeedFps - radialCorrectionFps);
 
         setTarget(adjustedSpeed * (1.0 + offsetFraction));
     }
 
     /**
      * Returns true when the Pi physics engine heartbeat has updated within the
-     * last {@value #PI_STALE_THRESHOLD} cycles (~500 ms).
+     * last {@link Constants.UltraShooterConstants#kPiStaleThreshold} cycles (~500 ms).
      */
     private boolean isPiResultFresh() {
-        return piStaleFrames < PI_STALE_THRESHOLD;
+        return piStaleFrames < Constants.UltraShooterConstants.kPiStaleThreshold;
     }
 
     /** Called every periodic cycle to track whether the Pi heartbeat is advancing. */
@@ -702,11 +729,10 @@ public class UltraShooter extends SubsystemBase {
         distanceBufferSum -= distanceBuffer[distanceBufferIndex];
         distanceBuffer[distanceBufferIndex] = newest;
         distanceBufferSum += newest;
-        distanceBufferIndex = (distanceBufferIndex + 1) % DISTANCE_AVG_SAMPLES;
+        distanceBufferIndex = (distanceBufferIndex + 1) % Constants.UltraShooterConstants.kDistanceAvgSamples;
     }
 
-    /** Speed above which the robot is considered "moving" and the instant distance is used (ft/s). */
-    private static final double MOVING_SPEED_THRESHOLD_FPS = 1.0;
+    /** Speed threshold sourced from {@link Constants.UltraShooterConstants#kMovingSpeedThresholdFps}. */
 
     /**
      * Returns the best distance estimate for physics calculations.
@@ -723,10 +749,10 @@ public class UltraShooter extends SubsystemBase {
     private double getAverageDistanceToHub(ChassisSpeeds fieldVel) {
         final double speedFps = Math.hypot(fieldVel.vxMetersPerSecond, fieldVel.vyMetersPerSecond)
                 * METERS_TO_FEET;
-        if (speedFps > MOVING_SPEED_THRESHOLD_FPS) {
+        if (speedFps > Constants.UltraShooterConstants.kMovingSpeedThresholdFps) {
             return swerve.getDistanceToHub();
         }
-        return distanceBufferSum / DISTANCE_AVG_SAMPLES;
+        return distanceBufferSum / Constants.UltraShooterConstants.kDistanceAvgSamples;
     }
 
     private void updateVelocityBuffer() {
@@ -791,21 +817,40 @@ public class UltraShooter extends SubsystemBase {
         final double mass  = Constants.UltraShooterConstants.kBallMassLbs;
         final double dist  = getAverageDistanceToHub();
 
-        // Solve once — derive physFPS, TOF, and visualization v0 from a single binary search.
-        final double v0Mps   = calcBallExitSpeedMps(dist, drag, mass);
-        final double physFPS = v0Mps > 0 ? (v0Mps / Math.max(effic, 0.001)) * METERS_TO_FEET : 0;
-        final double tof;
-        if (v0Mps <= 0) {
-            tof = 0;
-        } else if (drag <= 0) {
-            final double d = dist + SHOOTER_OFFSET_M;
-            tof = d > 0 ? d / (v0Mps * Math.cos(LAUNCH_ANGLE_RAD)) : 0;
-        } else {
-            final double ballMassKg  = mass * 0.453592;
-            final double dragPerMass = drag / Math.max(ballMassKg, 0.001);
-            final double d           = dist + SHOOTER_OFFSET_M;
-            tof = simulateTimeOfFlight(v0Mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
+        // Cache the expensive binary-search + TOF simulation results.
+        // Recompute when: (a) robot is moving above the shoot-on-the-move threshold
+        // (distance is changing fast enough that stale values would introduce aim error),
+        // or (b) distance has changed by more than kPhysicsCacheDistanceThresholdFeet
+        // since the last computation.
+        final ChassisSpeeds fv = swerve.getFieldVelocity();
+        final double speedFps  = Math.hypot(fv.vxMetersPerSecond, fv.vyMetersPerSecond) * METERS_TO_FEET;
+        final boolean shootOnMove = speedFps >= Constants.UltraShooterConstants.kShootOnMoveSpeedThresholdFps;
+        final boolean cacheStale  = Double.isNaN(physCacheDistM)
+                || Math.abs(dist - physCacheDistM) * METERS_TO_FEET
+                       >= Constants.UltraShooterConstants.kPhysicsCacheDistanceThresholdFeet;
+
+        if (shootOnMove || cacheStale) {
+            physCacheV0Mps = calcBallExitSpeedMps(dist, drag, mass);
+            physCachePhysFps = physCacheV0Mps > 0
+                    ? (physCacheV0Mps / Math.max(effic, 0.001)) * METERS_TO_FEET : 0;
+            if (physCacheV0Mps <= 0) {
+                physCacheTofS = 0;
+            } else if (drag <= 0) {
+                final double d = dist + SHOOTER_OFFSET_M;
+                physCacheTofS = d > 0 ? d / (physCacheV0Mps * Math.cos(LAUNCH_ANGLE_RAD)) : 0;
+            } else {
+                final double ballMassKg  = mass * 0.453592;
+                final double dragPerMass = drag / Math.max(ballMassKg, 0.001);
+                final double d           = dist + SHOOTER_OFFSET_M;
+                physCacheTofS = simulateTimeOfFlight(physCacheV0Mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
+            }
+            physCacheDistM = dist;
         }
+        Logger.recordOutput("UltraShooter/PhysicsCacheHit", !shootOnMove && !cacheStale);
+
+        final double v0Mps  = physCacheV0Mps;
+        final double physFPS = physCachePhysFps;
+        final double tof     = physCacheTofS;
         Logger.recordOutput("UltraShooter/Physics_fps",           physFPS);
         Logger.recordOutput("UltraShooter/TimeOfFlight_s",        tof);
         Logger.recordOutput("UltraShooter/Distance_ft",           swerve.getDistanceToHub() * METERS_TO_FEET);
