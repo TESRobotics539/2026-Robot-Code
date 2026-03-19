@@ -1,7 +1,5 @@
 package frc.robot.subsystems.vision;
 
-import java.util.Optional;
-
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
@@ -126,8 +124,8 @@ public class VisionManager extends SubsystemBase {
         }
 
         // ── Process both cameras ────────────────────────────────────────────
-        processCamera(frontInputs, true, currentPose);
-        processCamera(rearInputs, false, currentPose);
+        processCamera(frontInputs, true);
+        processCamera(rearInputs, false);
 
         publishHealthTelemetry();
         LoggedTracer.record("VisionManager");
@@ -137,7 +135,7 @@ public class VisionManager extends SubsystemBase {
      * Core vision pipeline for a single camera.
      * Adapted from ORCA3136/ORCABot2026 VisionSubsystem.processCamera().
      */
-    private void processCamera(LimelightIOInputsAutoLogged inputs, boolean isFront, Pose2d currentPose) {
+    private void processCamera(LimelightIOInputsAutoLogged inputs, boolean isFront) {
         String label = isFront ? "Front" : "Rear";
 
         // Update tag count tracking
