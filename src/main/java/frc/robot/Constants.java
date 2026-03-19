@@ -508,6 +508,26 @@ public final class Constants {
      */
     public static final double kMovingSpeedThresholdFps = 1.0;
 
+    /**
+     * Robot speed (ft/s) above which the physics dashboard cache is bypassed and the
+     * binary-search + TOF simulation runs live every cycle.  When the robot is moving
+     * this fast the target distance is changing quickly enough that a stale cached result
+     * would introduce meaningful aim error.  Below this threshold the cache is reused
+     * unless the robot has moved more than {@link #kPhysicsCacheDistanceThresholdFeet}.
+     * Tune upward if live recalculation causes loop overruns while driving; tune downward
+     * if displayed physics values lag noticeably during fast approaches.
+     */
+    public static final double kShootOnMoveSpeedThresholdFps = 2.0;
+
+    /**
+     * Minimum change in hub distance (ft) that invalidates the physics dashboard cache
+     * and triggers a fresh binary-search + TOF simulation.  6 inches (0.5 ft) is a
+     * reasonable starting point — at typical shot distances a 6-inch change in range
+     * produces a measurable change in required flywheel speed.  Reduce if the displayed
+     * physics values appear to lag during a slow approach.
+     */
+    public static final double kPhysicsCacheDistanceThresholdFeet = 0.5; // 6 inches
+
     // ── Close-range backup ─────────────────────────────────────────────────
 
     /**

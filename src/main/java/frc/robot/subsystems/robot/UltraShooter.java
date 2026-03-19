@@ -87,6 +87,17 @@ public class UltraShooter extends SubsystemBase {
     /** Throttles trajectory visualization to ~10 Hz (every 5 cycles at 50 Hz). */
     private int vizSkipCounter = 0;
 
+    // ── Physics dashboard cache ───────────────────────────────────────────────
+    // The binary-search + TOF simulation in updateNetworkTable() is expensive (~300k
+    // iterations worst case).  We cache the result and only rerun when the robot has
+    // moved more than kPhysicsCacheDistanceThresholdFeet, or is moving faster than
+    // kShootOnMoveSpeedThresholdFps (in which case we always run live).
+    /** Hub distance (m) at which the cached result was last computed. NaN = not yet computed. */
+    private double physCacheDistM   = Double.NaN;
+    private double physCacheV0Mps   = 0;
+    private double physCachePhysFps = 0;
+    private double physCacheTofS    = 0;
+
     /** Circular buffer for rolling-average velocity filtering. */
     private final double[] velocityBuffer =
             new double[Constants.UltraShooterConstants.kVelocityAvgSamples];
@@ -787,21 +798,40 @@ public class UltraShooter extends SubsystemBase {
         final double mass  = Constants.UltraShooterConstants.kBallMassLbs;
         final double dist  = getAverageDistanceToHub();
 
-        // Solve once — derive physFPS, TOF, and visualization v0 from a single binary search.
-        final double v0Mps   = calcBallExitSpeedMps(dist, drag, mass);
-        final double physFPS = v0Mps > 0 ? (v0Mps / Math.max(effic, 0.001)) * METERS_TO_FEET : 0;
-        final double tof;
-        if (v0Mps <= 0) {
-            tof = 0;
-        } else if (drag <= 0) {
-            final double d = dist + SHOOTER_OFFSET_M;
-            tof = d > 0 ? d / (v0Mps * Math.cos(LAUNCH_ANGLE_RAD)) : 0;
-        } else {
-            final double ballMassKg  = mass * 0.453592;
-            final double dragPerMass = drag / Math.max(ballMassKg, 0.001);
-            final double d           = dist + SHOOTER_OFFSET_M;
-            tof = simulateTimeOfFlight(v0Mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
+        // Cache the expensive binary-search + TOF simulation results.
+        // Recompute when: (a) robot is moving above the shoot-on-the-move threshold
+        // (distance is changing fast enough that stale values would introduce aim error),
+        // or (b) distance has changed by more than kPhysicsCacheDistanceThresholdFeet
+        // since the last computation.
+        final ChassisSpeeds fv = swerve.getFieldVelocity();
+        final double speedFps  = Math.hypot(fv.vxMetersPerSecond, fv.vyMetersPerSecond) * METERS_TO_FEET;
+        final boolean shootOnMove = speedFps >= Constants.UltraShooterConstants.kShootOnMoveSpeedThresholdFps;
+        final boolean cacheStale  = Double.isNaN(physCacheDistM)
+                || Math.abs(dist - physCacheDistM) * METERS_TO_FEET
+                       >= Constants.UltraShooterConstants.kPhysicsCacheDistanceThresholdFeet;
+
+        if (shootOnMove || cacheStale) {
+            physCacheV0Mps = calcBallExitSpeedMps(dist, drag, mass);
+            physCachePhysFps = physCacheV0Mps > 0
+                    ? (physCacheV0Mps / Math.max(effic, 0.001)) * METERS_TO_FEET : 0;
+            if (physCacheV0Mps <= 0) {
+                physCacheTofS = 0;
+            } else if (drag <= 0) {
+                final double d = dist + SHOOTER_OFFSET_M;
+                physCacheTofS = d > 0 ? d / (physCacheV0Mps * Math.cos(LAUNCH_ANGLE_RAD)) : 0;
+            } else {
+                final double ballMassKg  = mass * 0.453592;
+                final double dragPerMass = drag / Math.max(ballMassKg, 0.001);
+                final double d           = dist + SHOOTER_OFFSET_M;
+                physCacheTofS = simulateTimeOfFlight(physCacheV0Mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
+            }
+            physCacheDistM = dist;
         }
+        Logger.recordOutput("UltraShooter/PhysicsCacheHit", !shootOnMove && !cacheStale);
+
+        final double v0Mps  = physCacheV0Mps;
+        final double physFPS = physCachePhysFps;
+        final double tof     = physCacheTofS;
         Logger.recordOutput("UltraShooter/Physics_fps",           physFPS);
         Logger.recordOutput("UltraShooter/TimeOfFlight_s",        tof);
         Logger.recordOutput("UltraShooter/Distance_ft",           swerve.getDistanceToHub() * METERS_TO_FEET);
