@@ -13,6 +13,15 @@
     },
     {
       "type": "wpilib",
+      "name": "WPILib Desktop Debug (AKit Replay)",
+      "request": "launch",
+      "desktop": true,
+      "env": {
+        "AKIT_REPLAY": "1"
+      }
+    },
+    {
+      "type": "wpilib",
       "name": "WPILib roboRIO Debug",
       "request": "launch",
       "desktop": false,

@@ -12,6 +12,7 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.subsystems.iodiagnostics.FloorIO;
 import frc.robot.subsystems.iodiagnostics.FloorIOInputsAutoLogged;
+import frc.util.LoggedTracer;
 
 public class Floor extends SubsystemBase {
     public enum Speed {
@@ -41,6 +42,7 @@ public class Floor extends SubsystemBase {
     public void periodic() {
         io.updateInputs(inputs);
         Logger.processInputs("Floor", inputs);
+        LoggedTracer.record("Floor");
     }
 
     public void set(Speed speed) {

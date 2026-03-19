@@ -69,6 +69,8 @@ public class IntakeIOReal implements IntakeIO {
         config.smartCurrentLimit(80);
         config.secondaryCurrentLimit(120);
 
+        config.closedLoopRampRate(Constants.IntakeConstants.kRollerRampRateSeconds);
+
         config.closedLoop
             .feedbackSensor(FeedbackSensor.kPrimaryEncoder)
             .pid(Constants.IntakeConstants.kRollerP, Constants.IntakeConstants.kRollerI, Constants.IntakeConstants.kRollerD)
@@ -104,6 +106,13 @@ public class IntakeIOReal implements IntakeIO {
     public void setPivotCoastMode(boolean coast) {
         SparkMaxConfig config = new SparkMaxConfig();
         config.idleMode(coast ? IdleMode.kCoast : IdleMode.kBrake);
+        pivotMotor.configure(config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
+    }
+
+    @Override
+    public void setPivotOutputRange(double min, double max) {
+        SparkMaxConfig config = new SparkMaxConfig();
+        config.closedLoop.outputRange(min, max);
         pivotMotor.configure(config, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
     }
 

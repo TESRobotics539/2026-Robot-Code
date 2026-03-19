@@ -12,7 +12,9 @@ import com.ctre.phoenix6.SignalLogger;
 import org.littletonrobotics.junction.LoggedRobot;
 import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.networktables.NT4Publisher;
+import org.littletonrobotics.junction.wpilog.WPILOGReader;
 import org.littletonrobotics.junction.wpilog.WPILOGWriter;
+import org.littletonrobotics.junction.LogFileUtil;
 
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
@@ -20,6 +22,7 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.util.LoggedTracer;
 import frc.util.MetricTracker;
 
 /**
@@ -42,6 +45,13 @@ public class Robot extends LoggedRobot {
         if (isReal()) {
             Logger.addDataReceiver(new WPILOGWriter()); // logs to /U/logs on USB stick
             Logger.addDataReceiver(new NT4Publisher());
+        } else if (System.getenv("AKIT_REPLAY") != null) {
+            // Log replay mode: run deterministically against a recorded .wpilog file.
+            // Set AKIT_REPLAY=1 (or any value) in your run config, then pick the file when prompted.
+            setUseTiming(false); // replay as fast as possible, not real-time
+            String logPath = LogFileUtil.findReplayLog();
+            Logger.setReplaySource(new WPILOGReader(logPath));
+            Logger.addDataReceiver(new WPILOGWriter(LogFileUtil.addPathSuffix(logPath, "_replay")));
         } else {
             Logger.addDataReceiver(new NT4Publisher());
         }
@@ -72,6 +82,7 @@ public class Robot extends LoggedRobot {
         // commands, running already-scheduled commands, removing finished or interrupted commands,
         // and running subsystem periodic() methods.  This must be called from the robot's periodic
         // block in order for anything in the Command-based framework to work.
+        LoggedTracer.reset();
         double loopStart = Timer.getFPGATimestamp();
         CommandScheduler.getInstance().run();
         Logger.recordOutput("LoopTime/ms",              (Timer.getFPGATimestamp() - loopStart) * 1000.0);

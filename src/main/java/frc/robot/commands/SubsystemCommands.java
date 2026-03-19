@@ -2,6 +2,7 @@ package frc.robot.commands;
 
 import java.util.Set;
 import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 
 import edu.wpi.first.math.util.Units;
 
@@ -14,6 +15,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.robot.Feeder;
 import frc.robot.subsystems.robot.Floor;
+import frc.robot.subsystems.robot.Intake;
 import frc.robot.subsystems.robot.Swerve;
 import frc.robot.subsystems.robot.UltraShooter;
 // import frc.robot.subsystems.tuning.ShooterTuner; // Pi-backed live shooter tuning (disabled)
@@ -23,6 +25,7 @@ public final class SubsystemCommands {
     private final Floor floor;
     private final Feeder feeder;
     private final UltraShooter ultraShooter;
+    private final Intake intake;
     // private final ShooterTuner shooterTuner; // Pi-backed live shooter tuning (disabled)
 
     private final DoubleSupplier forwardInput;
@@ -33,6 +36,7 @@ public final class SubsystemCommands {
         Floor floor,
         Feeder feeder,
         UltraShooter ultraShooter,
+        Intake intake,
         DoubleSupplier forwardInput,
         DoubleSupplier leftInput
     ) {
@@ -40,6 +44,7 @@ public final class SubsystemCommands {
         this.floor = floor;
         this.feeder = feeder;
         this.ultraShooter = ultraShooter;
+        this.intake = intake;
 
         this.forwardInput = forwardInput;
         this.leftInput = leftInput;
@@ -49,35 +54,47 @@ public final class SubsystemCommands {
         Swerve swerve,
         Floor floor,
         Feeder feeder,
-        UltraShooter ultraShooter
+        UltraShooter ultraShooter,
+        Intake intake
     ) {
-        this(swerve, floor, feeder, ultraShooter, () -> 0, () -> 0);
+        this(swerve, floor, feeder, ultraShooter, intake, () -> 0, () -> 0);
     }
 
     public Command shootManually() {
         return ultraShooter.spinUpPhysicsCommand()
             .andThen(feed())
+            .andThen(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)))
             .handleInterrupt(ultraShooter::stop);
     }
 
-    public Command shootMap() {
-        return aimAndFire(feed());
+    public Command shootPhysics() {
+        return aimAndFire(this::feed);
     }
 
     /**
      * Physics-based map shot with an extra command run in parallel during the feed phase
      * (after flywheel ready + aim settled). Use this to inject rumble, LEDs, etc.
+     *
+     * @param feedExtraSupplier called fresh each execution to avoid composed-command reuse
      */
-    public Command shootMapWithFeedExtra(Command feedExtra) {
-        return aimAndFire(feedWith(feedExtra));
+    public Command shootPhysicsWithFeedExtra(Supplier<Command> feedExtraSupplier) {
+        return aimAndFire(() -> feedWith(feedExtraSupplier.get()));
     }
 
-    /** Holds flywheel speed and continues aiming at the hub for the given duration, then stops both. */
+    /**
+     * Holds flywheel speed and aim for {@code seconds}, then idles the flywheel down to
+     * pre-spin speed over 1 second. The aim (and therefore the swerve requirement) is
+     * released after {@code seconds} so the driver regains drivetrain control immediately
+     * after the hold period ends.
+     */
     public Command holdAimAndSpeedCommand(double seconds) {
-        return Commands.parallel(
-            ultraShooter.holdSpeedCommand(seconds),
-            new AimAndDriveCommand(swerve, forwardInput, leftInput)
-        ).withTimeout(seconds);
+        return Commands.sequence(
+            Commands.parallel(
+                ultraShooter.run(() -> {}).withTimeout(seconds),
+                new AimAndDriveCommand(swerve, forwardInput, leftInput).withTimeout(seconds)
+            ),
+            ultraShooter.idleDownCommand()
+        );
     }
 
     public Command autoShoot() {
@@ -93,7 +110,7 @@ public final class SubsystemCommands {
         }, Set.of(swerve, ultraShooter, feeder, floor));
     }
 
-    private Command aimAndFire(Command feedCommand) {
+    private Command aimAndFire(Supplier<Command> feedCommandSupplier) {
         return Commands.defer(() -> {
             AimAndDriveCommand aimCommand = new AimAndDriveCommand(swerve, forwardInput, leftInput);
             Command shootSequence = Commands.parallel(
@@ -101,7 +118,8 @@ public final class SubsystemCommands {
                 aimCommand,
                 Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
                     .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
-                    .andThen(feedCommand)
+                    .andThen(feedCommandSupplier.get())
+                    .andThen(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)))
             );
 
             boolean needsBackup = Constants.UltraShooterConstants.kEnableCloseRangeBackup
@@ -110,7 +128,7 @@ public final class SubsystemCommands {
             return needsBackup
                 ? Commands.sequence(backupFromHubCommand(), shootSequence)
                 : shootSequence;
-        }, Set.of(swerve, ultraShooter, feeder, floor));
+        }, Set.of(swerve, ultraShooter, feeder, floor, intake));
     }
 
     /**

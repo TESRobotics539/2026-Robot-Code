@@ -6,7 +6,6 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
 
 import java.util.Arrays;
-import java.util.function.BooleanSupplier;
 
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
@@ -28,6 +27,7 @@ import frc.robot.GameData;
 import frc.robot.Landmarks;
 import frc.robot.subsystems.iodiagnostics.UltraShooterIO;
 import frc.robot.subsystems.iodiagnostics.UltraShooterIOInputsAutoLogged;
+import frc.util.LoggedTracer;
 // import frc.robot.subsystems.tuning.ShooterTuner; // Pi-backed live shooter tuning (disabled)
 
 /**
@@ -57,10 +57,7 @@ public class UltraShooter extends SubsystemBase {
     private final UltraShooterIO io;
     private final UltraShooterIOInputsAutoLogged inputs = new UltraShooterIOInputsAutoLogged();
 
-    // ── KV feedforward constant ───────────────────────────────────────────────
-    // Kept here so applyPID() can compute the full feedforward without touching the IO layer.
     private static final double WHEEL_CIRCUMFERENCE_FEET = Math.PI * (4.0 / 12.0);
-    private static final double KV = 12.0 / (6784.0 * WHEEL_CIRCUMFERENCE_FEET / 60.0);
 
     // ── Cached physics constants (derived from Constants at class-load time) ──
     // Avoids calling Math.toRadians / Units.inchesToMeters on every solver call.
@@ -582,8 +579,13 @@ public class UltraShooter extends SubsystemBase {
         }
     }
 
+    /** Cuts motor output immediately and resets all ramp state; motors coast down uncontrolled. */
     public void stop() {
-        setTarget(0);
+        velocityTarget  = 0;
+        rampedSetpoint  = 0;
+        voltageBias     = 0;
+        readyLatch      = false;
+        io.stop();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -595,9 +597,11 @@ public class UltraShooter extends SubsystemBase {
         return cachedVelocity;
     }
 
-    /** 160 ms rolling average of primary encoder velocity (ft/s). */
+    /** Rolling average of primary encoder velocity (ft/s). */
     public double getAverageVelocity() {
-        return velocityBufferSum / Constants.UltraShooterConstants.kVelocityAvgSamples;
+        // TODO: re-enable averaging after PID tuning
+        return cachedVelocity; // no filter — raw velocity
+        // return velocityBufferSum / Constants.UltraShooterConstants.kVelocityAvgSamples;
     }
 
     public double getTarget()        { return velocityTarget; }
@@ -643,11 +647,11 @@ public class UltraShooter extends SubsystemBase {
      *   <li>The robot is in its own alliance zone or the neutral zone.</li>
      * </ol>
      * When that constant is {@code false}, the flywheel always spins up to the
-     * pre-spin speed regardless of FMS state, fuel detection, or field position.
+     * pre-spin speed regardless of FMS state or field position.
      *
      * <p>Runs as the default command and is automatically interrupted by any shoot command.
      */
-    public Command preSpinCommand(BooleanSupplier fuelReady) {
+    public Command preSpinCommand() {
         return run(() -> {
             boolean shouldPrespin = !Constants.UltraShooterConstants.kEnableFMSAwarePreSpinLatch
                     || (GameData.isHubActiveExpanded(5.0)
@@ -673,6 +677,20 @@ public class UltraShooter extends SubsystemBase {
     /** Continuously spins down to zero (for endgame). */
     public Command spinDownCommand() {
         return run(() -> setTarget(0)).withName("SpinDown");
+    }
+
+    /**
+     * Ramps the flywheel to the pre-spin speed over 1 second, then ends.
+     * The pre-spin target is recalculated each cycle so it tracks the current
+     * distance. After this command finishes, {@link #preSpinCommand} takes over
+     * at the same speed with no discontinuity.
+     */
+    public Command idleDownCommand() {
+        return run(() -> {
+            double preSpinSpeed = calculateRequiredVelocityFPS(swerve.getDistanceToHub())
+                    * Constants.UltraShooterConstants.kPreSpinFraction;
+            setTarget(preSpinSpeed);
+        }).withTimeout(1.0).withName("IdleDown");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -725,7 +743,8 @@ public class UltraShooter extends SubsystemBase {
             rampedSetpoint = Math.min(
                     rampedSetpoint + Constants.UltraShooterConstants.kRampUpRate, velocityTarget);
         } else if (rampedSetpoint > velocityTarget) {
-            rampedSetpoint = velocityTarget; // coast down — no active braking
+            rampedSetpoint = Math.max(
+                    rampedSetpoint - Constants.UltraShooterConstants.kRampDownRate, velocityTarget);
         }
     }
 
@@ -749,7 +768,7 @@ public class UltraShooter extends SubsystemBase {
                                               -Constants.UltraShooterConstants.kMaxVoltageBias,
                                                Constants.UltraShooterConstants.kMaxVoltageBias);
             }
-            double ff = Constants.UltraShooterConstants.kS + rampedSetpoint * KV + voltageBias;
+            double ff = Constants.UltraShooterConstants.kS + rampedSetpoint * Constants.UltraShooterConstants.kV + voltageBias;
             io.setVelocity(rampedSetpoint, ff);
         } else {
             voltageBias = 0.0;  // Reset on stop — fresh calibration every shot.
@@ -899,6 +918,7 @@ public class UltraShooter extends SubsystemBase {
         //         applyKpToMotors(newKp);
         //     }
         // }
+        LoggedTracer.record("UltraShooter");
     }
 
     @Override

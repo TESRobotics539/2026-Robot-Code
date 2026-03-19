@@ -16,8 +16,8 @@ import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
-import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -26,11 +26,9 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants.OperatorConstants;
-import frc.robot.GameData;
 import frc.robot.commands.SubsystemCommands;
-import frc.robot.subsystems.vision.BallVision;
-import frc.robot.subsystems.vision.Limelight;
-// import frc.robot.subsystems.vision.PiAprilTagVision; // Pi-backed AprilTag fallback (disabled)
+import frc.robot.subsystems.vision.VisionManager;
+import frc.robot.subsystems.iodiagnostics.LimelightIOReal;
 import frc.robot.subsystems.robot.BlinkinLed;
 import frc.robot.subsystems.robot.Feeder;
 import frc.robot.subsystems.robot.Floor;
@@ -59,48 +57,58 @@ import swervelib.SwerveInputStream;
  */
 public class RobotContainer
 {
+    // ── Vision ───────────────────────────────────────────────────────────────
     private final BlinkinLed blinkinLed = new BlinkinLed();
-    private final BallVision       ballVision    = new BallVision();
-    // private final PiAprilTagVision piAprilTag = new PiAprilTagVision(); // Pi AprilTag (disabled)
-    // private final BumpTuner bumpTuner = new BumpTuner();                 // Pi bump tuning (disabled)
 
-    private final Intake intake = new Intake(new IntakeIOReal());
-    private final Floor floor = new Floor(new FloorIOReal());
-    private final Feeder feeder = new Feeder(new FeederIOReal());
-    private final Hanger hanger = new Hanger(new HangerIOReal());
-    private final Limelight limelight     = new Limelight(Ports.kLimelightFront);
-    private final Limelight limelightRear = new Limelight(Ports.kLimelightRear);
-    private final Field2d field = new Field2d();
-    private final Swerve drivebase  = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
-    //private final ShooterOrca shooter = new ShooterOrca(drivebase); // deprecated
+    // ── Drive ────────────────────────────────────────────────────────────────
+    private final Field2d field     = new Field2d();
+    private final Swerve  drivebase = new Swerve(new File(Filesystem.getDeployDirectory(), "swerve"), field);
+
+    // VisionManager must be constructed after drivebase (it holds a reference to it).
+    private final VisionManager visionManager = new VisionManager(
+        new LimelightIOReal(Ports.kLimelightFront),
+        new LimelightIOReal(Ports.kLimelightRear),
+        drivebase
+    );
+
+    // ── Subsystems ───────────────────────────────────────────────────────────
+    private final Intake  intake  = new Intake(new IntakeIOReal());
+    private final Floor   floor   = new Floor(new FloorIOReal());
+    private final Feeder  feeder  = new Feeder(new FeederIOReal());
+    private final Hanger  hanger  = new Hanger(new HangerIOReal());
+    // private final BumpTuner bumpTuner = new BumpTuner();  // Pi bump tuning (disabled)
+
+    // ── Shooter ──────────────────────────────────────────────────────────────
     // private final ShooterTuner     shooterTuner     = new ShooterTuner();     // Pi shooter tuning (disabled)
     private final UltraShooter     ultraShooter     = new UltraShooter(new UltraShooterIOReal(), drivebase);
     // private final ShooterAutoTuner shooterAutoTuner = new ShooterAutoTuner(ultraShooter, shooterTuner);
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
-    {
-        ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand(intake::hasPickedUpFuel));
-    }
+    // TODO: re-enable after PID tuning
+    // {
+    //     ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand());
+    // }
 
+    // ── Controllers ──────────────────────────────────────────────────────────
     final CommandXboxController driverXbox = new CommandXboxController(0);
     private double lastIntakeTriggerPressTime = Double.NEGATIVE_INFINITY;
 
+    // ── Command Factories ────────────────────────────────────────────────────
     private final SubsystemCommands subsystemCommands = new SubsystemCommands(
         drivebase,
         floor,
         feeder,
         ultraShooter,
+        intake,
         () -> -driverXbox.getLeftY(),
         () -> -driverXbox.getLeftX()
     );
 
-    // Establish a Sendable Chooser that will be able to be sent to the SmartDashboard, allowing selection of desired auto
+    // ── Auto ─────────────────────────────────────────────────────────────────
     private final SendableChooser<Command> autoChooser;
 
-    /**
-     * Converts driver input into a field-relative ChassisSpeeds that is controlled by angular velocity.
-     */
-    // Input curve: x^1.5 softens fine control near center while preserving full speed at edges.
+    // ── Drive Input Stream ───────────────────────────────────────────────────
+    // x^1.5 curve softens fine control near center while preserving full speed at edges.
     SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
                                                                   () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, 1.5),
                                                                   () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, 1.5))
@@ -112,18 +120,20 @@ public class RobotContainer
 
     public RobotContainer()
     {
+        // Auto — register named commands before building the chooser
         configureNamedCommands();
         autoChooser = AutoBuilder.buildAutoChooser();
 
+        // Bindings
         configureBindings();
         DriverStation.silenceJoystickConnectionWarning(true);
 
-        limelight.setDefaultCommand(updateVisionCommand());
-
+        // Default commands
         blinkinLed.setDefaultCommand(
             Commands.run(blinkinLed::setPhasePattern, blinkinLed)
                 .finallyDo(__ -> blinkinLed.setDefaultPattern()));
 
+        // Dashboard
         SmartDashboard.putData("Auto Chooser", autoChooser);
         SmartDashboard.putData("Field", field);
     }
@@ -205,10 +215,27 @@ public class RobotContainer
                         Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ), Set.of(ultraShooter, intake, feeder, floor))
-            .finallyDo(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)));
+            .finallyDo(interrupted -> {
+                driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0);
+                Logger.recordOutput("Commands/SpinUpShoot/Interrupted", interrupted);
+            }));
 
-        // X: dump shot (fixed low speed)
-        driverXbox.x().whileTrue(
+        // ══ PID TUNING — delete this entire block when done ══════════════════
+        // A: toggle flywheel on/off at 3,000 RPM
+        final double kTuning200RpmInFPS  = 1000.0 * Math.PI * (4.0 / 12.0) / 60.0;
+        final double kTuningInitialFPS   = 3000.0 * Math.PI * (4.0 / 12.0) / 60.0;
+        driverXbox.a().toggleOnTrue(
+            ultraShooter.startEnd(
+                () -> ultraShooter.setTarget(kTuningInitialFPS),
+                ultraShooter::stop
+            ).withName("TuningFlywheelSpin"));
+        // X: run feeder + floor at 85% while held (dump shot disabled during tuning)
+        driverXbox.x().whileTrue(Commands.parallel(
+            feeder.startEnd(() -> feeder.setPercentOutput(0.85), () -> feeder.setPercentOutput(0)),
+            floor.startEnd(() -> floor.setPercentOutput(0.85), () -> floor.setPercentOutput(0))
+        ).withName("TuningFeed"));
+        // B: dump shot sequence while held
+        driverXbox.b().whileTrue(
             Commands.defer(() -> Commands.parallel(
                 ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
                 Commands.waitUntil(ultraShooter::isReady)
@@ -219,6 +246,7 @@ public class RobotContainer
                         Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
             ), Set.of(ultraShooter, feeder, floor)));
+        // ═════════════════════════════════════════════════════════════════════
 
         // Right trigger: aim + shoot (physics-based, only while hub is active)
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
@@ -229,9 +257,9 @@ public class RobotContainer
                     Commands.waitSeconds(Constants.RumbleConstants.kShootAnnouncementOnSeconds),
                     Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0))
                 ),
-                subsystemCommands.shootMapWithFeedExtra(
-                    // Pulsing rumble once the feeder is feeding.
-                    Commands.sequence(
+                subsystemCommands.shootPhysicsWithFeedExtra(
+                    // Supplier so a fresh command is created each execution (avoids composed-command reuse).
+                    () -> Commands.sequence(
                         Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kShootPulseIntensity)),
                         Commands.waitSeconds(Constants.RumbleConstants.kShootPulseOnSeconds),
                         Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)),
@@ -239,9 +267,12 @@ public class RobotContainer
                     ).repeatedly()
                 ),
                 intake.agitateCommand()
-            ).finallyDo(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)))
+            ).finallyDo(interrupted -> {
+                driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0);
+                Logger.recordOutput("Commands/AimShoot/Interrupted", interrupted);
+            }))
             .onFalse(Commands.parallel(
-                subsystemCommands.holdAimAndSpeedCommand(1.5),
+                subsystemCommands.holdAimAndSpeedCommand(1.0),
                 intake.runOnce(intake::resetFuelDetection)));
 
         // ── Feeder ───────────────────────────────────────────────────────────
@@ -249,13 +280,22 @@ public class RobotContainer
 
         // ── Hanger ───────────────────────────────────────────────────────────
         // D-pad up/down → manual hanger control
-        driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
-                          .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-        driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
-                            .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+        // ══ PID TUNING: hanger bindings temporarily replaced by flywheel speed adjust ══
+        // driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
+        //                   .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+        // driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
+        //                     .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+        // D-pad up/down → +/- 10 ft/s flywheel speed adjust (delete when done)
+        // Uses Commands.runOnce (no subsystem requirement) so it doesn't interrupt TuningFlywheelSpin.
+        driverXbox.povUp().onTrue(Commands.runOnce(
+            () -> ultraShooter.setTarget(ultraShooter.getTarget() + kTuning200RpmInFPS)));
+        driverXbox.povDown().onTrue(Commands.runOnce(
+            () -> ultraShooter.setTarget(ultraShooter.getTarget() - kTuning200RpmInFPS)));
+        // ═════════════════════════════════════════════════════════════════════
 
         // Y: auto climb; also spin down shooter in last 30 seconds of teleop
-        driverXbox.y().onTrue(hanger.autoClimbCommand());
+        driverXbox.y().onTrue(hanger.autoClimbCommand()
+            .finallyDo(interrupted -> Logger.recordOutput("Commands/AutoClimb/Interrupted", interrupted)));
         driverXbox.y()
             .and(() -> DriverStation.isTeleop() && DriverStation.getMatchTime() <= 30)
             .onTrue(ultraShooter.spinDownCommand());
@@ -293,27 +333,13 @@ public class RobotContainer
         // ── Utility ──────────────────────────────────────────────────────────
         // Emergency stop — cancels every running command immediately.
         // Bind to Start so it's reachable without looking down at the controller.
-        driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
-            .ignoringDisable(true).withName("KillAll"));
+        // driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
+        //     .ignoringDisable(true).withName("KillAll"));
 
-        // ══ PID TUNING — delete this entire block when done ══════════════════
-        // A: toggle flywheel on/off at 50 ft/s (~2,865 RPM).
-        final double kTuningFlywheelFPS = 50.0;
-        driverXbox.a().toggleOnTrue(
-            ultraShooter.startEnd(
-                () -> ultraShooter.setTarget(kTuningFlywheelFPS),
-                ultraShooter::stop
-            ).withName("TuningFlywheelSpin"));
-        // B: run feeder + floor at 85% while held
-        driverXbox.b().whileTrue(Commands.parallel(
-            feeder.startEnd(() -> feeder.setPercentOutput(0.85), () -> feeder.setPercentOutput(0)),
-            floor.startEnd(() -> floor.setPercentOutput(0.85), () -> floor.setPercentOutput(0))
-        ).withName("TuningFeed"));
-        // ═════════════════════════════════════════════════════════════════════
     }
 
     private void configureNamedCommands() {
-      NamedCommands.registerCommand("Shoot Command", subsystemCommands.shootMap().withTimeout(5.0));
+      NamedCommands.registerCommand("Shoot Command", subsystemCommands.shootPhysics().withTimeout(5.0));
       NamedCommands.registerCommand("Auto Shoot", subsystemCommands.autoShoot().andThen(ultraShooter.spinDownCommand()));
       NamedCommands.registerCommand("Climber Toggle Command", hanger.toggleCommand());
       NamedCommands.registerCommand("Climber Down and Hold", hanger.autoClimbCommand());

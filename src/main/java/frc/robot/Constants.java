@@ -27,7 +27,7 @@ public final class Constants {
      * Limits how aggressively modules accelerate between cycles to prevent wheel slip
      * and excessive current draw during rapid direction changes.
      */
-    public static final double kMaxAccelerationMps2 = 15.0;
+    public static final double kMaxAccelerationMps2 = 12; // ~40 ft/s²
 
     /**
      * Maximum module azimuth angular velocity used by the setpoint generator (rad/s).
@@ -46,7 +46,7 @@ public final class Constants {
     /** Maximum seconds between two trigger pulls to count as a double-tap. */
     public static final double kDoubleTapWindowSeconds = 0.4;
     /** Seconds the roller can run without a load spike before being automatically cut off. */
-    public static final double kRollerNoLoadTimeoutSeconds = 15.0;
+    public static final double kRollerNoLoadTimeoutSeconds = 12.0;
 
     // ── Roller ───────────────────────────────────────────────────────────
     public static final IdleMode kRollerIdleMode = IdleMode.kCoast;
@@ -78,10 +78,10 @@ public final class Constants {
     public static final double kPivotOutputRangeMax =  0.4;
 
     // ── Pivot positions (absolute encoder, 0.0–1.0) ──────────────────────
-    public static final double kStowedPosition   = 0.35;
-    public static final double kDeployedPosition = 0.108;
-    public static final double kMinPosition       = 0.07;
-    public static final double kMaxPosition       = 0.41;
+    public static final double kStowedPosition   = 0.350;
+    public static final double kDeployedPosition = 0.097;
+    public static final double kMinPosition       = 0.100;
+    public static final double kMaxPosition       = 0.200;
 
     // ── Roller anti-jam ──────────────────────────────────────────────────
     /** Current (amps) above which a roller jam is suspected while intaking. */
@@ -89,21 +89,25 @@ public final class Constants {
     /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
     public static final double kRollerJamVelocityThresholdRPM = 1000.0;
     /** Reverse speed (RPM, magnitude) applied during the roller anti-jam pulse. */
-    public static final double kRollerUnjamReverseRPM = 2500.0;
+    public static final double kRollerUnjamReverseRPM = 750.0;
     /** Duration of the reverse pulse during roller anti-jam (seconds). */
-    public static final double kRollerUnjamReverseSeconds = 0.2;
+    public static final double kRollerUnjamReverseSeconds = 0.5;
     /** Velocity (RPM) above which the roller is considered to be running freely after an unjam. */
     public static final double kRollerFreeVelocityThresholdRPM = 3000.0;
 
+    // ── Ramp rate ─────────────────────────────────────────────────────────
+    /** Closed-loop ramp rate for the roller (seconds from 0 to full output). Applies to both acceleration and deceleration. */
+    public static final double kRollerRampRateSeconds = 0.33;
+
     // ── Agitation (pivot motion during shooting to settle fuel) ──────────
-    /** Pivot position for the upper agitation hold (absolute encoder units). */
-    public static final double kAgitateHighPosition = 0.210;
-    /** Pivot position for the lower agitation hold (absolute encoder units). */
-    public static final double kAgitateLowPosition  = 0.15;
-    /** Duration to hold the upper agitation position (seconds). */
-    public static final double kAgitateUpSeconds = 0.33;
-    /** Duration to hold the lower agitation position (seconds). */
-    public static final double kAgitateDownSeconds = 0.2;
+    /** Fraction (0 = deployed hard-stop, 1 = stowed) for the upper agitation bound. */
+    public static final double kAgitateHighPercent = 0.447;
+    /** Fraction (0 = deployed hard-stop, 1 = stowed) for the lower agitation bound. */
+    public static final double kAgitateLowPercent  = 0.209;
+    /** Duration of one full oscillation cycle (seconds). */
+    public static final double kAgitatePeriodSeconds = 1.0;
+    /** Pivot closed-loop output range during agitation (symmetric ±). Controls how fast the pivot tracks the oscillating setpoint. */
+    public static final double kAgitateOutputRangeMax = 0.35;
   }
 
   // ── Feeder ────────────────────────────────────────────────────────────────
@@ -116,7 +120,7 @@ public final class Constants {
 
     // ── Setpoints ────────────────────────────────────────────────────────
     /** Feed target speed (RPM, positive = forward). */
-    public static final double kFeedRPM    =  5500.0;
+    public static final double kFeedRPM    =  4500.0;
     /** Reverse target speed (RPM, negative = backward). */
     public static final double kReverseRPM = -5500.0;
 
@@ -128,15 +132,19 @@ public final class Constants {
 
     // ── Anti-jam ──────────────────────────────────────────────────────────
     /** Current (amps) above which a jam is suspected while feeding. */
-    public static final double kJamCurrentThreshold = 60.0;
+    public static final double kJamCurrentThreshold = 80.0;
     /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
     public static final double kJamVelocityThresholdRPM = 1000.0;
     /** Reverse speed (RPM, magnitude) applied during the anti-jam pulse. */
-    public static final double kUnjamReverseRPM = 2500.0;
+    public static final double kUnjamReverseRPM = 750.0;
     /** Duration of the reverse pulse during anti-jam (seconds). */
     public static final double kUnjamReverseSeconds = 0.5;
     /** Velocity (RPM) above which the feeder is considered to be running freely after an unjam. */
     public static final double kFreeVelocityThresholdRPM = 3000.0;
+
+    // ── Ramp rate ─────────────────────────────────────────────────────────
+    /** Closed-loop ramp rate for the feeder (seconds from 0 to full output). Applies to both acceleration and deceleration. */
+    public static final double kRampRateSeconds = 0.25;
   }
 
   // ── Floor ─────────────────────────────────────────────────────────────────
@@ -211,11 +219,12 @@ public final class Constants {
      * Height of the hood exit (ball launch point) above the floor (inches).
      * Measure from the ground to the center of the shooter barrel exit.
      */
-    public static final double kHoodHeightFromFloorInches = 27.0;
+    public static final double kHoodHeightFromFloorInches = 26.5;
 
     /**
      * Height of the hub center (scoring target) above the floor (inches).
      * Look this up from the game manual or measure on the field.
+     * DO NOT CHANGE!!!
      */
     public static final double kHubCenterHeightFromFloorInches = 72.0;
 
@@ -225,7 +234,7 @@ public final class Constants {
      * ADDED to the odometry distance (robot center → hub) to get the true
      * shooter-to-hub range used by the physics model.
      */
-    public static final double kShooterCenterlineOffsetInches = 8.0;
+    public static final double kShooterCenterlineOffsetInches = 10.5;
 
     /**
      * Fixed launch angle above horizontal (degrees). With a static hood this
@@ -244,18 +253,21 @@ public final class Constants {
     //   kP: 0.0003/RPM × 57.3 ≈ 0.017/fps
     //   kD: 0.01/RPM  × 57.3 ≈ 0.57/fps
     //   kS: 0.21 V — same units, direct copy
-    public static final double kP = 0.017;
+    public static final double kP = 0.025;
     public static final double kI = 0.000;
-    public static final double kD = 0.57;
-    public static final double kS = 0.21;
+    public static final double kD = 0.0;
+    public static final double kS = 0.1;
+    /** KV feedforward: V/(ft/s). Derived from Neo Vortex free speed (6784 RPM) and wheel size.
+     *  At target speed, motor voltage ≈ kS + kV * velocityFPS. */
+    public static final double kV = 11.0 / (6784.0 * Math.PI * (4.0 / 12.0) / 60.0);
 
     // ── Flywheel behavior ─────────────────────────────────────────────────
     /** Setpoint ramp-up rate (ft/s per 20 ms cycle). */
     public static final double kRampUpRate   = 200.0 * (Math.PI * (4.0 / 12.0) / 60.0);
     /** Setpoint ramp-down rate (ft/s per 20 ms cycle). */
     public static final double kRampDownRate = 400.0 * (Math.PI * (4.0 / 12.0) / 60.0);
-    /** Rolling-average window for encoder noise filtering (samples at 50 Hz). */
-    public static final int kVelocityAvgSamples = 8;
+    /** Rolling-average window for encoder noise filtering (samples at 50 Hz). 3 × 20 ms = 60 ms. */
+    public static final int kVelocityAvgSamples = 3;
     /** Flywheel is "ready" within this tolerance of target (ft/s). */
     public static final double kReadyTolerance = 100.0 * (Math.PI * (4.0 / 12.0) / 60.0);
     /** Fraction of the physics-calculated speed used for pre-spin (0.0–1.0). */
@@ -264,9 +276,9 @@ public final class Constants {
     // ── Voltage bias (971-style integral flywheel) ────────────────────────
     /** Volts added to feedforward per ft/s of velocity error, per 20 ms cycle.
      *  Accumulates only after the ramp has reached target — no spinup windup. */
-    public static final double kVoltageBiasRate = 0.001;
+    public static final double kVoltageBiasRate = 0.004;
     /** Maximum absolute feedforward voltage bias (V). Caps the integrator. */
-    public static final double kMaxVoltageBias  = 1.5;
+    public static final double kMaxVoltageBias  = 2.0;
 
     // ── Parabolic fine-tune offsets ───────────────────────────────────────
     // Three anchor points define a parabola (Lagrange quadratic) that is
@@ -299,14 +311,14 @@ public final class Constants {
      * Tune on the field via ShooterTuner/Params/FlywheelEfficiency.
      * Applied as: ball_exit_speed = flywheel_surface_speed × efficiency.
      */
-    public static final double kFlywheelEfficiency = 0.60;
+    public static final double kFlywheelEfficiency = 0.6;
 
     /**
      * Ball diameter (inches). Used to compute cross-sectional area for drag.
      * Change this when swapping game pieces; kDragCoefficient must be updated
      * accordingly: B = 0.5 x Cd x rho_air x pi x (diameter_m / 2)^2
      */
-    public static final double kBallDiameterInches = 6.0;
+    public static final double kBallDiameterInches = 5.9;
 
     /**
      * Ball mass (lbs).  Used in the aerodynamic drag term (B / m).
@@ -329,7 +341,7 @@ public final class Constants {
 
     /**
      * If true, the FMS-aware pre-spin state machine is active: the flywheel only
-     * spins up to pre-spin speed when fuel has been detected, the hub is within
+     * spins up to pre-spin speed when the hub is within
      * its active window, and the robot is in the scoring zone.
      *
      * <p>Set to {@code false} to always pre-spin to the pre-spin speed regardless
@@ -352,10 +364,10 @@ public final class Constants {
     public static final double kCloseRangeThresholdInches = 35.0;
 
     /** Distance (inches) to drive away from the hub before aiming when backup triggers. */
-    public static final double kCloseRangeBackupInches = 12.0;
+    public static final double kCloseRangeBackupInches = 18.0;
 
     /** Speed (ft/s) at which the robot drives away from the hub during backup. */
-    public static final double kCloseRangeBackupSpeedFps = 3.0;
+    public static final double kCloseRangeBackupSpeedFps = 4.0;
   }
 
   // ── Rumble ────────────────────────────────────────────────────────────────
@@ -371,11 +383,11 @@ public final class Constants {
 
     // ── Shoot pulse (bumper spin-up + trigger feed phase) ─────────────────
     /** Rumble intensity during the repeating shoot pulse (0.0–1.0). */
-    public static final double kShootPulseIntensity  = 0.85;
+    public static final double kShootPulseIntensity  = 0.70;
     /** Duration of the on-phase of each shoot pulse (seconds). */
-    public static final double kShootPulseOnSeconds  = 0.15;
+    public static final double kShootPulseOnSeconds  = 0.10;
     /** Duration of the off-phase of each shoot pulse (seconds). */
-    public static final double kShootPulseOffSeconds = 0.15;
+    public static final double kShootPulseOffSeconds = 0.10;
 
     // ── Shoot announcement (right-trigger sequence start) ─────────────────
     /** Duration of the single announcement pulse when the aim-and-fire sequence begins (seconds). */
@@ -423,9 +435,15 @@ public final class Constants {
     public static final double kBumpAccelZDeviationThreshold = 0.25;
 
     /**
-     * Deviation from 1 g on the Limelight Z-axis accelerometer (g) used to
-     * confirm the bump independently. Both sensors must agree before vision
-     * measurements are rejected.
+     * Deviation from 1 g on the Limelight Z-axis accelerometer (g) used as
+     * one vote in the 2-of-3 bump majority (Pigeon + front LL + rear LL).
+     *
+     * <p><b>Tuning:</b> Log {@code Vision/BumpVotes} while driving over the bump
+     * at match speed. Decrease this value if bump traversals only register 1 vote
+     * (threshold too high); increase it if flat-ground vibration triggers false
+     * votes (threshold too low). Start around 0.20–0.35 g and adjust in 0.05 g
+     * increments. The Pigeon threshold ({@link #kBumpAccelZDeviationThreshold})
+     * should be tuned the same way via {@code Swerve/PigeonOverBump} logging.
      */
     public static final double kLimelightAccelZDeviationThreshold = 0.25;
 
@@ -440,28 +458,36 @@ public final class Constants {
 
     // ── Vision trust adjustment ───────────────────────────────────────────
     /**
-     * Standard-deviation multiplier applied to vision measurements while a
-     * confirmed bump is in progress AND vision confidence is LOW.
-     * Effectively tells the pose estimator to discount vision when the camera
-     * is tilted and we have no reliable tag fix.
+     * Standard-deviation multiplier applied when a confirmed bump is in progress
+     * AND vision confidence is LOW. Heavy inflation tells the pose estimator to
+     * nearly ignore vision — the camera is shaking and there is no reliable tag fix.
      */
     public static final double kBumpVisionStdDevMultiplier = 10.0;
 
     /**
+     * Standard-deviation multiplier applied when a confirmed bump is in progress
+     * AND vision confidence is HIGH (solid tag fix despite camera shake).
+     * Mild inflation — still somewhat discounts the noisy reading, but lets a
+     * close-range multi-tag fix contribute meaningfully to the estimate.
+     * Tune by observing pose jump magnitude on Elastic while crossing the bump
+     * near tags; increase if pose still jumps, decrease if drift goes uncorrected.
+     */
+    public static final double kBumpHighConfStdDevMultiplier = 3.0;
+
+    /**
      * Minimum vision confidence score (avgTagArea × tagCount) required to
-     * bias the pose estimator toward Limelight during detected wheel slip.
+     * distinguish high-confidence from low-confidence paths.
      * A value of ~1.0 corresponds roughly to one AprilTag visible at moderate
-     * range (~10 ft). Below this threshold the low-confidence path is used.
+     * range (~10 ft). Below this threshold the low-confidence (inflate) path is used.
      */
     public static final double kHighConfidenceThreshold = 1.0;
 
     /**
-     * Standard-deviation multiplier applied to vision measurements when
-     * wheel slip is detected AND vision confidence is HIGH.
-     * Values below 1.0 increase trust in vision; 0.5 makes the pose estimator
-     * weight the Limelight fix twice as heavily as normal, actively correcting
-     * the odometry error introduced by the slipping wheels.
+     * Standard-deviation multiplier applied when wheel slip is detected AND
+     * vision confidence is HIGH. A value of 1.0 passes through stddevs unchanged —
+     * trust vision at face value rather than artificially boosting it. The wheels
+     * are unreliable, but that is not a reason to over-weight a single vision frame.
      */
-    public static final double kSlipHighConfStdDevMultiplier = 0.5;
+    public static final double kSlipHighConfStdDevMultiplier = 1.0;
   }
 }
