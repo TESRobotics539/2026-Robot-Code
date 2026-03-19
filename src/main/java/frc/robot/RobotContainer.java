@@ -11,8 +11,6 @@ import com.pathplanner.lib.auto.NamedCommands;
 import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.Timer;
@@ -439,32 +437,12 @@ public class RobotContainer
                 }
             }
 
-            // During autonomous, project the robot pose 300 ms forward using field-relative
-            // velocity. This gives SetRobotOrientation a more accurate heading prediction for
-            // frames that are still in flight through Limelight's capture/processing pipeline,
-            // and lets MegaTag2 pre-compensate for rotation that will have occurred by the time
-            // the measurement is actually fused. (Adapted from Team 180's futureRobotPose pattern.)
-            // In teleop, use the current pose — drivers change direction unpredictably.
-            final Pose2d poseForVision;
-            if (DriverStation.isAutonomous()) {
-                final double LOOKAHEAD_SECS = 0.300;
-                ChassisSpeeds fv = drivebase.getFieldVelocity();
-                poseForVision = new Pose2d(
-                    currentRobotPose.getX() + fv.vxMetersPerSecond * LOOKAHEAD_SECS,
-                    currentRobotPose.getY() + fv.vyMetersPerSecond * LOOKAHEAD_SECS,
-                    currentRobotPose.getRotation().plus(
-                        Rotation2d.fromRadians(fv.omegaRadiansPerSecond * LOOKAHEAD_SECS)));
-                Logger.recordOutput("Vision/LookaheadPose", poseForVision);
-            } else {
-                poseForVision = currentRobotPose;
-            }
-
             // Request measurements from both Limelights (each call also sends SetRobotOrientation
             // so MegaTag2 keeps a fresh heading even for the camera that isn't chosen).
             var frontMeasurement = limelight.getMeasurement(
-                poseForVision, pitchDeg, pitchRateDegPS, rollDeg, rollRateDegPS, yawRateDegPS);
+                currentRobotPose, pitchDeg, pitchRateDegPS, rollDeg, rollRateDegPS, yawRateDegPS);
             var rearMeasurement  = limelightRear.getMeasurement(
-                poseForVision, pitchDeg, pitchRateDegPS, rollDeg, rollRateDegPS, yawRateDegPS);
+                currentRobotPose, pitchDeg, pitchRateDegPS, rollDeg, rollRateDegPS, yawRateDegPS);
 
             // Confidence = avgTagArea × tagCount. Larger tag area means the robot is closer to
             // the tags and the projection error is smaller; more tags further reduce ambiguity.
