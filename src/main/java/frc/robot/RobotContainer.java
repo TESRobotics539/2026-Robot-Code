@@ -120,7 +120,7 @@ public class RobotContainer
     {
         // Auto — register named commands before building the chooser
         configureNamedCommands();
-        autoChooser = AutoBuilder.buildAutoChooser();
+        autoChooser = AutoBuilder.buildAutoChooser("Center Auto");
 
         // Bindings
         configureBindings();
@@ -218,7 +218,7 @@ public class RobotContainer
                 Logger.recordOutput("Commands/SpinUpShoot/Interrupted", interrupted);
             }));
 
-        // == PID TUNING — delete this entire block when done ==================
+        // PID TUNING — delete this entire block when done ══════════════════
         // A: toggle flywheel on/off at 3,000 RPM
         final double kTuning200RpmInFPS  = 1000.0 * Math.PI * (4.0 / 12.0) / 60.0;
         final double kTuningInitialFPS   = 3000.0 * Math.PI * (4.0 / 12.0) / 60.0;

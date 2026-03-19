@@ -1,6 +1,6 @@
 {
-  "robotWidth": 0.9,
-  "robotLength": 0.9,
+  "robotWidth": 0.635,
+  "robotLength": 0.6858,
   "holonomicMode": true,
   "pathFolders": [
     "Center Auto"
@@ -11,13 +11,13 @@
   "defaultMaxAngVel": 540.0,
   "defaultMaxAngAccel": 720.0,
   "defaultNominalVoltage": 12.0,
-  "robotMass": 74.088,
+  "robotMass": 50.349,
   "robotMOI": 6.883,
   "robotTrackwidth": 0.546,
   "driveWheelRadius": 0.0508,
   "driveGearing": 8.14,
   "maxDriveSpeed": 4.09,
-  "driveMotorType": "neoVortex",
+  "driveMotorType": "vortex",
   "driveCurrentLimit": 40.0,
   "wheelCOF": 1.19,
   "flModuleX": 0.273,
