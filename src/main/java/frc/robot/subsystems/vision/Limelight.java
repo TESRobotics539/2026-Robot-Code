@@ -24,6 +24,14 @@ public class Limelight extends SubsystemBase {
      */
     private static final double MAX_MEASUREMENT_LATENCY_MS = 100.0;
 
+    /**
+     * MegaTag2 XY estimates become unreliable above this rotation rate even when heading is
+     * provided via {@code SetRobotOrientation}: angular blur during the exposure and the
+     * heading-at-capture vs. heading-at-publish gap both corrupt the projection geometry.
+     * Threshold matches the Limelight team's documented recommendation.
+     */
+    private static final double MAX_YAW_RATE_DEG_PER_SEC = 720.0;
+
     private final String name;
 
     // Cached last IMU reading — updated once per periodic() to avoid redundant NT calls.
@@ -52,12 +60,22 @@ public class Limelight extends SubsystemBase {
      */
     public Optional<Measurement> getMeasurement(
             Pose2d currentRobotPose, double pitchDeg, double rollDeg, double yawRateDegPerSec) {
+        // Always update heading — keeps Limelight's internal state current so the first
+        // post-spin frame has a fresh orientation reference even if we skipped reads.
         LimelightHelpers.SetRobotOrientation(
             name,
             currentRobotPose.getRotation().getDegrees(), yawRateDegPerSec,
             pitchDeg, 0,
             rollDeg, 0
         );
+
+        // Skip the expensive NT reads and reject the pose entirely while spinning fast.
+        // MegaTag2 XY is unreliable above MAX_YAW_RATE_DEG_PER_SEC regardless of heading input.
+        if (Math.abs(yawRateDegPerSec) > MAX_YAW_RATE_DEG_PER_SEC) {
+            Logger.recordOutput("Limelight/" + name + "/RejectedHighYawRate", true);
+            return Optional.empty();
+        }
+        Logger.recordOutput("Limelight/" + name + "/RejectedHighYawRate", false);
 
         final PoseEstimate poseEstimate_MegaTag1 = LimelightHelpers.getBotPoseEstimate_wpiBlue(name);
         final PoseEstimate poseEstimate_MegaTag2 = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(name);
