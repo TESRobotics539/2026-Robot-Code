@@ -10,7 +10,9 @@ public class LimelightIOReal implements LimelightIO {
 
     public LimelightIOReal(String name) {
         this.name = name;
-        // Mode 4: full IMU fusion (gyro + accelerometer) for MegaTag2 tilt compensation.
+        // Start in SyncInternalImu mode so the Limelight IMU calibrates from the
+        // Pigeon during boot/disabled. VisionManager will switch to ExternalImu
+        // when the robot is enabled.
         LimelightHelpers.SetIMUMode(name, 4);
     }
 
@@ -19,14 +21,16 @@ public class LimelightIOReal implements LimelightIO {
                              double robotHeadingDeg,
                              double yawRateDegPS,
                              double pitchDeg,
-                             double rollDeg) {
+                             double pitchRateDegPS,
+                             double rollDeg,
+                             double rollRateDegPS) {
         // Send orientation before reading pose estimates so MegaTag2 uses the
         // current heading in its calculation.
         LimelightHelpers.SetRobotOrientation(
             name,
             robotHeadingDeg, yawRateDegPS,
-            pitchDeg, 0,
-            rollDeg, 0
+            pitchDeg, pitchRateDegPS,
+            rollDeg, rollRateDegPS
         );
 
         // IMU
@@ -44,12 +48,14 @@ public class LimelightIOReal implements LimelightIO {
             inputs.megaTag1LatencyMs        = mt1.latency;
             inputs.megaTag1AvgTagArea       = mt1.avgTagArea;
             inputs.megaTag1TimestampSeconds = mt1.timestampSeconds;
+            inputs.megaTag1AvgTagDist       = mt1.avgTagDist;
         } else {
             inputs.megaTag1Pose             = new Pose2d();
             inputs.megaTag1TagCount         = 0;
             inputs.megaTag1LatencyMs        = 0.0;
             inputs.megaTag1AvgTagArea       = 0.0;
             inputs.megaTag1TimestampSeconds = 0.0;
+            inputs.megaTag1AvgTagDist       = 0.0;
         }
 
         // MegaTag2
@@ -60,12 +66,19 @@ public class LimelightIOReal implements LimelightIO {
             inputs.megaTag2LatencyMs        = mt2.latency;
             inputs.megaTag2AvgTagArea       = mt2.avgTagArea;
             inputs.megaTag2TimestampSeconds = mt2.timestampSeconds;
+            inputs.megaTag2AvgTagDist       = mt2.avgTagDist;
         } else {
             inputs.megaTag2Pose             = new Pose2d();
             inputs.megaTag2TagCount         = 0;
             inputs.megaTag2LatencyMs        = 0.0;
             inputs.megaTag2AvgTagArea       = 0.0;
             inputs.megaTag2TimestampSeconds = 0.0;
+            inputs.megaTag2AvgTagDist       = 0.0;
         }
+    }
+
+    @Override
+    public void setImuMode(int mode) {
+        LimelightHelpers.SetIMUMode(name, mode);
     }
 }

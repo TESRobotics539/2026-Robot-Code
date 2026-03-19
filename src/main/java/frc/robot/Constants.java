@@ -569,87 +569,55 @@ public final class Constants {
   }
 
   // ── Vision ────────────────────────────────────────────────────────────────
+  // Adapted from ORCA3136/ORCABot2026 VisionSubsystem constants.
   public static class VisionConstants {
 
-    // ── Limelight MegaTag2 rejection filters ─────────────────────────────
+    // ── Rejection thresholds ──────────────────────────────────────────────
 
-    /**
-     * Measurements older than this threshold are rejected before fusing into the pose estimator.
-     * High latency means the image was captured when the robot was in a meaningfully different
-     * position, which can corrupt the estimate rather than improve it.
-     * (Adapted from frc5687/2025-robot VisionSubsystem: MAX_LATENCY_MS = 100 ms.)
-     */
-    public static final double kMaxMeasurementLatencyMs = 100.0;
+    /** Maximum yaw rate (deg/s) before rejecting MegaTag2 estimates.
+     *  270 deg/s matches ORCA3136; more conservative than Limelight's 720 deg/s ceiling. */
+    public static final double kMaxYawRateDegPerSec = 270.0;
 
-    /**
-     * MegaTag2 XY estimates become unreliable above this rotation rate even when heading is
-     * provided via {@code SetRobotOrientation}: angular blur during the exposure and the
-     * heading-at-capture vs. heading-at-publish gap both corrupt the projection geometry.
-     * 300 deg/s is more conservative than Limelight's hard ceiling of 720 deg/s;
-     * matches the threshold used by ORCA3136 and provides a wider safety margin.
-     */
-    public static final double kMaxYawRateDegPerSec = 300.0;
+    /** Maximum age (seconds) of a pose estimate timestamp before rejection.
+     *  Matches ORCA3136 kMaxTimestampAgeSec. */
+    public static final double kMaxTimestampAgeSec = 0.5;
 
-    /**
-     * Hard cutoff on average tag distance (meters, ~14.8 ft).
-     * Beyond this range pixel projection error and sensor noise dominate regardless
-     * of tag area.  Matches the 4–4.5 m threshold used by Teams 180, 353, and 177/429 in 2025.
-     */
-    public static final double kMaxTagDistanceMeters = 4.5;
+    // ── Field boundary (2026 REBUILT: 54 ft 3.2 in x 26 ft 5.7 in) ──────
+    // Field is 16.54 m x 8.21 m with 0.5 m margin to avoid rejecting near-wall poses.
+    public static final double kFieldMinX = -0.5;
+    public static final double kFieldMaxX = 17.04;
+    public static final double kFieldMinY = -0.5;
+    public static final double kFieldMaxY = 8.71;
 
-    // ── Limelight MegaTag2 standard deviation formula ─────────────────────
+    // ── Standard deviation tuning ─────────────────────────────────────────
+    // Formula: xyStdDev = max(kMinXYStdDev, kXYStdDevBase * dist^2 * (1/tagCount) * singleTagPenalty)
+    // Adapted from ORCA3136.
 
-    /**
-     * Leading coefficient for the MegaTag2 XY standard deviation formula:
-     * <pre>xyStdDev = kMt2StddevCoeff × dist^1.2 / tagCount^2</pre>
-     *
-     * <p>Adapted from Team 190 (2k25-Robot-Code), who use 0.00015 for LL3G/LL4 — essentially
-     * perfect trust. Our value (0.005, ~33× more conservative) provides meaningful confidence
-     * at close range while preserving the distance- and tag-count-scaling shape.
-     *
-     * <p>Sample outputs (clamped floor 0.03 m):
-     * <ul>
-     *   <li>2 m, 2 tags → 0.003 m → floored to <b>0.03 m</b></li>
-     *   <li>3 m, 1 tag  → <b>0.019 m</b></li>
-     *   <li>4 m, 1 tag  → <b>0.026 m</b></li>
-     * </ul>
-     */
-    public static final double kMt2StddevCoeff = 0.005;
+    /** Base coefficient for XY standard deviation calculation. */
+    public static final double kXYStdDevBase = 0.5;
 
-    // ── Field boundary (for rejecting impossible pose solves) ─────────────
+    /** Multiplier applied when only one tag is visible (higher uncertainty). */
+    public static final double kSingleTagPenalty = 2.0;
 
-    /**
-     * 2026 REBUILT field width (meters) — 651.2 in / 25.4 mm/in = 16.541 m (54 ft 3.2 in).
-     * Derived from the official field drawing; verify against layout sheets before competition.
-     */
-    public static final double kFieldWidthMeters  = 16.541;
+    /** Minimum XY standard deviation floor (~4 in). */
+    public static final double kMinXYStdDev = 0.1;
 
-    /**
-     * 2026 REBUILT field height (meters) — 317.7 in / 25.4 mm/in = 8.071 m (26 ft 5.7 in).
-     * Derived from the official field drawing; verify against layout sheets before competition.
-     */
-    public static final double kFieldHeightMeters = 8.071;
+    // ── IMU lifecycle ─────────────────────────────────────────────────────
 
-    /**
-     * Margin (meters) beyond the true field boundary that is still accepted as a valid pose.
-     * Prevents rejecting legitimate estimates when the robot's center is near the physical wall.
-     */
-    public static final double kFieldMarginMeters = 0.5;
-
-    // ── Limelight IMU lifecycle ────────────────────────────────────────────
-
-    /**
-     * Cycles to wait after an IMU mode switch before accepting measurements (~300 ms at 50 Hz).
-     * Gives the Limelight time to apply the new mode and stabilise its heading reference.
-     * (Matches ORCA3136/ORCABot2026 VisionSubsystem.kImuSettleCycles.)
-     */
+    /** Cycles to wait after an IMU mode switch before accepting measurements (~300 ms at 50 Hz).
+     *  Matches ORCA3136/ORCABot2026 VisionSubsystem.kImuSettleCycles. */
     public static final int kImuSettleCycles = 15;
 
-    /**
-     * If no measurement is accepted within this many seconds, the Limelight is reported
-     * unhealthy.  Triggers a dashboard warning so drivers know vision is degraded.
-     */
+    /** If no measurement is accepted within this many seconds, vision is reported unhealthy. */
     public static final double kVisionHealthyTimeoutSec = 0.5;
+
+    // ── Disabled-period odometry seeding ──────────────────────────────────
+
+    /** Minimum tag count required for disabled-period odometry seeding. */
+    public static final int kSeedMinTagCount = 2;
+
+    /** Maximum average tag distance (meters, ~13 ft) for disabled-period seeding. */
+    public static final double kSeedMaxDistM = 4.0;
 
     // ── Raspberry Pi AprilTag vision ──────────────────────────────────────
 

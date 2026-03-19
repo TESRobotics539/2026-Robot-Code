@@ -7,6 +7,7 @@ import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import org.littletonrobotics.junction.Logger;
@@ -17,19 +18,34 @@ import frc.robot.subsystems.robot.Swerve;
 import frc.util.LoggedTracer;
 
 /**
- * Owns both Limelights, fuses their pose estimates, and feeds the best
- * measurement into the drivetrain pose estimator each loop.
+ * Dual-Limelight vision subsystem modeled after ORCA3136/ORCABot2026.
  *
- * <p>All hardware reads go through {@link LimelightIO#updateInputs} and are
- * logged via {@code Logger.processInputs()} so AdvantageKit can replay every
- * fusion decision exactly as it happened on the robot.
+ * <p>All vision processing happens in {@link #periodic()} — no command should ever
+ * {@code addRequirements()} on this subsystem, because vision fusion must never be
+ * interrupted.
  *
- * <p>This class replaces the old {@code Limelight} SubsystemBase and the
- * {@code updateVisionCommand()} default-command pattern in RobotContainer.
+ * <h2>Pipeline per cycle</h2>
+ * <ol>
+ *   <li>Feed robot heading + angular velocities to both Limelights</li>
+ *   <li>Get MegaTag2 pose estimates from both cameras</li>
+ *   <li>Run 4-stage rejection filter (stale, field boundary, yaw rate, zero pose)</li>
+ *   <li>Calculate dynamic standard deviations based on tag distance and count</li>
+ *   <li>Fuse accepted measurements into the swerve drive's Kalman filter</li>
+ * </ol>
+ *
+ * <h2>IMU mode lifecycle</h2>
+ * <ul>
+ *   <li><b>Disabled:</b> SyncInternalImu — Limelight syncs its IMU to our gyro.
+ *       MT1 used to seed odometry with heading-independent pose.</li>
+ *   <li><b>Enabled:</b> ExternalImu — Limelight uses ONLY the heading we provide via
+ *       SetRobotOrientation. MT2 used for Kalman filter fusion.</li>
+ * </ul>
  */
 public class VisionManager extends SubsystemBase {
 
-    // Rejection threshold sourced from Constants — see VisionConstants.kMaxMeasurementLatencyMs.
+    // Limelight IMU mode values
+    private static final int IMU_MODE_EXTERNAL = 1;
+    private static final int IMU_MODE_SYNC     = 4;
 
     private final LimelightIO frontIO;
     private final LimelightIO rearIO;
@@ -37,6 +53,22 @@ public class VisionManager extends SubsystemBase {
 
     private final LimelightIOInputsAutoLogged frontInputs = new LimelightIOInputsAutoLogged();
     private final LimelightIOInputsAutoLogged rearInputs  = new LimelightIOInputsAutoLogged();
+
+    // IMU mode lifecycle
+    private boolean wasEnabled         = false;
+    private int     imuSettleRemaining = 0;
+    private boolean imuSettled         = true;
+
+    // Vision health tracking
+    private double lastAcceptedSec = 0.0;
+
+    // Disabled-period seeding
+    private boolean hasEverHadFix      = false;
+    private boolean disabledSeedDone   = false;
+
+    // Tag count tracking for telemetry
+    private int lastFrontTagCount = 0;
+    private int lastRearTagCount  = 0;
 
     /**
      * @param frontIO   IO implementation for the front-facing Limelight
@@ -49,164 +81,222 @@ public class VisionManager extends SubsystemBase {
         this.drivebase = drivebase;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-
     @Override
     public void periodic() {
-        // Current robot orientation forwarded to both Limelights so MegaTag2 can
-        // compensate for camera tilt and dynamic yaw rotation.
-        Pose2d currentPose    = drivebase.getPose();
-        double headingDeg     = currentPose.getRotation().getDegrees();
-        double yawRateDegPS   = drivebase.getYawRateDegPerSec();
-        double pitchDeg       = drivebase.getPitchDegrees();
-        double rollDeg        = drivebase.getRollDegrees();
+        boolean isEnabled = DriverStation.isEnabled();
 
-        // Read all hardware data (SetRobotOrientation + NT reads) for both cameras.
-        frontIO.updateInputs(frontInputs, headingDeg, yawRateDegPS, pitchDeg, rollDeg);
+        // ── IMU mode transitions ────────────────────────────────────────────
+        if (isEnabled && !wasEnabled) {
+            enterActiveMode();
+        } else if (!isEnabled && wasEnabled) {
+            enterSeedMode();
+        }
+        wasEnabled = isEnabled;
+
+        // Count down settle timer
+        if (imuSettleRemaining > 0) {
+            imuSettleRemaining--;
+            if (imuSettleRemaining == 0) {
+                imuSettled = true;
+            }
+        }
+
+        // ── Feed heading to both cameras every frame ────────────────────────
+        Pose2d currentPose   = drivebase.getPose();
+        double headingDeg    = currentPose.getRotation().getDegrees();
+        double yawRateDegPS  = drivebase.getYawRateDegPerSec();
+        double pitchDeg      = drivebase.getPitchDegrees();
+        double pitchRateDPS  = drivebase.getPitchRateDegPerSec();
+        double rollDeg       = drivebase.getRollDegrees();
+        double rollRateDPS   = drivebase.getRollRateDegPerSec();
+
+        frontIO.updateInputs(frontInputs, headingDeg, yawRateDegPS, pitchDeg, pitchRateDPS, rollDeg, rollRateDPS);
         Logger.processInputs("Vision/FrontLimelight", frontInputs);
 
-        rearIO.updateInputs(rearInputs, headingDeg, yawRateDegPS, pitchDeg, rollDeg);
+        rearIO.updateInputs(rearInputs, headingDeg, yawRateDegPS, pitchDeg, pitchRateDPS, rollDeg, rollRateDPS);
         Logger.processInputs("Vision/RearLimelight", rearInputs);
 
-        // ── Bump detection ────────────────────────────────────────────────────
-        // 2-of-3 majority vote: Pigeon 2 + both Limelight accelerometers.
-        // Requires two sensors to agree to avoid false positives from single-sensor
-        // noise. Camera shake during bump traversal makes tag estimates unreliable.
-        boolean pigeonOverBump = drivebase.isOverBump();
-        boolean frontOverBump  = Math.abs(frontInputs.imuAccelZG - 1.0)
-            > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
-        boolean rearOverBump   = Math.abs(rearInputs.imuAccelZG - 1.0)
-            > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
-        int     bumpVotes      = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
-        boolean overBump       = bumpVotes >= 2;
-
-        // ── Pose estimate extraction ──────────────────────────────────────────
-        Optional<MeasurementResult> frontMeasurement = extractMeasurement(frontInputs);
-        Optional<MeasurementResult> rearMeasurement  = extractMeasurement(rearInputs);
-
-        // Confidence = avgTagArea × tagCount. Larger area = robot is closer = less
-        // projection error; more tags = less geometric ambiguity.
-        double frontConf = frontMeasurement.map(m -> m.avgTagArea * m.tagCount).orElse(0.0);
-        double rearConf  = rearMeasurement.map(m -> m.avgTagArea  * m.tagCount).orElse(0.0);
-        double bestConf  = Math.max(frontConf, rearConf);
-
-        // ── Camera selection ──────────────────────────────────────────────────
-        Optional<MeasurementResult> bestMeasurement;
-        String activeSource;
-        if (frontMeasurement.isEmpty() && rearMeasurement.isEmpty()) {
-            bestMeasurement = Optional.empty();
-            activeSource    = "none";
-        } else if (frontConf >= rearConf && frontMeasurement.isPresent()) {
-            bestMeasurement = frontMeasurement;
-            activeSource    = "front (" + String.format("%.3f", frontConf) + ")";
-        } else {
-            bestMeasurement = rearMeasurement;
-            activeSource    = "rear ("  + String.format("%.3f", rearConf)  + ")";
+        // ── Skip processing while IMU is settling ───────────────────────────
+        Logger.recordOutput("Vision/ImuSettled", imuSettled);
+        if (!imuSettled) {
+            Logger.recordOutput("Vision/ActiveSource", "imu_settling");
+            publishHealthTelemetry();
+            LoggedTracer.record("VisionManager");
+            return;
         }
 
-        // ── Wheel-slip detection ──────────────────────────────────────────────
-        boolean isSlipping = drivebase.isWheelSlipping();
-        boolean highConf   = bestConf >= Constants.BumpDetectionConstants.kHighConfidenceThreshold;
+        // ── Process both cameras ────────────────────────────────────────────
+        processCamera(frontInputs, true, currentPose);
+        processCamera(rearInputs, false, currentPose);
 
-        // ── Logging ───────────────────────────────────────────────────────────
-        Logger.recordOutput("Vision/ActiveSource",   activeSource);
-        Logger.recordOutput("Vision/FrontConfidence", frontConf);
-        Logger.recordOutput("Vision/RearConfidence",  rearConf);
-        Logger.recordOutput("Vision/BestConfidence",  bestConf);
-        Logger.recordOutput("Vision/OverBump",        overBump);
-        Logger.recordOutput("Vision/BumpVotes",       bumpVotes);
-        Logger.recordOutput("Vision/WheelSlipping",   isSlipping);
-        Logger.recordOutput("Vision/WheelSlipScore",  drivebase.getWheelSlipScore());
-
-        // ── Pose estimator update ─────────────────────────────────────────────
-        if (bestMeasurement.isPresent()) {
-            var m = bestMeasurement.get();
-
-            // Stddev multiplier priority (highest wins):
-            //   Bump + high conf  → camera shaking but solid tag fix; mild inflation
-            //   Bump + low conf   → shaking + no reliable fix; heavy inflation
-            //   Slip + low conf   → odometry and vision both unreliable; heavy inflation
-            //   Otherwise         → pass stddevs unchanged
-            double stdDevMultiplier;
-            if (overBump && highConf) {
-                stdDevMultiplier = Constants.BumpDetectionConstants.kBumpHighConfStdDevMultiplier;
-            } else if (overBump) {
-                stdDevMultiplier = Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier;
-            } else if (isSlipping && !highConf) {
-                stdDevMultiplier = Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier;
-            } else {
-                stdDevMultiplier = 1.0;
-            }
-            Logger.recordOutput("Vision/StdDevMultiplier", stdDevMultiplier);
-
-            // Reject invalid timestamps — 0 or future values indicate a stale frame.
-            double ts = m.timestampSeconds;
-            if (ts > 0 && ts <= Timer.getFPGATimestamp()) {
-                drivebase.addVisionMeasurement(m.pose, ts, m.standardDeviations.times(stdDevMultiplier));
-            }
-        }
+        publishHealthTelemetry();
         LoggedTracer.record("VisionManager");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Private helpers
-    // ─────────────────────────────────────────────────────────────────────────
-
     /**
-     * Produces a fused pose estimate from a set of Limelight inputs, or
-     * {@link Optional#empty()} if the inputs are invalid or too stale.
-     *
-     * <p>Strategy: use the MT2 translation (gyro-aided, more stable) combined
-     * with the MT1 rotation (independent tag geometry, counteracts gyro drift).
+     * Core vision pipeline for a single camera.
+     * Adapted from ORCA3136/ORCABot2026 VisionSubsystem.processCamera().
      */
-    private Optional<MeasurementResult> extractMeasurement(LimelightIOInputsAutoLogged inputs) {
-        if (inputs.megaTag1TagCount == 0 || inputs.megaTag2TagCount == 0) {
-            return Optional.empty();
+    private void processCamera(LimelightIOInputsAutoLogged inputs, boolean isFront, Pose2d currentPose) {
+        String label = isFront ? "Front" : "Rear";
+
+        // Update tag count tracking
+        if (isFront) {
+            lastFrontTagCount = inputs.megaTag2TagCount;
+        } else {
+            lastRearTagCount = inputs.megaTag2TagCount;
         }
-        if (inputs.megaTag2LatencyMs > Constants.VisionConstants.kMaxMeasurementLatencyMs) {
-            return Optional.empty();
+
+        // ── Rejection: no data ──────────────────────────────────────────────
+        if (inputs.megaTag2TagCount == 0) {
+            Logger.recordOutput("Vision/" + label + "/Accepted", false);
+            Logger.recordOutput("Vision/" + label + "/RejectReason", "no_tags");
+            return;
         }
 
-        // Combine MT2 translation with MT1 rotation.
-        Pose2d combinedPose = new Pose2d(
-            inputs.megaTag2Pose.getTranslation(),
-            inputs.megaTag1Pose.getRotation()
-        );
+        Pose2d visionPose = inputs.megaTag2Pose;
+        double now = Timer.getFPGATimestamp();
 
-        // Dynamic XY stddevs — larger tag area means the robot is closer to the
-        // tags and projection error is smaller. Multi-tag sightings halve the stddev.
-        // Formula (adapted from frc5687/2025-robot VisionSTDFilter):
-        //   xyStdDev = 0.1 / max(0.01, avgTagArea), clamped [0.03, 3.0]
-        double avgTagArea = inputs.megaTag2AvgTagArea;
-        double xyStdDev   = Math.max(0.03, Math.min(3.0, 0.1 / Math.max(0.01, avgTagArea)));
-        if (inputs.megaTag2TagCount > 1) xyStdDev *= 0.5;
-        Matrix<N3, N1> stdDevs = VecBuilder.fill(xyStdDev, xyStdDev, 10.0);
+        // ── 4-stage rejection filter ────────────────────────────────────────
+        String rejectReason = getRejectReason(inputs, visionPose, now);
 
-        return Optional.of(new MeasurementResult(
-            combinedPose,
-            inputs.megaTag2TimestampSeconds,
-            stdDevs,
-            avgTagArea,
-            inputs.megaTag2TagCount
-        ));
+        if (!rejectReason.isEmpty()) {
+            Logger.recordOutput("Vision/" + label + "/Accepted", false);
+            Logger.recordOutput("Vision/" + label + "/RejectReason", rejectReason);
+            Logger.recordOutput("Vision/" + label + "/Pose", visionPose);
+            return;
+        }
+
+        // ── Calculate dynamic XY std devs (ORCA3136 formula) ────────────────
+        // xyStdDev = kXYStdDevBase * distance^2 * (1/tagCount) * singleTagPenalty
+        // Theta is 9999 — MegaTag2 borrows heading from the gyro, so feeding
+        // theta back into the Kalman filter would create a circular dependency.
+        double distanceFactor   = inputs.megaTag2AvgTagDist * inputs.megaTag2AvgTagDist;
+        double tagFactor        = 1.0 / Math.max(1, inputs.megaTag2TagCount);
+        double singleTagPenalty = (inputs.megaTag2TagCount == 1)
+            ? Constants.VisionConstants.kSingleTagPenalty : 1.0;
+        double xyStdDev = Math.max(Constants.VisionConstants.kMinXYStdDev,
+            Constants.VisionConstants.kXYStdDevBase * distanceFactor * tagFactor * singleTagPenalty);
+        Matrix<N3, N1> stdDevs = VecBuilder.fill(xyStdDev, xyStdDev, 9999.0);
+
+        // ── Disabled-period seeding or enabled fusion ───────────────────────
+        boolean highConfidence = inputs.megaTag2TagCount >= Constants.VisionConstants.kSeedMinTagCount
+            && inputs.megaTag2AvgTagDist < Constants.VisionConstants.kSeedMaxDistM;
+
+        if (!hasEverHadFix || (!DriverStation.isEnabled() && highConfidence && !disabledSeedDone)) {
+            // Seed odometry — prefer MT1 (heading-independent) if available
+            Pose2d seedPose;
+            if (inputs.megaTag1TagCount >= 2
+                    && !(inputs.megaTag1Pose.getX() == 0.0 && inputs.megaTag1Pose.getY() == 0.0)) {
+                seedPose = inputs.megaTag1Pose;
+            } else {
+                seedPose = visionPose;
+            }
+
+            drivebase.resetOdometry(seedPose);
+
+            if (!hasEverHadFix) {
+                Logger.recordOutput("Vision/FirstFix", seedPose);
+                hasEverHadFix = true;
+            } else {
+                Logger.recordOutput("Vision/DisabledSeed", seedPose);
+                disabledSeedDone = true;
+            }
+
+            // Re-settle IMU after odometry reset
+            imuSettleRemaining = Constants.VisionConstants.kImuSettleCycles;
+            imuSettled = false;
+        } else {
+            // Normal enabled fusion: Kalman filter with dynamic std devs
+            double ts = inputs.megaTag2TimestampSeconds;
+            if (ts > 0 && ts <= Timer.getFPGATimestamp()) {
+                drivebase.addVisionMeasurement(visionPose, ts, stdDevs);
+            }
+        }
+
+        lastAcceptedSec = now;
+
+        // ── Telemetry ───────────────────────────────────────────────────────
+        Logger.recordOutput("Vision/" + label + "/Accepted", true);
+        Logger.recordOutput("Vision/" + label + "/RejectReason", "");
+        Logger.recordOutput("Vision/" + label + "/Pose", visionPose);
+        Logger.recordOutput("Vision/" + label + "/XYStdDev", xyStdDev);
+        Logger.recordOutput("Vision/" + label + "/TagCount", inputs.megaTag2TagCount);
+        Logger.recordOutput("Vision/" + label + "/AvgTagDist", inputs.megaTag2AvgTagDist);
     }
 
-    /** Immutable bundle of a processed Limelight pose estimate. */
-    private static final class MeasurementResult {
-        final Pose2d           pose;
-        final double           timestampSeconds;
-        final Matrix<N3, N1>   standardDeviations;
-        final double           avgTagArea;
-        final int              tagCount;
-
-        MeasurementResult(Pose2d pose, double timestampSeconds,
-                          Matrix<N3, N1> standardDeviations,
-                          double avgTagArea, int tagCount) {
-            this.pose               = pose;
-            this.timestampSeconds   = timestampSeconds;
-            this.standardDeviations = standardDeviations;
-            this.avgTagArea         = avgTagArea;
-            this.tagCount           = tagCount;
+    /**
+     * 4-stage rejection filter. Returns empty string if accepted.
+     * Adapted from ORCA3136/ORCABot2026 VisionSubsystem.getRejectReason().
+     */
+    private String getRejectReason(LimelightIOInputsAutoLogged inputs, Pose2d visionPose, double now) {
+        // 1. Zero pose — uninitialized NT value, no valid solve
+        if (visionPose.getX() == 0.0 && visionPose.getY() == 0.0) {
+            return "zero_pose";
         }
+
+        // 2. Stale timestamp
+        double age = now - inputs.megaTag2TimestampSeconds;
+        if (age > Constants.VisionConstants.kMaxTimestampAgeSec || age < 0) {
+            return "stale_timestamp";
+        }
+
+        // 3. Field boundary
+        double x = visionPose.getX();
+        double y = visionPose.getY();
+        if (x < Constants.VisionConstants.kFieldMinX || x > Constants.VisionConstants.kFieldMaxX
+                || y < Constants.VisionConstants.kFieldMinY || y > Constants.VisionConstants.kFieldMaxY) {
+            return "out_of_field";
+        }
+
+        // 4. High yaw rate — MegaTag2 is unreliable during fast rotation
+        double yawRate = Math.abs(drivebase.getYawRateDegPerSec());
+        if (yawRate > Constants.VisionConstants.kMaxYawRateDegPerSec) {
+            return "high_yaw_rate";
+        }
+
+        return "";
+    }
+
+    // ── IMU mode transitions ────────────────────────────────────────────────
+
+    private void enterActiveMode() {
+        frontIO.setImuMode(IMU_MODE_EXTERNAL);
+        rearIO.setImuMode(IMU_MODE_EXTERNAL);
+        imuSettleRemaining = Constants.VisionConstants.kImuSettleCycles;
+        imuSettled = false;
+    }
+
+    private void enterSeedMode() {
+        frontIO.setImuMode(IMU_MODE_SYNC);
+        rearIO.setImuMode(IMU_MODE_SYNC);
+        imuSettleRemaining = Constants.VisionConstants.kImuSettleCycles;
+        imuSettled = false;
+        disabledSeedDone = false;
+    }
+
+    // ── Public accessors ────────────────────────────────────────────────────
+
+    /** True if at least one camera accepted a measurement recently. */
+    public boolean isVisionHealthy() {
+        return (Timer.getFPGATimestamp() - lastAcceptedSec) < Constants.VisionConstants.kVisionHealthyTimeoutSec;
+    }
+
+    /** Combined tag count from both cameras (most recent cycle). */
+    public int getTotalTagCount() {
+        return lastFrontTagCount + lastRearTagCount;
+    }
+
+    /** True if vision has ever successfully seeded or fused a measurement. */
+    public boolean hasEverHadFix() {
+        return hasEverHadFix;
+    }
+
+    // ── Telemetry helpers ───────────────────────────────────────────────────
+
+    private void publishHealthTelemetry() {
+        Logger.recordOutput("Vision/Healthy", isVisionHealthy());
+        Logger.recordOutput("Vision/TotalTagCount", getTotalTagCount());
+        Logger.recordOutput("Vision/HasEverHadFix", hasEverHadFix);
     }
 }
