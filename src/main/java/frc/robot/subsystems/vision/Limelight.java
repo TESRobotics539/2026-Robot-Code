@@ -37,6 +37,30 @@ public class Limelight extends SubsystemBase {
     private static final double MAX_YAW_RATE_DEG_PER_SEC = 300.0;
 
     /**
+     * Hard cutoff on average tag distance. Beyond ~14.8 ft, pixel projection error and
+     * sensor noise dominate regardless of tag area. Matches the 4–4.5 m threshold used
+     * by Teams 180, 353, and 177/429 in 2025.
+     */
+    private static final double MAX_TAG_DISTANCE_METERS = 4.5;
+
+    /**
+     * Leading coefficient for the MegaTag2 XY standard deviation formula:
+     * <pre>xyStdDev = MT2_STDDEV_COEFF × dist^1.2 / tagCount^2</pre>
+     *
+     * <p>Adapted from Team 190 (2k25-Robot-Code), who use 0.00015 for LL3G/LL4 — essentially
+     * perfect trust. Our value (0.005, ~33× more conservative) provides meaningful confidence
+     * at close range while preserving the distance- and tag-count-scaling shape.
+     *
+     * <p>Sample outputs (clamped floor 0.03 m):
+     * <ul>
+     *   <li>2 m, 2 tags → 0.003 m → floored to <b>0.03 m</b></li>
+     *   <li>3 m, 1 tag  → <b>0.019 m</b></li>
+     *   <li>4 m, 1 tag  → <b>0.026 m</b></li>
+     * </ul>
+     */
+    private static final double MT2_STDDEV_COEFF = 0.005;
+
+    /**
      * Field boundary used to reject geometrically impossible pose estimates (bad solves,
      * tag ambiguity, extreme glare, etc.).
      *
@@ -201,6 +225,14 @@ public class Limelight extends SubsystemBase {
             return Optional.empty();
         }
 
+        // ── Rejection filter 6: tag too far ──────────────────────────────────
+        // Beyond MAX_TAG_DISTANCE_METERS, pixel projection error dominates.
+        // avgTagDist is in meters (from LimelightHelpers PoseEstimate).
+        if (poseEstimate_MegaTag2.avgTagDist > MAX_TAG_DISTANCE_METERS) {
+            Logger.recordOutput("Limelight/" + name + "/RejectReason", "tag_too_far");
+            return Optional.empty();
+        }
+
         // ── Hybrid pose: MT2 XY + MT1 rotation ───────────────────────────────
         // MT2 gives stable XY (uses gyro heading to constrain the solve).
         // MT1 gives an independent rotation (no gyro dependency) to counteract gyro drift.
@@ -209,7 +241,7 @@ public class Limelight extends SubsystemBase {
             poseEstimate_MegaTag1.pose.getRotation()
         );
 
-        // ── Rejection filter 6: field boundary ───────────────────────────────
+        // ── Rejection filter 7: field boundary ───────────────────────────────
         // ±FIELD_MARGIN_METERS beyond the true boundary is allowed so poses near the
         // physical wall are not incorrectly rejected when the robot's center is close to the edge.
         double poseX = poseEstimate_MegaTag2.pose.getX();
@@ -221,23 +253,21 @@ public class Limelight extends SubsystemBase {
         }
 
         // ── Dynamic XY std devs ───────────────────────────────────────────────
-        // Scale trust with how much of the image the tags occupy.
-        // avgTagArea is a percentage (0–100); a larger area means the robot is closer to the
-        // tags and the projection error is smaller. Rotation stays at 10.0 because MegaTag2
-        // relies on the gyro for heading and does not independently constrain rotation.
-        // Formula (adapted from frc5687/2025-robot VisionSTDFilter):
-        //   xyStdDev = 0.1 / max(0.01, avgTagArea)
-        //   → at area 1% (≈10–15 ft): 0.10 m
-        //   → at area 5% (≈5–7 ft) : 0.02 m (clamped to 0.03)
-        //   → at area 0.1% (≈25 ft): 1.00 m
-        // Multi-tag sightings halve the std dev (more geometric constraints).
-        double avgTagArea = poseEstimate_MegaTag2.avgTagArea;
-        double xyStdDev   = Math.max(0.03, Math.min(3.0, 0.1 / Math.max(0.01, avgTagArea)));
-        if (poseEstimate_MegaTag2.tagCount > 1) xyStdDev *= 0.5;
-        final Matrix<N3, N1> standardDeviations = VecBuilder.fill(xyStdDev, xyStdDev, 10.0);
+        // Power-law formula from Team 190 (2k25-Robot-Code), scaled by MT2_STDDEV_COEFF:
+        //   xyStdDev = MT2_STDDEV_COEFF × dist^1.2 / tagCount^2
+        // dist^1.2: slightly super-linear distance penalty (worse projection error farther away).
+        // tagCount^2: strongly rewards multi-tag geometric constraint.
+        // Theta is POSITIVE_INFINITY — MegaTag2 borrows heading from the gyro, so feeding
+        // theta back into the Kalman filter would create a circular dependency.
+        double dist     = poseEstimate_MegaTag2.avgTagDist;
+        double tagCount = poseEstimate_MegaTag2.tagCount;
+        double xyStdDev = MT2_STDDEV_COEFF * Math.pow(dist, 1.2) / Math.pow(tagCount, 2.0);
+        xyStdDev = Math.max(0.03, Math.min(3.0, xyStdDev));
+        final Matrix<N3, N1> standardDeviations = VecBuilder.fill(xyStdDev, xyStdDev, Double.POSITIVE_INFINITY);
 
         Logger.recordOutput("Limelight/" + name + "/RejectReason",   "");
         Logger.recordOutput("Limelight/" + name + "/EstimatedPose",  poseEstimate_MegaTag2.pose);
+        Logger.recordOutput("Limelight/" + name + "/XYStdDev",       xyStdDev);
 
         lastAcceptedSec = Timer.getFPGATimestamp();
         return Optional.of(new Measurement(poseEstimate_MegaTag2, standardDeviations, poseEstimate_MegaTag2.avgTagArea));
