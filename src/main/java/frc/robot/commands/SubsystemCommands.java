@@ -4,6 +4,7 @@ import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.util.Units;
 
 import frc.robot.Constants;
@@ -136,6 +137,45 @@ public final class SubsystemCommands {
      * displacement has been covered. Direction is computed once at schedule time
      * from the current robot pose, so the robot drives in a straight line.
      */
+    // Drive-to-ideal-distance tuning constants — sourced from Constants.ShooterConstants.
+
+    /**
+     * Drives the robot radially toward or away from the hub until it reaches
+     * the ideal shooting distance of {@value #IDEAL_SHOOT_DISTANCE_FT} ft from hub center
+     * (sweet spot from physics simulation: 6–10 ft, commanded at midpoint).
+     *
+     * <p>The radial direction is computed once at schedule time from the robot's
+     * current pose and held constant. Speed is proportional to remaining error,
+     * capped at {@value #IDEAL_SHOOT_MAX_SPEED_FPS} ft/s. Command ends when the
+     * robot is within {@value #IDEAL_SHOOT_TOLERANCE_FT} ft of the target.
+     */
+    public Command driveToIdealShootingDistanceCommand() {
+        return Commands.defer(() -> {
+            final Translation2d hubPos   = Landmarks.hubPosition();
+            final Translation2d robotPos = swerve.getPose().getTranslation();
+            final double currentDist     = robotPos.getDistance(hubPos);
+
+            // Unit vector pointing radially outward (hub → robot), computed once.
+            final double safeDist = Math.max(currentDist, 0.01);
+            final double radialX  = (robotPos.getX() - hubPos.getX()) / safeDist;
+            final double radialY  = (robotPos.getY() - hubPos.getY()) / safeDist;
+
+            return swerve.driveFieldOriented(() -> {
+                double distFt  = Units.metersToFeet(swerve.getPose().getTranslation().getDistance(hubPos));
+                double errorFt = distFt - Constants.ShooterConstants.kIdealShootDistanceFt;  // positive → too far → drive toward hub
+                // Negative speed along radial axis drives toward hub; positive drives away.
+                // Convert ft/s → m/s for ChassisSpeeds.
+                double speedFps = MathUtil.clamp(-Constants.ShooterConstants.kIdealShootKpFps * errorFt,
+                    -Constants.ShooterConstants.kIdealShootMaxSpeedFps, Constants.ShooterConstants.kIdealShootMaxSpeedFps);
+                double speedMps = Units.feetToMeters(speedFps);
+                return new ChassisSpeeds(radialX * speedMps, radialY * speedMps, 0);
+            }).until(() -> {
+                double distFt = Units.metersToFeet(swerve.getPose().getTranslation().getDistance(hubPos));
+                return Math.abs(distFt - Constants.ShooterConstants.kIdealShootDistanceFt) <= Constants.ShooterConstants.kIdealShootToleranceFt;
+            });
+        }, Set.of(swerve));
+    }
+
     private Command backupFromHubCommand() {
         final double backupMeters = Units.inchesToMeters(Constants.UltraShooterConstants.kCloseRangeBackupInches);
         return Commands.defer(() -> {
@@ -149,9 +189,14 @@ public final class SubsystemCommands {
             final double awayX = (startPos.getX() - hubPos.getX()) / safeDist;
             final double awayY = (startPos.getY() - hubPos.getY()) / safeDist;
 
-            final double speed = Constants.UltraShooterConstants.kCloseRangeBackupSpeedFps * 0.3048;
-            return swerve.driveFieldOriented(() -> new ChassisSpeeds(awayX * speed, awayY * speed, 0))
-                .until(() -> swerve.getPose().getTranslation().getDistance(startPos) >= backupMeters);
+            return swerve.driveFieldOriented(() -> {
+                double traveledFt   = Units.metersToFeet(swerve.getPose().getTranslation().getDistance(startPos));
+                double remainingFt  = Units.metersToFeet(backupMeters) - traveledFt;
+                double speedFps     = MathUtil.clamp(Constants.ShooterConstants.kIdealShootKpFps * remainingFt,
+                    0, Constants.ShooterConstants.kIdealShootMaxSpeedFps);
+                double speedMps = Units.feetToMeters(speedFps);
+                return new ChassisSpeeds(awayX * speedMps, awayY * speedMps, 0);
+            }).until(() -> swerve.getPose().getTranslation().getDistance(startPos) >= backupMeters);
         }, Set.of(swerve));
     }
 
@@ -174,6 +219,6 @@ public final class SubsystemCommands {
         return Commands.parallel(
             feeder.feedCommand(),
             floor.feedCommand()
-        ).withTimeout(7.0);
+        ).withTimeout(Constants.ShooterConstants.kLongFeedTimeoutSeconds);
     }
 }

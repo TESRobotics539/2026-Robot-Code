@@ -93,9 +93,8 @@ public class UltraShooter extends SubsystemBase {
     private int    velocityBufferIndex = 0;
     private double velocityBufferSum   = 0.0;
 
-    /** Circular buffer for 1-second (50-sample) rolling-average distance filtering. */
-    private static final int DISTANCE_AVG_SAMPLES = 50; // 50 Hz × 1 s
-    private final double[] distanceBuffer = new double[DISTANCE_AVG_SAMPLES];
+    /** Circular buffer for 1-second rolling-average distance filtering. Size from {@link Constants.UltraShooterConstants#kDistanceAvgSamples}. */
+    private final double[] distanceBuffer = new double[Constants.UltraShooterConstants.kDistanceAvgSamples];
     private int    distanceBufferIndex = 0;
     private double distanceBufferSum   = 0.0;
 
@@ -157,9 +156,7 @@ public class UltraShooter extends SubsystemBase {
     /** Last heartbeat counter seen from the Pi. */
     private long piLastHeartbeat = Long.MIN_VALUE;
     /** Cycles since the heartbeat last changed (each cycle = 20 ms). */
-    private int  piStaleFrames   = PI_STALE_THRESHOLD;
-    /** A Pi is considered disconnected after this many stale cycles (500 ms). */
-    private static final int PI_STALE_THRESHOLD = 25;
+    private int  piStaleFrames   = Constants.UltraShooterConstants.kPiStaleThreshold;
 
     /** kP value most recently written to the SparkFlex controllers. */
     private double appliedKp = Constants.UltraShooterConstants.kP;
@@ -562,10 +559,10 @@ public class UltraShooter extends SubsystemBase {
 
     /**
      * Returns true when the Pi physics engine heartbeat has updated within the
-     * last {@value #PI_STALE_THRESHOLD} cycles (~500 ms).
+     * last {@link Constants.UltraShooterConstants#kPiStaleThreshold} cycles (~500 ms).
      */
     private boolean isPiResultFresh() {
-        return piStaleFrames < PI_STALE_THRESHOLD;
+        return piStaleFrames < Constants.UltraShooterConstants.kPiStaleThreshold;
     }
 
     /** Called every periodic cycle to track whether the Pi heartbeat is advancing. */
@@ -702,11 +699,10 @@ public class UltraShooter extends SubsystemBase {
         distanceBufferSum -= distanceBuffer[distanceBufferIndex];
         distanceBuffer[distanceBufferIndex] = newest;
         distanceBufferSum += newest;
-        distanceBufferIndex = (distanceBufferIndex + 1) % DISTANCE_AVG_SAMPLES;
+        distanceBufferIndex = (distanceBufferIndex + 1) % Constants.UltraShooterConstants.kDistanceAvgSamples;
     }
 
-    /** Speed above which the robot is considered "moving" and the instant distance is used (ft/s). */
-    private static final double MOVING_SPEED_THRESHOLD_FPS = 1.0;
+    /** Speed threshold sourced from {@link Constants.UltraShooterConstants#kMovingSpeedThresholdFps}. */
 
     /**
      * Returns the best distance estimate for physics calculations.
@@ -723,10 +719,10 @@ public class UltraShooter extends SubsystemBase {
     private double getAverageDistanceToHub(ChassisSpeeds fieldVel) {
         final double speedFps = Math.hypot(fieldVel.vxMetersPerSecond, fieldVel.vyMetersPerSecond)
                 * METERS_TO_FEET;
-        if (speedFps > MOVING_SPEED_THRESHOLD_FPS) {
+        if (speedFps > Constants.UltraShooterConstants.kMovingSpeedThresholdFps) {
             return swerve.getDistanceToHub();
         }
-        return distanceBufferSum / DISTANCE_AVG_SAMPLES;
+        return distanceBufferSum / Constants.UltraShooterConstants.kDistanceAvgSamples;
     }
 
     private void updateVelocityBuffer() {

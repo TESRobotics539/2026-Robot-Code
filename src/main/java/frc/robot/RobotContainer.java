@@ -4,12 +4,15 @@
 
 package frc.robot;
 
+import java.util.Optional;
 import java.util.Set;
 
 import com.pathplanner.lib.auto.NamedCommands;
 import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.Timer;
@@ -107,11 +110,11 @@ public class RobotContainer
     private final SendableChooser<Command> autoChooser;
 
     // ── Drive Input Stream ───────────────────────────────────────────────────
-    // x^1.5 curve softens fine control near center while preserving full speed at edges.
+    // Exponential input curve — see Constants.DrivetrainConstants.kDriveInputCurvePower.
     SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
-                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, 1.5),
-                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, 1.5))
-                                                              .withControllerRotationAxis(() -> MathUtil.copyDirectionPow(driverXbox.getRightX() * -1, 1.5))
+                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower),
+                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower))
+                                                              .withControllerRotationAxis(() -> MathUtil.copyDirectionPow(driverXbox.getRightX() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower))
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(1.0)
@@ -162,10 +165,10 @@ public class RobotContainer
                     return hanger.reverseClimbIfNeededCommand()
                         .andThen(Commands.waitUntil(() ->
                             drivebase.getPose().getTranslation()
-                                .getDistance(startPose.getTranslation()) >= 2.0))
+                                .getDistance(startPose.getTranslation()) >= Constants.HangerConstants.kDeclimbDriveDistanceMeters))
                         .andThen(intake.runOnce(intake::setInitialDeployPosition));
                 } else {
-                    return Commands.waitSeconds(1.0)
+                    return Commands.waitSeconds(Constants.ShooterConstants.kTeleopIntakeDeployDelaySeconds)
                         .andThen(intake.runOnce(intake::setInitialDeployPosition));
                 }
             }, Set.of(hanger, intake)));
@@ -248,7 +251,7 @@ public class RobotContainer
         // ═════════════════════════════════════════════════════════════════════
 
         // Right trigger: aim + shoot (physics-based, only while hub is active)
-        driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
+        driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(Constants.ShooterConstants.kHubActiveExpansionSeconds)).whileTrue(
             Commands.parallel(
                 // Single announcement pulse the moment the shot sequence begins.
                 Commands.sequence(
@@ -271,7 +274,7 @@ public class RobotContainer
                 Logger.recordOutput("Commands/AimShoot/Interrupted", interrupted);
             }))
             .onFalse(Commands.parallel(
-                subsystemCommands.holdAimAndSpeedCommand(1.0),
+                subsystemCommands.holdAimAndSpeedCommand(Constants.ShooterConstants.kHoldAimAndSpeedSeconds),
                 intake.runOnce(intake::resetFuelDetection)));
 
         // ── Feeder ───────────────────────────────────────────────────────────
@@ -330,8 +333,12 @@ public class RobotContainer
                 .withName("FuelPickupRumble"));
 
         // ── Utility ──────────────────────────────────────────────────────────
+        // Start: drive to ideal shooting distance (8 ft from hub, physics sim sweet spot 6–10 ft).
+        // Holds button to execute; releases drivetrain when within 6 in of target.
+        driverXbox.start().whileTrue(subsystemCommands.driveToIdealShootingDistanceCommand()
+            .withName("DriveToIdealShootingDistance"));
+
         // Emergency stop — cancels every running command immediately.
-        // Bind to Start so it's reachable without looking down at the controller.
         // driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
         //     .ignoringDisable(true).withName("KillAll"));
 
@@ -369,5 +376,162 @@ public class RobotContainer
     public void setMotorBrake(boolean brake)
     {
       drivebase.setMotorBrake(brake);
+    }
+
+    private Command updateVisionCommand() {
+        // Tracks whether we have already seeded odometry during the current disabled period.
+        // Array trick lets us mutate from inside the lambda while satisfying "effectively final".
+        final boolean[] disabledSeedDone = {false};
+        final boolean[] prevEnabled      = {false};
+
+        return Commands.run(() -> {
+            final Pose2d currentRobotPose = drivebase.getPose();
+            final boolean isEnabled = DriverStation.isEnabled();
+
+            // Reset seed flag at the start of each enabled period so the next disabled
+            // period can seed again with fresh field placement.
+            if (isEnabled && !prevEnabled[0]) {
+                disabledSeedDone[0] = false;
+            }
+            prevEnabled[0] = isEnabled;
+
+            // 2-of-3 majority vote across three independent sensors at different robot locations.
+            // Requires at least two to agree before inflating stddevs, avoiding false positives
+            // from single-sensor vibration or noise.
+            // NOTE: getAccelZ() reads the Limelight's physical accelerometer and is independent
+            // of IMU mode — the mode-switching in Limelight.periodic() does not affect this vote.
+            boolean pigeonOverBump = drivebase.isOverBump();
+            boolean frontOverBump  = Math.abs(limelight.getAccelZ() - 1.0)
+                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
+            boolean rearOverBump   = Math.abs(limelightRear.getAccelZ() - 1.0)
+                > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
+            int bumpVotes = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
+            boolean overBump = bumpVotes >= 2;
+
+            // Pigeon 2 full orientation — forwarded to both Limelights so MegaTag2 can compensate
+            // for camera tilt during bump traversal and correct for dynamic rotation on all axes.
+            double pitchDeg        = drivebase.getPitchDegrees();
+            double pitchRateDegPS  = drivebase.getPitchRateDegPerSec();
+            double rollDeg         = drivebase.getRollDegrees();
+            double rollRateDegPS   = drivebase.getRollRateDegPerSec();
+            double yawRateDegPS    = drivebase.getYawRateDegPerSec();
+
+            // ── Disabled-period odometry seeding ─────────────────────────────
+            // While disabled, Limelights are in SyncInternalImu mode so MT1 can solve heading
+            // independently from tag geometry — no gyro dependency. Seed odometry once per
+            // disabled period from the camera with the most tags (≥2 required).
+            if (!isEnabled && !disabledSeedDone[0]) {
+                var frontMT1 = limelight.getMT1Pose();
+                var rearMT1  = limelightRear.getMT1Pose();
+                Optional<Pose2d> seedPose = Optional.empty();
+                if (frontMT1.isPresent() && rearMT1.isPresent()) {
+                    // Both cameras have a fix — prefer the front (arbitrary tiebreak; both are valid).
+                    seedPose = frontMT1;
+                } else if (frontMT1.isPresent()) {
+                    seedPose = frontMT1;
+                } else if (rearMT1.isPresent()) {
+                    seedPose = rearMT1;
+                }
+                if (seedPose.isPresent()) {
+                    drivebase.resetOdometry(seedPose.get());
+                    disabledSeedDone[0] = true;
+                    Logger.recordOutput("Vision/DisabledSeed", seedPose.get());
+                }
+            }
+
+            // During autonomous, project the robot pose 300 ms forward using field-relative
+            // velocity. This gives SetRobotOrientation a more accurate heading prediction for
+            // frames that are still in flight through Limelight's capture/processing pipeline,
+            // and lets MegaTag2 pre-compensate for rotation that will have occurred by the time
+            // the measurement is actually fused. (Adapted from Team 180's futureRobotPose pattern.)
+            // In teleop, use the current pose — drivers change direction unpredictably.
+            final Pose2d poseForVision;
+            if (DriverStation.isAutonomous()) {
+                final double LOOKAHEAD_SECS = 0.300;
+                ChassisSpeeds fv = drivebase.getFieldVelocity();
+                poseForVision = new Pose2d(
+                    currentRobotPose.getX() + fv.vxMetersPerSecond * LOOKAHEAD_SECS,
+                    currentRobotPose.getY() + fv.vyMetersPerSecond * LOOKAHEAD_SECS,
+                    currentRobotPose.getRotation().plus(
+                        Rotation2d.fromRadians(fv.omegaRadiansPerSecond * LOOKAHEAD_SECS)));
+                Logger.recordOutput("Vision/LookaheadPose", poseForVision);
+            } else {
+                poseForVision = currentRobotPose;
+            }
+
+            // Request measurements from both Limelights (each call also sends SetRobotOrientation
+            // so MegaTag2 keeps a fresh heading even for the camera that isn't chosen).
+            var frontMeasurement = limelight.getMeasurement(
+                poseForVision, pitchDeg, pitchRateDegPS, rollDeg, rollRateDegPS, yawRateDegPS);
+            var rearMeasurement  = limelightRear.getMeasurement(
+                poseForVision, pitchDeg, pitchRateDegPS, rollDeg, rollRateDegPS, yawRateDegPS);
+
+            // Confidence = avgTagArea × tagCount. Larger tag area means the robot is closer to
+            // the tags and the projection error is smaller; more tags further reduce ambiguity.
+            double frontConf = frontMeasurement.map(
+                m -> m.avgTagArea * m.poseEstimate.tagCount).orElse(0.0);
+            double rearConf  = rearMeasurement.map(
+                m -> m.avgTagArea * m.poseEstimate.tagCount).orElse(0.0);
+            double bestConf  = Math.max(frontConf, rearConf);
+
+            // Wheel-slip detection — both signals must agree to avoid false positives.
+            boolean isSlipping = drivebase.isWheelSlipping();
+            boolean highConf   = bestConf >= Constants.BumpDetectionConstants.kHighConfidenceThreshold;
+
+            // Publish for Elastic so drivers can verify which camera is active.
+            String activeSource;
+            var bestMeasurement = frontMeasurement.isEmpty() && rearMeasurement.isEmpty()
+                ? java.util.Optional.<frc.robot.subsystems.vision.Limelight.Measurement>empty()
+                : (frontConf >= rearConf ? frontMeasurement : rearMeasurement);
+            if (frontMeasurement.isEmpty() && rearMeasurement.isEmpty()) {
+                activeSource = "none";
+            } else if (frontConf >= rearConf && frontMeasurement.isPresent()) {
+                activeSource = "front (" + String.format("%.3f", frontConf) + ")";
+            } else {
+                activeSource = "rear (" + String.format("%.3f", rearConf) + ")";
+            }
+            Logger.recordOutput("Vision/ActiveSource",   activeSource);
+            Logger.recordOutput("Vision/FrontConfidence", frontConf);
+            Logger.recordOutput("Vision/RearConfidence",  rearConf);
+            Logger.recordOutput("Vision/BestConfidence",  bestConf);
+            Logger.recordOutput("Vision/WheelSlipping",   isSlipping);
+            Logger.recordOutput("Vision/WheelSlipScore",  drivebase.getWheelSlipScore());
+            Logger.recordOutput("Vision/Healthy",         limelight.isVisionHealthy() || limelightRear.isVisionHealthy());
+            Logger.recordOutput("Vision/TotalTagCount",   limelight.getLastTagCount() + limelightRear.getLastTagCount());
+
+            if (bestMeasurement.isPresent()) {
+                var m = bestMeasurement.get();
+                // Confidence-gated slip handling:
+                //
+                // • Slipping + high confidence → wheels are unreliable, but Limelights have a
+                //   solid tag fix. Shrink stddevs to let vision actively correct the drifted pose.
+                //
+                // • Slipping + low confidence  → neither odometry nor vision is reliable.
+                //   Inflate stddevs so the bad camera pose doesn't corrupt the estimate.
+                //
+                // • Not slipping              → normal stddevs from getMeasurement().
+                double stdDevMultiplier;
+                if (isSlipping && highConf) {
+                    stdDevMultiplier = Constants.BumpDetectionConstants.kSlipHighConfStdDevMultiplier;
+                } else if (isSlipping) {
+                    stdDevMultiplier = Constants.BumpDetectionConstants.kBumpVisionStdDevMultiplier;
+                } else {
+                    stdDevMultiplier = 1.0;
+                }
+                Logger.recordOutput("Vision/StdDevMultiplier", stdDevMultiplier);
+                double ts = m.poseEstimate.timestampSeconds;
+                // Reject timestamps of 0 or in the future — these indicate a stale or
+                // invalid Limelight frame and would corrupt the pose estimator.
+                if (ts > 0 && ts <= Timer.getFPGATimestamp()) {
+                    var stdDevs = m.standardDeviations.times(stdDevMultiplier);
+                    drivebase.addVisionMeasurement(m.poseEstimate.pose, ts, stdDevs);
+                }
+            }
+            // else if (!overBump) {
+            //     piAprilTag.getMeasurement().ifPresent(m -> drivebase.addVisionMeasurement(
+            //         m.pose, m.timestampSeconds, m.standardDeviations
+            //     ));
+            // }
+        }, limelight, limelightRear).ignoringDisable(true);
     }
 }

@@ -32,7 +32,6 @@ public class Hanger extends SubsystemBase {
     private boolean toggleIsUp = false;
 
     // Tracks auto climb encoder position for teleop reversal
-    private static final double kDeclimbReturnThresholdRotations = 10.0;
     private double climbEncoderTicks = 0;
     private boolean autoClimbCompleted = false;
 
@@ -95,7 +94,7 @@ public class Hanger extends SubsystemBase {
             if (!autoClimbCompleted || climbEncoderTicks == 0) return Commands.none();
             autoClimbCompleted = false;
             return run(() -> setPercentOutput(-Constants.HangerConstants.kAutoClimbFullPower))
-                .until(() -> Math.abs(inputs.encoderPositionRot) <= kDeclimbReturnThresholdRotations)
+                .until(() -> Math.abs(inputs.encoderPositionRot) <= Constants.HangerConstants.kDeclimbReturnThresholdRotations)
                 .andThen(runOnce(() -> setPercentOutput(0)));
         }, java.util.Set.of(this));
     }
@@ -104,7 +103,7 @@ public class Hanger extends SubsystemBase {
         return Commands.sequence(
             runOnce(() -> setPercentOutput(Constants.HangerConstants.kHomingPower)),
             Commands.waitUntil(() -> inputs.outputCurrentAmps > Constants.HangerConstants.kHomingCurrentThreshold)
-                .withTimeout(10.0),
+                .withTimeout(Constants.HangerConstants.kHomingTimeoutSeconds),
             runOnce(() -> {
                 io.resetEncoder();
                 isHomed = true;

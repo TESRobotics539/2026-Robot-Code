@@ -1,14 +1,14 @@
 package frc.robot.commands;
 
-import static edu.wpi.first.units.Units.Degrees;
-
 import java.util.function.DoubleSupplier;
 
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.units.Units;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
+import frc.robot.Constants;
 import frc.robot.Landmarks;
 import frc.robot.subsystems.robot.Swerve;
 import frc.robot.subsystems.robot.UltraShooter;
@@ -22,7 +22,7 @@ import frc.util.GeometryUtil;
  * {@code AimAndDriveCommand} will stall an autonomous sequence indefinitely.
  */
 public class AimAndDriveCommand extends Command {
-    private static final Angle kAimTolerance = Degrees.of(3);
+    private static final Angle kAimTolerance = Units.Degrees.of(Constants.ShooterConstants.kAimToleranceDegrees);
 
     private final Swerve swerve;
     private final DoubleSupplier forwardInput;
