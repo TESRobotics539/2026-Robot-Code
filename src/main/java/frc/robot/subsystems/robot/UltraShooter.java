@@ -98,6 +98,14 @@ public class UltraShooter extends SubsystemBase {
     private double physCachePhysFps = 0;
     private double physCacheTofS    = 0;
 
+    // ── setPhysicsTarget() speed cache ───────────────────────────────────────
+    // Caches the expensive calculateRequiredVelocityFPS() result (binary search).
+    // Radial velocity correction is always computed live since it is cheap.
+    // Same invalidation rules as the dashboard cache above.
+    /** Hub distance (m) used for the last cached physics speed. NaN = not yet computed. */
+    private double targetCacheDistM      = Double.NaN;
+    private double targetCachePhysSpeedFps = 0;
+
     /** Circular buffer for rolling-average velocity filtering. */
     private final double[] velocityBuffer =
             new double[Constants.UltraShooterConstants.kVelocityAvgSamples];
@@ -538,21 +546,32 @@ public class UltraShooter extends SubsystemBase {
      *
      */
     public void setPhysicsTarget() {
-        // Cache field velocity once — reused for both distance selection and radial correction.
+        // Cache field velocity once — reused for speed check, distance selection, and radial correction.
         final ChassisSpeeds fieldVelocity = swerve.getFieldVelocity();
-        final double distance       = getAverageDistanceToHub(fieldVelocity);
+        final double distance    = getAverageDistanceToHub(fieldVelocity);
+        final double speedFps    = Math.hypot(fieldVelocity.vxMetersPerSecond,
+                                              fieldVelocity.vyMetersPerSecond) * METERS_TO_FEET;
+        final boolean shootOnMove = speedFps >= Constants.UltraShooterConstants.kShootOnMoveSpeedThresholdFps;
+        final boolean cacheStale  = Double.isNaN(targetCacheDistM)
+                || Math.abs(distance - targetCacheDistM) * METERS_TO_FEET
+                       >= Constants.UltraShooterConstants.kPhysicsCacheDistanceThresholdFeet;
+
+        // Only rerun the expensive binary search when shoot-on-the-move is active
+        // (distance changing fast) or the robot has moved more than the cache threshold.
+        if (shootOnMove || cacheStale) {
+            // if (isPiResultFresh()) { targetCachePhysSpeedFps = ntPiPhysics.getDouble(0.0); } else { ... }
+            targetCachePhysSpeedFps = calculateRequiredVelocityFPS(
+                    distance,
+                    Constants.UltraShooterConstants.kFlywheelEfficiency,
+                    Constants.UltraShooterConstants.kDragCoefficient,
+                    Constants.UltraShooterConstants.kBallMassLbs);
+            targetCacheDistM = distance;
+        }
+
         final double offsetFraction = interpolateOffsetFraction(distance);
 
-        // if (isPiResultFresh()) { physicsSpeed = ntPiPhysics.getDouble(0.0); } else { ... }
-        final double physicsSpeed = calculateRequiredVelocityFPS(
-                distance,
-                Constants.UltraShooterConstants.kFlywheelEfficiency,
-                Constants.UltraShooterConstants.kDragCoefficient,
-                Constants.UltraShooterConstants.kBallMassLbs);
-
-        // Radial velocity compensation: if the robot is moving toward the hub,
-        // the ball arrives faster and needs a lower exit speed (and vice versa).
-        // Project field velocity onto the robot→hub unit vector.
+        // Radial velocity compensation is always computed live — it is cheap and
+        // must reflect the robot's current velocity, not a cached snapshot.
         final Translation2d robotToHub =
                 Landmarks.hubPosition().minus(swerve.getPose().getTranslation());
         final double distNorm = robotToHub.getNorm();
@@ -563,7 +582,7 @@ public class UltraShooter extends SubsystemBase {
         // Convert radial speed to flywheel-surface ft/s (same scaling as physicsSpeed).
         final double radialCorrectionFps =
                 radialVelocityMps * METERS_TO_FEET / Math.max(Constants.UltraShooterConstants.kFlywheelEfficiency, 0.01);
-        final double adjustedSpeed = Math.max(0.0, physicsSpeed - radialCorrectionFps);
+        final double adjustedSpeed = Math.max(0.0, targetCachePhysSpeedFps - radialCorrectionFps);
 
         setTarget(adjustedSpeed * (1.0 + offsetFraction));
     }
