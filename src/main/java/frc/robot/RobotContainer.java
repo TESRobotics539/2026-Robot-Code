@@ -333,8 +333,12 @@ public class RobotContainer
                 .withName("FuelPickupRumble"));
 
         // ── Utility ──────────────────────────────────────────────────────────
+        // Start: drive to ideal shooting distance (8 ft from hub, physics sim sweet spot 6–10 ft).
+        // Holds button to execute; releases drivetrain when within 6 in of target.
+        driverXbox.start().whileTrue(subsystemCommands.driveToIdealShootingDistanceCommand()
+            .withName("DriveToIdealShootingDistance"));
+
         // Emergency stop — cancels every running command immediately.
-        // Bind to Start so it's reachable without looking down at the controller.
         // driverXbox.start().onTrue(Commands.runOnce(CommandScheduler.getInstance()::cancelAll)
         //     .ignoringDisable(true).withName("KillAll"));
 
