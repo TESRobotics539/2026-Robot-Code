@@ -106,7 +106,7 @@ public class Swerve extends SubsystemBase
   // Setpoint generator — enforces kinematic limits (max accel, max steering velocity)
   // on robot-relative ChassisSpeeds before passing to YAGSL. Adapted from frc5687/2023-robot
   // (originally Team 254). Prevents wheel scrub and motor torque violations on rapid inputs.
-  private static final double MODULE_OFFSET_M = 0.276225; // 10.875 in from center
+  private static final double MODULE_OFFSET_M = Constants.DrivetrainConstants.kModuleOffsetMeters;
   private static final KinematicLimits KINEMATIC_LIMITS = new KinematicLimits(
       Constants.DrivetrainConstants.kMaxSpeed,
       Constants.DrivetrainConstants.kMaxAccelerationMps2,

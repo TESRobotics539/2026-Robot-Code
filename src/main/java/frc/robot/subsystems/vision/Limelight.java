@@ -12,70 +12,14 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants;
 import frc.robot.LimelightHelpers;
 import frc.robot.LimelightHelpers.PoseEstimate;
 
 public class Limelight extends SubsystemBase {
 
-    // ── Rejection thresholds ──────────────────────────────────────────────────
-
-    /**
-     * Measurements older than this threshold are rejected before fusing into the pose estimator.
-     * High latency means the image was captured when the robot was in a meaningfully different
-     * position, which can corrupt the estimate rather than improve it.
-     * (Adapted from frc5687/2025-robot VisionSubsystem: MAX_LATENCY_MS = 100 ms.)
-     */
-    private static final double MAX_MEASUREMENT_LATENCY_MS = 100.0;
-
-    /**
-     * MegaTag2 XY estimates become unreliable above this rotation rate even when heading is
-     * provided via {@code SetRobotOrientation}: angular blur during the exposure and the
-     * heading-at-capture vs. heading-at-publish gap both corrupt the projection geometry.
-     * 270 deg/s is more conservative than Limelight's hard ceiling of 720 deg/s;
-     * matches the threshold used by ORCA3136 and provides a wider safety margin.
-     */
-    private static final double MAX_YAW_RATE_DEG_PER_SEC = 300.0;
-
-    /**
-     * Hard cutoff on average tag distance. Beyond ~14.8 ft, pixel projection error and
-     * sensor noise dominate regardless of tag area. Matches the 4–4.5 m threshold used
-     * by Teams 180, 353, and 177/429 in 2025.
-     */
-    private static final double MAX_TAG_DISTANCE_METERS = 4.5;
-
-    /**
-     * Leading coefficient for the MegaTag2 XY standard deviation formula:
-     * <pre>xyStdDev = MT2_STDDEV_COEFF × dist^1.2 / tagCount^2</pre>
-     *
-     * <p>Adapted from Team 190 (2k25-Robot-Code), who use 0.00015 for LL3G/LL4 — essentially
-     * perfect trust. Our value (0.005, ~33× more conservative) provides meaningful confidence
-     * at close range while preserving the distance- and tag-count-scaling shape.
-     *
-     * <p>Sample outputs (clamped floor 0.03 m):
-     * <ul>
-     *   <li>2 m, 2 tags → 0.003 m → floored to <b>0.03 m</b></li>
-     *   <li>3 m, 1 tag  → <b>0.019 m</b></li>
-     *   <li>4 m, 1 tag  → <b>0.026 m</b></li>
-     * </ul>
-     */
-    private static final double MT2_STDDEV_COEFF = 0.005;
-
-    /**
-     * Field boundary used to reject geometrically impossible pose estimates (bad solves,
-     * tag ambiguity, extreme glare, etc.).
-     *
-     * <p>Derived from the 2026 REBUILT game manual field drawing (651.2 in × 317.7 in).
-     * Verify against the official field CAD or layout drawings before competition.
-     * (54 ft 3.2 in × 26 ft 5.7 in)
-     *
-     * <p>±0.5 m margin is applied so poses near the physical wall boundary are not
-     * incorrectly rejected when the robot's center is close to the field edge.
-     */
-    private static final double FIELD_WIDTH_METERS  = 16.541;
-    private static final double FIELD_HEIGHT_METERS =  8.071;
-    private static final double FIELD_MARGIN_METERS =  0.5;
-
     // ── IMU mode constants ────────────────────────────────────────────────────
+    // These are Limelight API values, not tunable — kept private here.
 
     /**
      * {@code imumode_set = 1}: Limelight uses ONLY the heading provided by
@@ -90,16 +34,6 @@ public class Limelight extends SubsystemBase {
      * a reliable heading on every cycle.
      */
     private static final int IMU_MODE_SYNC = 4;
-
-    /**
-     * Cycles to wait after an IMU mode switch before accepting measurements.
-     * ~300 ms at 50 Hz — gives the Limelight time to apply the new mode and stabilise.
-     * (Matches ORCA3136/ORCABot2026 VisionSubsystem.kImuSettleCycles.)
-     */
-    private static final int IMU_SETTLE_CYCLES = 15;
-
-    /** Vision-healthy timeout: if no measurement is accepted for this long, report unhealthy. */
-    private static final double VISION_HEALTHY_TIMEOUT_SEC = 0.5;
 
     // ── Instance state ────────────────────────────────────────────────────────
 
@@ -132,11 +66,11 @@ public class Limelight extends SubsystemBase {
         if (isEnabled && !wasEnabled) {
             // Disabled → enabled: switch to ExternalImu so MegaTag2 uses only our heading.
             LimelightHelpers.SetIMUMode(name, IMU_MODE_EXTERNAL);
-            imuSettleRemaining = IMU_SETTLE_CYCLES;
+            imuSettleRemaining = Constants.VisionConstants.kImuSettleCycles;
         } else if (!isEnabled && wasEnabled) {
             // Enabled → disabled: back to SyncInternalImu so MT1 can run heading-independently.
             LimelightHelpers.SetIMUMode(name, IMU_MODE_SYNC);
-            imuSettleRemaining = IMU_SETTLE_CYCLES;
+            imuSettleRemaining = Constants.VisionConstants.kImuSettleCycles;
         }
         wasEnabled = isEnabled;
 
@@ -187,7 +121,7 @@ public class Limelight extends SubsystemBase {
         }
 
         // ── Rejection filter 2: high yaw rate ────────────────────────────────
-        if (Math.abs(yawRateDegPerSec) > MAX_YAW_RATE_DEG_PER_SEC) {
+        if (Math.abs(yawRateDegPerSec) > Constants.VisionConstants.kMaxYawRateDegPerSec) {
             Logger.recordOutput("Limelight/" + name + "/RejectReason", "high_yaw_rate");
             return Optional.empty();
         }
@@ -220,7 +154,7 @@ public class Limelight extends SubsystemBase {
         // ── Rejection filter 5: stale frame ───────────────────────────────────
         // A frame captured >100 ms ago depicts the robot at a meaningfully different position.
         // (Adapted from frc5687/2025-robot VisionSubsystem.)
-        if (poseEstimate_MegaTag2.latency > MAX_MEASUREMENT_LATENCY_MS) {
+        if (poseEstimate_MegaTag2.latency > Constants.VisionConstants.kMaxMeasurementLatencyMs) {
             Logger.recordOutput("Limelight/" + name + "/RejectReason", "stale_frame");
             return Optional.empty();
         }
@@ -228,7 +162,7 @@ public class Limelight extends SubsystemBase {
         // ── Rejection filter 6: tag too far ──────────────────────────────────
         // Beyond MAX_TAG_DISTANCE_METERS, pixel projection error dominates.
         // avgTagDist is in meters (from LimelightHelpers PoseEstimate).
-        if (poseEstimate_MegaTag2.avgTagDist > MAX_TAG_DISTANCE_METERS) {
+        if (poseEstimate_MegaTag2.avgTagDist > Constants.VisionConstants.kMaxTagDistanceMeters) {
             Logger.recordOutput("Limelight/" + name + "/RejectReason", "tag_too_far");
             return Optional.empty();
         }
@@ -246,8 +180,8 @@ public class Limelight extends SubsystemBase {
         // physical wall are not incorrectly rejected when the robot's center is close to the edge.
         double poseX = poseEstimate_MegaTag2.pose.getX();
         double poseY = poseEstimate_MegaTag2.pose.getY();
-        if (poseX < -FIELD_MARGIN_METERS || poseX > FIELD_WIDTH_METERS  + FIELD_MARGIN_METERS
-         || poseY < -FIELD_MARGIN_METERS || poseY > FIELD_HEIGHT_METERS + FIELD_MARGIN_METERS) {
+        if (poseX < -Constants.VisionConstants.kFieldMarginMeters || poseX > Constants.VisionConstants.kFieldWidthMeters  + Constants.VisionConstants.kFieldMarginMeters
+         || poseY < -Constants.VisionConstants.kFieldMarginMeters || poseY > Constants.VisionConstants.kFieldHeightMeters + Constants.VisionConstants.kFieldMarginMeters) {
             Logger.recordOutput("Limelight/" + name + "/RejectReason", "out_of_field");
             return Optional.empty();
         }
@@ -261,7 +195,7 @@ public class Limelight extends SubsystemBase {
         // theta back into the Kalman filter would create a circular dependency.
         double dist     = poseEstimate_MegaTag2.avgTagDist;
         double tagCount = poseEstimate_MegaTag2.tagCount;
-        double xyStdDev = MT2_STDDEV_COEFF * Math.pow(dist, 1.2) / Math.pow(tagCount, 2.0);
+        double xyStdDev = Constants.VisionConstants.kMt2StddevCoeff * Math.pow(dist, 1.2) / Math.pow(tagCount, 2.0);
         xyStdDev = Math.max(0.03, Math.min(3.0, xyStdDev));
         final Matrix<N3, N1> standardDeviations = VecBuilder.fill(xyStdDev, xyStdDev, Double.POSITIVE_INFINITY);
 
@@ -290,8 +224,8 @@ public class Limelight extends SubsystemBase {
 
         double x = mt1.pose.getX();
         double y = mt1.pose.getY();
-        if (x < -FIELD_MARGIN_METERS || x > FIELD_WIDTH_METERS  + FIELD_MARGIN_METERS
-         || y < -FIELD_MARGIN_METERS || y > FIELD_HEIGHT_METERS + FIELD_MARGIN_METERS) {
+        if (x < -Constants.VisionConstants.kFieldMarginMeters || x > Constants.VisionConstants.kFieldWidthMeters  + Constants.VisionConstants.kFieldMarginMeters
+         || y < -Constants.VisionConstants.kFieldMarginMeters || y > Constants.VisionConstants.kFieldHeightMeters + Constants.VisionConstants.kFieldMarginMeters) {
             return Optional.empty();
         }
         return Optional.of(mt1.pose);
@@ -301,10 +235,10 @@ public class Limelight extends SubsystemBase {
 
     /**
      * True if at least one measurement was accepted within the last
-     * {@value #VISION_HEALTHY_TIMEOUT_SEC} seconds.
+     * {@link Constants.VisionConstants#kVisionHealthyTimeoutSec} seconds.
      */
     public boolean isVisionHealthy() {
-        return (Timer.getFPGATimestamp() - lastAcceptedSec) < VISION_HEALTHY_TIMEOUT_SEC;
+        return (Timer.getFPGATimestamp() - lastAcceptedSec) < Constants.VisionConstants.kVisionHealthyTimeoutSec;
     }
 
     /**

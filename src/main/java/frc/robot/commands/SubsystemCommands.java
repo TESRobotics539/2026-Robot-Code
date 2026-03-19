@@ -137,11 +137,7 @@ public final class SubsystemCommands {
      * displacement has been covered. Direction is computed once at schedule time
      * from the current robot pose, so the robot drives in a straight line.
      */
-    // Tuning constants for driveToIdealShootingDistanceCommand() — all in feet / ft/s
-    private static final double IDEAL_SHOOT_DISTANCE_FT   = 8.0;  // ft from hub center — sweet spot per physics sim
-    private static final double IDEAL_SHOOT_TOLERANCE_FT  = 0.5;  // ft (~6 in) — stop within this of target
-    private static final double IDEAL_SHOOT_KP_FPS        = 1.5;  // ft/s per ft of distance error
-    private static final double IDEAL_SHOOT_MAX_SPEED_FPS = 10.0; // ft/s cap — avoids overshooting
+    // Drive-to-ideal-distance tuning constants — sourced from Constants.ShooterConstants.
 
     /**
      * Drives the robot radially toward or away from the hub until it reaches
@@ -165,17 +161,17 @@ public final class SubsystemCommands {
             final double radialY  = (robotPos.getY() - hubPos.getY()) / safeDist;
 
             return swerve.driveFieldOriented(() -> {
-                double distFt  = swerve.getPose().getTranslation().getDistance(hubPos) * 3.28084;
-                double errorFt = distFt - IDEAL_SHOOT_DISTANCE_FT;  // positive → too far → drive toward hub
+                double distFt  = Units.metersToFeet(swerve.getPose().getTranslation().getDistance(hubPos));
+                double errorFt = distFt - Constants.ShooterConstants.kIdealShootDistanceFt;  // positive → too far → drive toward hub
                 // Negative speed along radial axis drives toward hub; positive drives away.
                 // Convert ft/s → m/s for ChassisSpeeds.
-                double speedFps = MathUtil.clamp(-IDEAL_SHOOT_KP_FPS * errorFt,
-                    -IDEAL_SHOOT_MAX_SPEED_FPS, IDEAL_SHOOT_MAX_SPEED_FPS);
-                double speedMps = speedFps * 0.3048;
+                double speedFps = MathUtil.clamp(-Constants.ShooterConstants.kIdealShootKpFps * errorFt,
+                    -Constants.ShooterConstants.kIdealShootMaxSpeedFps, Constants.ShooterConstants.kIdealShootMaxSpeedFps);
+                double speedMps = Units.feetToMeters(speedFps);
                 return new ChassisSpeeds(radialX * speedMps, radialY * speedMps, 0);
             }).until(() -> {
-                double distFt = swerve.getPose().getTranslation().getDistance(hubPos) * 3.28084;
-                return Math.abs(distFt - IDEAL_SHOOT_DISTANCE_FT) <= IDEAL_SHOOT_TOLERANCE_FT;
+                double distFt = Units.metersToFeet(swerve.getPose().getTranslation().getDistance(hubPos));
+                return Math.abs(distFt - Constants.ShooterConstants.kIdealShootDistanceFt) <= Constants.ShooterConstants.kIdealShootToleranceFt;
             });
         }, Set.of(swerve));
     }
@@ -194,11 +190,11 @@ public final class SubsystemCommands {
             final double awayY = (startPos.getY() - hubPos.getY()) / safeDist;
 
             return swerve.driveFieldOriented(() -> {
-                double traveledFt   = swerve.getPose().getTranslation().getDistance(startPos) * 3.28084;
-                double remainingFt  = backupMeters * 3.28084 - traveledFt;
-                double speedFps     = MathUtil.clamp(IDEAL_SHOOT_KP_FPS * remainingFt,
-                    0, IDEAL_SHOOT_MAX_SPEED_FPS);
-                double speedMps = speedFps * 0.3048;
+                double traveledFt   = Units.metersToFeet(swerve.getPose().getTranslation().getDistance(startPos));
+                double remainingFt  = Units.metersToFeet(backupMeters) - traveledFt;
+                double speedFps     = MathUtil.clamp(Constants.ShooterConstants.kIdealShootKpFps * remainingFt,
+                    0, Constants.ShooterConstants.kIdealShootMaxSpeedFps);
+                double speedMps = Units.feetToMeters(speedFps);
                 return new ChassisSpeeds(awayX * speedMps, awayY * speedMps, 0);
             }).until(() -> swerve.getPose().getTranslation().getDistance(startPos) >= backupMeters);
         }, Set.of(swerve));
@@ -223,6 +219,6 @@ public final class SubsystemCommands {
         return Commands.parallel(
             feeder.feedCommand(),
             floor.feedCommand()
-        ).withTimeout(7.0);
+        ).withTimeout(Constants.ShooterConstants.kLongFeedTimeoutSeconds);
     }
 }

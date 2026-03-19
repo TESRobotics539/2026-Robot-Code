@@ -110,11 +110,11 @@ public class RobotContainer
     private final SendableChooser<Command> autoChooser;
 
     // ── Drive Input Stream ───────────────────────────────────────────────────
-    // x^1.5 curve softens fine control near center while preserving full speed at edges.
+    // Exponential input curve — see Constants.DrivetrainConstants.kDriveInputCurvePower.
     SwerveInputStream driveAngularVelocity = SwerveInputStream.of(drivebase.getSwerveDrive(),
-                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, 1.5),
-                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, 1.5))
-                                                              .withControllerRotationAxis(() -> MathUtil.copyDirectionPow(driverXbox.getRightX() * -1, 1.5))
+                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftY() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower),
+                                                                  () -> MathUtil.copyDirectionPow(driverXbox.getLeftX() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower))
+                                                              .withControllerRotationAxis(() -> MathUtil.copyDirectionPow(driverXbox.getRightX() * -1, Constants.DrivetrainConstants.kDriveInputCurvePower))
                                                               //.aim(new Pose2d(Landmarks.hubPosition(), new Rotation2d()))
                                                               .deadband(OperatorConstants.DEADBAND)
                                                               .scaleTranslation(1.0)
@@ -165,10 +165,10 @@ public class RobotContainer
                     return hanger.reverseClimbIfNeededCommand()
                         .andThen(Commands.waitUntil(() ->
                             drivebase.getPose().getTranslation()
-                                .getDistance(startPose.getTranslation()) >= 2.0))
+                                .getDistance(startPose.getTranslation()) >= Constants.HangerConstants.kDeclimbDriveDistanceMeters))
                         .andThen(intake.runOnce(intake::setInitialDeployPosition));
                 } else {
-                    return Commands.waitSeconds(1.0)
+                    return Commands.waitSeconds(Constants.ShooterConstants.kTeleopIntakeDeployDelaySeconds)
                         .andThen(intake.runOnce(intake::setInitialDeployPosition));
                 }
             }, Set.of(hanger, intake)));
@@ -251,7 +251,7 @@ public class RobotContainer
         // ═════════════════════════════════════════════════════════════════════
 
         // Right trigger: aim + shoot (physics-based, only while hub is active)
-        driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
+        driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(Constants.ShooterConstants.kHubActiveExpansionSeconds)).whileTrue(
             Commands.parallel(
                 // Single announcement pulse the moment the shot sequence begins.
                 Commands.sequence(
@@ -274,7 +274,7 @@ public class RobotContainer
                 Logger.recordOutput("Commands/AimShoot/Interrupted", interrupted);
             }))
             .onFalse(Commands.parallel(
-                subsystemCommands.holdAimAndSpeedCommand(1.0),
+                subsystemCommands.holdAimAndSpeedCommand(Constants.ShooterConstants.kHoldAimAndSpeedSeconds),
                 intake.runOnce(intake::resetFuelDetection)));
 
         // ── Feeder ───────────────────────────────────────────────────────────

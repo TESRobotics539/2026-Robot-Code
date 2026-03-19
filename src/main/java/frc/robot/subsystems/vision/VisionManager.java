@@ -29,8 +29,7 @@ import frc.util.LoggedTracer;
  */
 public class VisionManager extends SubsystemBase {
 
-    /** Measurements older than this are rejected before fusing. */
-    private static final double MAX_LATENCY_MS = 100.0;
+    // Rejection threshold sourced from Constants — see VisionConstants.kMaxMeasurementLatencyMs.
 
     private final LimelightIO frontIO;
     private final LimelightIO rearIO;
@@ -164,7 +163,7 @@ public class VisionManager extends SubsystemBase {
         if (inputs.megaTag1TagCount == 0 || inputs.megaTag2TagCount == 0) {
             return Optional.empty();
         }
-        if (inputs.megaTag2LatencyMs > MAX_LATENCY_MS) {
+        if (inputs.megaTag2LatencyMs > Constants.VisionConstants.kMaxMeasurementLatencyMs) {
             return Optional.empty();
         }
 
