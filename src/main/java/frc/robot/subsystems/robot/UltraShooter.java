@@ -630,9 +630,7 @@ public class UltraShooter extends SubsystemBase {
 
     /** Rolling average of primary encoder velocity (ft/s). */
     public double getAverageVelocity() {
-        // TODO: re-enable averaging after PID tuning
-        return cachedVelocity; // no filter — raw velocity
-        // return velocityBufferSum / Constants.UltraShooterConstants.kVelocityAvgSamples;
+        return velocityBufferSum / Constants.UltraShooterConstants.kVelocityAvgSamples;
     }
 
     public double getTarget()        { return velocityTarget; }

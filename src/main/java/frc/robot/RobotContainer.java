@@ -83,10 +83,9 @@ public class RobotContainer
     // private final ShooterAutoTuner shooterAutoTuner = new ShooterAutoTuner(ultraShooter, shooterTuner);
 
     // Pre-spin during hub-active windows; interrupted automatically by any shoot command
-    // TODO: re-enable after PID tuning
-    // {
-    //     ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand(intake::hasPickedUpFuel));
-    // }
+    {
+        ultraShooter.setDefaultCommand(ultraShooter.preSpinCommand(intake::hasPickedUpFuel));
+    }
 
     // ── Controllers ──────────────────────────────────────────────────────────
     final CommandXboxController driverXbox = new CommandXboxController(0);
@@ -218,22 +217,8 @@ public class RobotContainer
                 Logger.recordOutput("Commands/SpinUpShoot/Interrupted", interrupted);
             }));
 
-        // ══ PID TUNING — delete this entire block when done ══════════════════
-        // A: toggle flywheel on/off at 3,000 RPM
-        final double kTuning200RpmInFPS  = 1000.0 * Math.PI * (4.0 / 12.0) / 60.0;
-        final double kTuningInitialFPS   = 3000.0 * Math.PI * (4.0 / 12.0) / 60.0;
-        driverXbox.a().toggleOnTrue(
-            ultraShooter.startEnd(
-                () -> ultraShooter.setTarget(kTuningInitialFPS),
-                ultraShooter::stop
-            ).withName("TuningFlywheelSpin"));
-        // X: run feeder + floor at 85% while held (dump shot disabled during tuning)
-        driverXbox.x().whileTrue(Commands.parallel(
-            feeder.startEnd(() -> feeder.setPercentOutput(0.85), () -> feeder.setPercentOutput(0)),
-            floor.startEnd(() -> floor.setPercentOutput(0.85), () -> floor.setPercentOutput(0))
-        ).withName("TuningFeed"));
-        // B: dump shot sequence while held
-        driverXbox.b().whileTrue(
+        // X: dump shot (fixed low speed)
+        driverXbox.x().whileTrue(
             Commands.defer(() -> Commands.parallel(
                 ultraShooter.startEnd(() -> ultraShooter.setTarget(Constants.ShooterConstants.kDumpShotFlywheelSpeed), ultraShooter::stop),
                 Commands.waitUntil(ultraShooter::isReady)
@@ -243,8 +228,8 @@ public class RobotContainer
                         feeder.feedCommand(),
                         Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
-            ), Set.of(ultraShooter, feeder, floor)));
-        // ═════════════════════════════════════════════════════════════════════
+            ), Set.of(ultraShooter, feeder, floor))
+            .finallyDo(interrupted -> Logger.recordOutput("Commands/DumpShot/Interrupted", interrupted)));
 
         // Right trigger: aim + shoot (physics-based, only while hub is active)
         driverXbox.rightTrigger().and(() -> GameData.isHubActiveExpanded(5.0)).whileTrue(
@@ -278,18 +263,10 @@ public class RobotContainer
 
         // ── Hanger ───────────────────────────────────────────────────────────
         // D-pad up/down → manual hanger control
-        // ══ PID TUNING: hanger bindings temporarily replaced by flywheel speed adjust ══
-        // driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
-        //                   .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-        // driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
-        //                     .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
-        // D-pad up/down → +/- 10 ft/s flywheel speed adjust (delete when done)
-        // Uses Commands.runOnce (no subsystem requirement) so it doesn't interrupt TuningFlywheelSpin.
-        driverXbox.povUp().onTrue(Commands.runOnce(
-            () -> ultraShooter.setTarget(ultraShooter.getTarget() + kTuning200RpmInFPS)));
-        driverXbox.povDown().onTrue(Commands.runOnce(
-            () -> ultraShooter.setTarget(ultraShooter.getTarget() - kTuning200RpmInFPS)));
-        // ═════════════════════════════════════════════════════════════════════
+        driverXbox.povUp().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualUpPower)))
+                          .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
+        driverXbox.povDown().whileTrue(hanger.run(() -> hanger.setPercentOutput(Constants.HangerConstants.kManualDownPower)))
+                            .onFalse(hanger.runOnce(() -> hanger.setPercentOutput(0)));
 
         // Y: auto climb; also spin down shooter in last 30 seconds of teleop
         driverXbox.y().onTrue(hanger.autoClimbCommand()

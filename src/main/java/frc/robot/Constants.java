@@ -114,7 +114,7 @@ public final class Constants {
 
     // ── Setpoints ────────────────────────────────────────────────────────
     /** Feed target speed (RPM, positive = forward). */
-    public static final double kFeedRPM    =  3500.0;
+    public static final double kFeedRPM    =  3750.0;
     /** Reverse target speed (RPM, negative = backward). */
     public static final double kReverseRPM = -5500.0;
 
@@ -260,8 +260,8 @@ public final class Constants {
     public static final double kRampUpRate   = 200.0 * (Math.PI * (4.0 / 12.0) / 60.0);
     /** Setpoint ramp-down rate (ft/s per 20 ms cycle). */
     public static final double kRampDownRate = 400.0 * (Math.PI * (4.0 / 12.0) / 60.0);
-    /** Rolling-average window for encoder noise filtering (samples at 50 Hz). 3 × 20 ms = 60 ms. */
-    public static final int kVelocityAvgSamples = 3;
+    /** Rolling-average window for encoder noise filtering (samples at 50 Hz). 10 × 20 ms = 200 ms. */
+    public static final int kVelocityAvgSamples = 10;
     /** Flywheel is "ready" within this tolerance of target (ft/s). */
     public static final double kReadyTolerance = 100.0 * (Math.PI * (4.0 / 12.0) / 60.0);
     /** Fraction of the physics-calculated speed used for pre-spin (0.0–1.0). */
@@ -291,7 +291,7 @@ public final class Constants {
     /** Speed offset (%) applied at the close anchor (3 ft). */
     public static final double kCloseShotOffsetPercent = 10.0;
     /** Speed offset (%) applied at the mid anchor (12 ft). */
-    public static final double kMidShotOffsetPercent   = 0.0;
+    public static final double kMidShotOffsetPercent   = 1.0;
     /** Speed offset (%) applied at the far anchor (20 ft). */
     public static final double kFarShotOffsetPercent   = 20.0; // tune me
 
