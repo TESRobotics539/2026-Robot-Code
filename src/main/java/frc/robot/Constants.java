@@ -64,12 +64,6 @@ public final class Constants {
     public static final double kRollerD = 0.0;
 
     // ── Pivot ────────────────────────────────────────────────────────────
-    /** Pivot motor current (amps) that indicates the intake has reached the deployed hard stop. */
-    public static final double kPivotDeployedCurrentThreshold = 30.0;
-    /** Minimum encoder travel (rotations) before the deployed hard-stop current spike is checked. */
-    public static final double kPivotDeployedTravelThreshold = 0.2;
-    /** Seconds the current must stay above threshold to confirm the deployed hard stop (debounce). */
-    public static final double kPivotDeployedCurrentDebounceSeconds = 0.08;
     /** Pivot closed-loop PID gains (absolute encoder feedback). */
     public static final double kPivotP              = 1.5;
     public static final double kPivotI              = 0.0;
@@ -85,13 +79,13 @@ public final class Constants {
 
     // ── Roller anti-jam ──────────────────────────────────────────────────
     /** Current (amps) above which a roller jam is suspected while intaking. */
-    public static final double kRollerJamCurrentThreshold = 60.0;
+    public static final double kRollerJamCurrentThreshold = 80.0;
     /** Velocity (RPM) below which a high-current reading is treated as a jam, not just spinup. */
     public static final double kRollerJamVelocityThresholdRPM = 1000.0;
     /** Reverse speed (RPM, magnitude) applied during the roller anti-jam pulse. */
     public static final double kRollerUnjamReverseRPM = 750.0;
     /** Duration of the reverse pulse during roller anti-jam (seconds). */
-    public static final double kRollerUnjamReverseSeconds = 0.5;
+    public static final double kRollerUnjamReverseSeconds = 0.33;
     /** Velocity (RPM) above which the roller is considered to be running freely after an unjam. */
     public static final double kRollerFreeVelocityThresholdRPM = 3000.0;
 
@@ -120,7 +114,7 @@ public final class Constants {
 
     // ── Setpoints ────────────────────────────────────────────────────────
     /** Feed target speed (RPM, positive = forward). */
-    public static final double kFeedRPM    =  4500.0;
+    public static final double kFeedRPM    =  3500.0;
     /** Reverse target speed (RPM, negative = backward). */
     public static final double kReverseRPM = -5500.0;
 
@@ -150,7 +144,7 @@ public final class Constants {
   // ── Floor ─────────────────────────────────────────────────────────────────
   public static class FloorConstants {
     /** Percent output (0.0–1.0) when feeding fuel toward the shooter. */
-    public static final double kFeedPercentOutput = 0.75;
+    public static final double kFeedPercentOutput = 0.65;
     public static final IdleMode kIdleMode = IdleMode.kCoast;
   }
 
@@ -163,7 +157,7 @@ public final class Constants {
     /** Maximum seconds to wait for the shooter to reach speed before giving up and feeding anyway. */
     public static final double kShootReadyTimeoutSeconds = 1.33;
     /** Delay before floor motor starts feeding, so the feeder gets the fuel first. */
-    public static final double kFloorFeedDelaySeconds = 0.25;
+    public static final double kFloorFeedDelaySeconds = 0.33;
 
     // ── Setpoints ────────────────────────────────────────────────────────
     /** Fraction of the distance-based map speed to hold during pre-spin (0.0–1.0). */
@@ -295,11 +289,11 @@ public final class Constants {
     public static final double kFarShotAnchorFeet   = 20.0;
 
     /** Speed offset (%) applied at the close anchor (3 ft). */
-    public static final double kCloseShotOffsetPercent = 0.0; // tune me
+    public static final double kCloseShotOffsetPercent = 10.0;
     /** Speed offset (%) applied at the mid anchor (12 ft). */
-    public static final double kMidShotOffsetPercent   = 0.0; // tune me
+    public static final double kMidShotOffsetPercent   = 0.0;
     /** Speed offset (%) applied at the far anchor (20 ft). */
-    public static final double kFarShotOffsetPercent   = 0.0; // tune me
+    public static final double kFarShotOffsetPercent   = 20.0; // tune me
 
     // ── Aerodynamics & efficiency ─────────────────────────────────────────
 
@@ -311,7 +305,7 @@ public final class Constants {
      * Tune on the field via ShooterTuner/Params/FlywheelEfficiency.
      * Applied as: ball_exit_speed = flywheel_surface_speed × efficiency.
      */
-    public static final double kFlywheelEfficiency = 0.6;
+    public static final double kFlywheelEfficiency = 0.64;
 
     /**
      * Ball diameter (inches). Used to compute cross-sectional area for drag.
@@ -489,5 +483,76 @@ public final class Constants {
      * are unreliable, but that is not a reason to over-weight a single vision frame.
      */
     public static final double kSlipHighConfStdDevMultiplier = 1.0;
+  }
+
+  // ── Vision / Localization ─────────────────────────────────────────────────
+  /**
+   * Rejection thresholds, stddev tuning, and seeding parameters for the
+   * VisionManager pose-estimator fusion pipeline.
+   *
+   * <p>Derived from ORCA3136/ORCABot2026 VisionSubsystem (2026), adapted to
+   * this project's IO-layer architecture and bump/slip detection integration.
+   */
+  public static class VisionConstants {
+
+    // ── Rejection thresholds ─────────────────────────────────────────────
+    /**
+     * Maximum age (seconds) of a Limelight timestamp before the measurement
+     * is rejected. Guards against NT staleness or a dead camera.
+     */
+    public static final double kMaxTimestampAgeSec = 0.5;
+
+    /**
+     * Maximum robot yaw rate (deg/s) during which vision measurements are
+     * accepted. MT2 uses the heading we send, but Phoenix CAN latency means
+     * the heading can be off by several degrees during fast spins, producing
+     * a translated pose error. 270 deg/s ≈ ¾ revolution/second.
+     */
+    public static final double kMaxYawRateDegPerSec = 270.0;
+
+    /** Field X lower bound with 0.5 m (≈ 1.6 ft) margin (meters). */
+    public static final double kFieldMinX = -0.5;
+    /** Field X upper bound: 16.54 m field + 0.5 m margin (meters). */
+    public static final double kFieldMaxX = 17.04;
+    /** Field Y lower bound with 0.5 m margin (meters). */
+    public static final double kFieldMinY = -0.5;
+    /** Field Y upper bound: 8.21 m field + 0.5 m margin (meters). */
+    public static final double kFieldMaxY = 8.71;
+
+    // ── Standard-deviation tuning ────────────────────────────────────────
+    /**
+     * Base XY standard deviation (meters). Scaled by {@code distance² / tagCount}.
+     * Larger distance → larger error; more tags → smaller error.
+     * Formula: {@code xyStd = kXYStdDevBase * dist² / tagCount}, clamped ≥ kMinXYStdDev.
+     */
+    public static final double kXYStdDevBase = 0.5;
+
+    /**
+     * Additional multiplier applied when only one tag is visible.
+     * Single-tag ambiguity is significantly higher than multi-tag.
+     */
+    public static final double kSingleTagPenalty = 2.0;
+
+    /** Floor for the computed XY stddev — never trust vision more than this (meters). */
+    public static final double kMinXYStdDev = 0.1;
+
+    /**
+     * Rotation stddev passed to the pose estimator. Set very high so vision
+     * never corrects the heading — heading is owned by the gyro via MT2.
+     */
+    public static final double kRotationStdDev = 9999.0;
+
+    // ── Odometry seeding ─────────────────────────────────────────────────
+    /**
+     * Minimum number of tags MT2 must see to qualify for an odometry seed.
+     * Two tags provide enough geometry to remove pose ambiguity.
+     */
+    public static final int kSeedMinTagCount = 2;
+
+    /**
+     * Maximum average tag distance (meters, ~13 ft) allowed when seeding odometry.
+     * Closer = less projection error = safer seed.
+     */
+    public static final double kSeedMaxDistM = 4.0;
   }
 }

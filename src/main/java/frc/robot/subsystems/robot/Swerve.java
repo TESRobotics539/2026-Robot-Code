@@ -23,7 +23,6 @@ import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 
-import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.hardware.Pigeon2;
 
@@ -72,8 +71,8 @@ public class Swerve extends SubsystemBase
   // Retrieved from YAGSL after swerveDrive construction so we share the same Phoenix 6
   // handle that YAGSL owns, rather than creating a second device object with a hardcoded ID.
   private Pigeon2 pigeon2;
-  // Cached signal objects — refreshed together via refreshAll() each cycle to guarantee
-  // all five values come from the same CAN frame before the filters and rolling averages run.
+  // Cached signal objects — refreshed individually each cycle before the filters and rolling averages run.
+  // (Pigeon2 is on the rio bus; multi-signal refreshAll/waitForAll require CANivore.)
   private StatusSignal<?> pigeonAccelX;
   private StatusSignal<?> pigeonAccelY;
   private StatusSignal<?> pigeonAccelZ;
@@ -147,11 +146,20 @@ public class Swerve extends SubsystemBase
     pigeonPitch   = pigeon2.getPitch();
     pigeonRoll    = pigeon2.getRoll();
     pigeonYawRate = pigeon2.getAngularVelocityZWorld();
-    BaseStatusSignal.setUpdateFrequencyForAll(50.0,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+    // Individual calls — waitForAll/setUpdateFrequencyForAll require CANivore; Pigeon2 is on the rio bus.
+    pigeonAccelX.setUpdateFrequency(50.0);
+    pigeonAccelY.setUpdateFrequency(50.0);
+    pigeonAccelZ.setUpdateFrequency(50.0);
+    pigeonPitch.setUpdateFrequency(50.0);
+    pigeonRoll.setUpdateFrequency(50.0);
+    pigeonYawRate.setUpdateFrequency(50.0);
     // Block until the first valid frame arrives so initial reads are not stale.
-    BaseStatusSignal.waitForAll(0.1,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+    pigeonAccelX.waitForUpdate(0.1);
+    pigeonAccelY.waitForUpdate(0.1);
+    pigeonAccelZ.waitForUpdate(0.1);
+    pigeonPitch.waitForUpdate(0.1);
+    pigeonRoll.waitForUpdate(0.1);
+    pigeonYawRate.waitForUpdate(0.1);
 
     swerveDrive.setHeadingCorrection(false); // Heading correction should only be used while controlling the robot via angle.
     swerveDrive.setCosineCompensator(false); // Disables cosine compensation for simulations since it causes discrepancies not seen in real life.
@@ -191,10 +199,19 @@ public class Swerve extends SubsystemBase
     pigeonPitch   = pigeon2.getPitch();
     pigeonRoll    = pigeon2.getRoll();
     pigeonYawRate = pigeon2.getAngularVelocityZWorld();
-    BaseStatusSignal.setUpdateFrequencyForAll(50.0,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
-    BaseStatusSignal.waitForAll(0.1,
-        pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+    // Individual calls — waitForAll/setUpdateFrequencyForAll require CANivore; Pigeon2 is on the rio bus.
+    pigeonAccelX.setUpdateFrequency(50.0);
+    pigeonAccelY.setUpdateFrequency(50.0);
+    pigeonAccelZ.setUpdateFrequency(50.0);
+    pigeonPitch.setUpdateFrequency(50.0);
+    pigeonRoll.setUpdateFrequency(50.0);
+    pigeonYawRate.setUpdateFrequency(50.0);
+    pigeonAccelX.waitForUpdate(0.1);
+    pigeonAccelY.waitForUpdate(0.1);
+    pigeonAccelZ.waitForUpdate(0.1);
+    pigeonPitch.waitForUpdate(0.1);
+    pigeonRoll.waitForUpdate(0.1);
+    pigeonYawRate.waitForUpdate(0.1);
 
     setupAutoBuilder();
     initSetpointGenerator();
@@ -284,9 +301,13 @@ public class Swerve extends SubsystemBase
     Logger.recordOutput("Swerve/BR/DriftDeg",    brPos - swerveDrive.getModules()[3].getState().angle.getDegrees());
 
     // Filtered Pigeon 2 accelerometer — bump spikes are smoothed out.
-    // refreshAll() guarantees all five signals come from the same CAN frame before
-    // the low-pass filters and wheel-slip rolling averages consume them.
-    BaseStatusSignal.refreshAll(pigeonAccelX, pigeonAccelY, pigeonAccelZ, pigeonPitch, pigeonRoll, pigeonYawRate);
+    // Individual refreshes — Pigeon2 is on the rio bus; refreshAll requires CANivore.
+    pigeonAccelX.refresh();
+    pigeonAccelY.refresh();
+    pigeonAccelZ.refresh();
+    pigeonPitch.refresh();
+    pigeonRoll.refresh();
+    pigeonYawRate.refresh();
     double rawX = pigeonAccelX.getValueAsDouble();
     double rawY = pigeonAccelY.getValueAsDouble();
     double rawZ = pigeonAccelZ.getValueAsDouble();

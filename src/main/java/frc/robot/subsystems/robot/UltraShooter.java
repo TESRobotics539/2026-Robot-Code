@@ -100,6 +100,19 @@ public class UltraShooter extends SubsystemBase {
     private int    distanceBufferIndex = 0;
     private double distanceBufferSum   = 0.0;
 
+    /**
+     * Stationary physics cache — avoids re-running the binary-search solver every
+     * cycle when the robot isn't moving and distance hasn't meaningfully changed.
+     * Both fields are reset to -1 when the robot is moving.
+     */
+    private double physicsTargetCacheFps  = -1.0;
+    private double physicsTargetCacheDist = -1.0;
+    /** Distance change (ft) that invalidates the stationary physics cache. */
+    private static final double PHYSICS_CACHE_DIST_TOLERANCE_FT = 0.5; // 6 in
+    /** Cached physics telemetry — recomputed at ~10 Hz with the visualization, logged every cycle. */
+    private double cachedTelemetryPhysicsFps = 0.0;
+    private double cachedTelemetryTof        = 0.0;
+
     // ── Swerve reference (for distance-to-hub queries) ────────────────────────
 
     private final Swerve swerve;
@@ -533,7 +546,20 @@ public class UltraShooter extends SubsystemBase {
     public void setPhysicsTarget() {
         // Cache field velocity once — reused for both distance selection and radial correction.
         final ChassisSpeeds fieldVelocity = swerve.getFieldVelocity();
-        final double distance       = getAverageDistanceToHub(fieldVelocity);
+        final double distance = getAverageDistanceToHub(fieldVelocity);
+
+        final double speedFps = Math.hypot(
+                fieldVelocity.vxMetersPerSecond, fieldVelocity.vyMetersPerSecond) * METERS_TO_FEET;
+        final boolean isStationary = speedFps <= MOVING_SPEED_THRESHOLD_FPS;
+
+        // When stationary, skip the physics solver if the cached distance is still valid.
+        if (isStationary
+                && physicsTargetCacheFps >= 0
+                && Math.abs(distance - physicsTargetCacheDist) < PHYSICS_CACHE_DIST_TOLERANCE_FT) {
+            setTarget(physicsTargetCacheFps);
+            return;
+        }
+
         final double offsetFraction = interpolateOffsetFraction(distance);
 
         // if (isPiResultFresh()) { physicsSpeed = ntPiPhysics.getDouble(0.0); } else { ... }
@@ -557,8 +583,17 @@ public class UltraShooter extends SubsystemBase {
         final double radialCorrectionFps =
                 radialVelocityMps * METERS_TO_FEET / Math.max(Constants.UltraShooterConstants.kFlywheelEfficiency, 0.01);
         final double adjustedSpeed = Math.max(0.0, physicsSpeed - radialCorrectionFps);
+        final double target = adjustedSpeed * (1.0 + offsetFraction);
 
-        setTarget(adjustedSpeed * (1.0 + offsetFraction));
+        if (isStationary) {
+            physicsTargetCacheFps  = target;
+            physicsTargetCacheDist = distance;
+        } else {
+            // Invalidate cache so it recomputes once when the robot comes to a stop.
+            physicsTargetCacheFps = -1.0;
+        }
+
+        setTarget(target);
     }
 
     /**
@@ -786,23 +821,6 @@ public class UltraShooter extends SubsystemBase {
         final double mass  = Constants.UltraShooterConstants.kBallMassLbs;
         final double dist  = getAverageDistanceToHub();
 
-        // Solve once — derive physFPS, TOF, and visualization v0 from a single binary search.
-        final double v0Mps   = calcBallExitSpeedMps(dist, drag, mass);
-        final double physFPS = v0Mps > 0 ? (v0Mps / Math.max(effic, 0.001)) * METERS_TO_FEET : 0;
-        final double tof;
-        if (v0Mps <= 0) {
-            tof = 0;
-        } else if (drag <= 0) {
-            final double d = dist + SHOOTER_OFFSET_M;
-            tof = d > 0 ? d / (v0Mps * Math.cos(LAUNCH_ANGLE_RAD)) : 0;
-        } else {
-            final double ballMassKg  = mass * 0.453592;
-            final double dragPerMass = drag / Math.max(ballMassKg, 0.001);
-            final double d           = dist + SHOOTER_OFFSET_M;
-            tof = simulateTimeOfFlight(v0Mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
-        }
-        Logger.recordOutput("UltraShooter/Physics_fps",           physFPS);
-        Logger.recordOutput("UltraShooter/TimeOfFlight_s",        tof);
         Logger.recordOutput("UltraShooter/Distance_ft",           swerve.getDistanceToHub() * METERS_TO_FEET);
         Logger.recordOutput("UltraShooter/AvgDistance_ft",        dist * METERS_TO_FEET);
         Logger.recordOutput("UltraShooter/LaunchAngle_deg",       Constants.UltraShooterConstants.kLaunchAngleDegrees);
@@ -818,12 +836,31 @@ public class UltraShooter extends SubsystemBase {
         // different key prefix; this direct publish guarantees the Pi reads the right value.
         nt.getEntry("Avg Distance to Hub (ft)").setDouble(dist * METERS_TO_FEET);
 
-        // Trajectory visualization at ~10 Hz (every 5 cycles) — display-only, no need for 50 Hz.
+        // Physics solver + trajectory visualization at ~10 Hz (every 5 cycles).
+        // calcBallExitSpeedMps() runs a 60-step Euler binary search — too expensive for 50 Hz.
+        // Cached results are logged every cycle so telemetry stays continuous.
         if (++vizSkipCounter % 5 == 0) {
+            // Solve once — derive physFPS, TOF, and visualization v0 from a single binary search.
+            final double v0Mps = calcBallExitSpeedMps(dist, drag, mass);
+            cachedTelemetryPhysicsFps = v0Mps > 0 ? (v0Mps / Math.max(effic, 0.001)) * METERS_TO_FEET : 0;
+            if (v0Mps <= 0) {
+                cachedTelemetryTof = 0;
+            } else if (drag <= 0) {
+                final double d = dist + SHOOTER_OFFSET_M;
+                cachedTelemetryTof = d > 0 ? d / (v0Mps * Math.cos(LAUNCH_ANGLE_RAD)) : 0;
+            } else {
+                final double ballMassKg  = mass * 0.453592;
+                final double dragPerMass = drag / Math.max(ballMassKg, 0.001);
+                final double d           = dist + SHOOTER_OFFSET_M;
+                cachedTelemetryTof = simulateTimeOfFlight(v0Mps, d, LAUNCH_ANGLE_RAD, dragPerMass);
+            }
             final double v0Tuned = v0Mps * (1.0 + interpolateOffsetFraction(dist));
             final double dpm     = drag > 0 ? drag / Math.max(mass, 0.001) : 0;
             updateTrajectoryVisualization(dist, v0Mps, v0Tuned, dpm);
         }
+
+        Logger.recordOutput("UltraShooter/Physics_fps",    cachedTelemetryPhysicsFps);
+        Logger.recordOutput("UltraShooter/TimeOfFlight_s", cachedTelemetryTof);
     }
 
     /**

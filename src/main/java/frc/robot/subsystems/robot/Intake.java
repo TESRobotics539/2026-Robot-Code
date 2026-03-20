@@ -2,11 +2,8 @@ package frc.robot.subsystems.robot;
 
 import org.littletonrobotics.junction.Logger;
 
-import edu.wpi.first.math.filter.Debouncer;
-import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.util.sendable.SendableBuilder;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -50,15 +47,9 @@ public class Intake extends SubsystemBase {
     private int rollerUnjamState = ROLLER_RUNNING;
     private final Timer rollerUnjamTimer = new Timer();
     private boolean matchStowLocked = false;
-    private boolean deployedPositionCalibrated = false;
-    private boolean initialDeployEnabled = false;
-    private double  deployStartPosition   = 0.0;
-    private double  calibratedDeployedPosition = Double.NaN;
-    private final Debouncer deployCurrentDebouncer = new Debouncer(Constants.IntakeConstants.kPivotDeployedCurrentDebounceSeconds, DebounceType.kRising);
 
     public Intake(IntakeIO io) {
         this.io = io;
-        SmartDashboard.putData(this);
     }
 
     @Override
@@ -68,20 +59,6 @@ public class Intake extends SubsystemBase {
 
         if (matchStowLocked) {
             usePercentOutput = false;
-        }
-
-        // Snap deployed position to the hard stop once the intake has traveled far enough.
-        if (!usePercentOutput && !deployedPositionCalibrated && initialDeployEnabled && isDeployed()) {
-            boolean travelMet = Math.abs(inputs.pivotAbsEncoderPosition - deployStartPosition) >= Constants.IntakeConstants.kPivotDeployedTravelThreshold;
-            boolean spiked = deployCurrentDebouncer.calculate(
-                travelMet && inputs.pivotCurrentAmps > Constants.IntakeConstants.kPivotDeployedCurrentThreshold);
-            if (spiked) {
-                calibratedDeployedPosition = Math.max(kMinPosition, Math.min(kMaxPosition, inputs.pivotAbsEncoderPosition));
-                targetPivotPosition = calibratedDeployedPosition;
-                hasSetpoint = true;
-                deployedPositionCalibrated = true;
-                initialDeployEnabled = false;
-            }
         }
 
         if (!usePercentOutput && hasSetpoint) {
@@ -148,12 +125,7 @@ public class Intake extends SubsystemBase {
         usePercentOutput = false;
         if (position == Position.DEPLOYED) {
             io.setPivotCoastMode(true);
-            deployedPositionCalibrated = false;
-            deployStartPosition = inputs.pivotAbsEncoderPosition;
-            deployCurrentDebouncer.calculate(false); // reset debouncer state
-            targetPivotPosition = !Double.isNaN(calibratedDeployedPosition)
-                ? calibratedDeployedPosition
-                : Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
+            targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
             hasSetpoint = true;
         } else if (position == Position.STOWED) {
             io.setPivotCoastMode(false);
@@ -162,12 +134,8 @@ public class Intake extends SubsystemBase {
         }
     }
 
-    /**
-     * Deploys the intake and enables current-spike calibration for this deploy.
-     * Call only from the automatic match-start deploy trigger.
-     */
+    /** Deploys the intake. Alias for {@link #setPivotPosition(Position)} with {@link Position#DEPLOYED}. */
     public void setInitialDeployPosition() {
-        initialDeployEnabled = true;
         setPivotPosition(Position.DEPLOYED);
     }
 
@@ -178,7 +146,7 @@ public class Intake extends SubsystemBase {
 
     /**
      * Reads the current absolute encoder position and sets it as the PID target.
-     * If {@link Constants#kStowIntakeForMatch} is enabled, also locks the pivot.
+     * If {@link Constants.IntakeConstants#kStowIntakeForMatch} is enabled, also locks the pivot.
      */
     public void lockCurrentPositionAsStow() {
         double currentPos = inputs.pivotAbsEncoderPosition;

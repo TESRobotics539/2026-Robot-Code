@@ -25,6 +25,7 @@ public interface LimelightIO {
         public int    megaTag2TagCount         = 0;
         public double megaTag2LatencyMs        = 0.0;
         public double megaTag2AvgTagArea       = 0.0;
+        public double megaTag2AvgTagDist       = 0.0; // average distance to visible tags (meters)
         public double megaTag2TimestampSeconds = 0.0;
     }
 

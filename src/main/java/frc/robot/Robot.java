@@ -19,7 +19,6 @@ import org.littletonrobotics.junction.LogFileUtil;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.util.LoggedTracer;
@@ -62,7 +61,9 @@ public class Robot extends LoggedRobot {
         // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
         // autonomous chooser on the dashboard.
         m_robotContainer = new RobotContainer();
-        SmartDashboard.putData(CommandScheduler.getInstance());
+        // Do NOT call SmartDashboard.putData(CommandScheduler.getInstance()) — registering the
+        // scheduler for SmartDashboard NT updates causes multi-millisecond spikes in
+        // SmartDashboard.updateValues() every cycle. AdvantageKit handles all telemetry.
         // Lower brownout threshold so the robot keeps running longer on a depleted battery.
         // Default (~6.3V) causes spurious shutdowns under hard-stall loads; 4.6V is the
         // 1678 standard that avoids false brownouts while still protecting the RIO.

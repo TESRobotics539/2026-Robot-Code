@@ -10,8 +10,11 @@ public class LimelightIOReal implements LimelightIO {
 
     public LimelightIOReal(String name) {
         this.name = name;
-        // Mode 4: full IMU fusion (gyro + accelerometer) for MegaTag2 tilt compensation.
-        LimelightHelpers.SetIMUMode(name, 4);
+        // Mode 0: disable Limelight's internal IMU — SetRobotOrientation (Pigeon2) is the
+        // sole orientation source for MegaTag2. Mode 4 (full fusion) makes the Limelight's
+        // onboard IMU the primary heading source, reducing SetRobotOrientation to a correction
+        // hint and causing MegaTag2 to diverge from the Pigeon2 heading.
+        LimelightHelpers.SetIMUMode(name, 0);
     }
 
     @Override
@@ -59,12 +62,14 @@ public class LimelightIOReal implements LimelightIO {
             inputs.megaTag2TagCount         = mt2.tagCount;
             inputs.megaTag2LatencyMs        = mt2.latency;
             inputs.megaTag2AvgTagArea       = mt2.avgTagArea;
+            inputs.megaTag2AvgTagDist       = mt2.avgTagDist;
             inputs.megaTag2TimestampSeconds = mt2.timestampSeconds;
         } else {
             inputs.megaTag2Pose             = new Pose2d();
             inputs.megaTag2TagCount         = 0;
             inputs.megaTag2LatencyMs        = 0.0;
             inputs.megaTag2AvgTagArea       = 0.0;
+            inputs.megaTag2AvgTagDist       = 0.0;
             inputs.megaTag2TimestampSeconds = 0.0;
         }
     }
