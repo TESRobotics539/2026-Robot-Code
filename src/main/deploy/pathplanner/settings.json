@@ -3,7 +3,10 @@
   "robotLength": 0.9,
   "holonomicMode": true,
   "pathFolders": [
-    "Center Auto"
+    "Center Auto",
+    "HP Trench Auto",
+    "Mid Path 1 Auto",
+    "The Really Good Auto"
   ],
   "autoFolders": [],
   "defaultMaxVel": 3.0,

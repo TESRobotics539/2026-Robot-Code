@@ -3,48 +3,53 @@
   "waypoints": [
     {
       "anchor": {
-        "x": 3.55,
-        "y": 2.9804992867332385
+        "x": 2.6961777777777773,
+        "y": 2.894899999999999
       },
       "prevControl": null,
       "nextControl": {
-        "x": 3.262738944365105,
-        "y": 3.0710699001502406
+        "x": 3.3490555555555557,
+        "y": 3.840111111111111
       },
       "isLocked": false,
-      "linkedName": null
+      "linkedName": "\"HP Trench 1\" End"
     },
     {
       "anchor": {
-        "x": 2.9133951497859316,
-        "y": 2.8511126961559468
+        "x": 2.1992111111111114,
+        "y": 3.75
       },
       "prevControl": {
-        "x": 3.1214077233766484,
-        "y": 2.9897877452028707
+        "x": 2.4492111111111114,
+        "y": 3.75
       },
       "nextControl": {
-        "x": 2.705382576195215,
-        "y": 2.7124376471090232
+        "x": 1.9492111111111114,
+        "y": 3.75
       },
       "isLocked": false,
       "linkedName": null
     },
     {
       "anchor": {
-        "x": 3.095,
-        "y": 2.347
+        "x": 1.05,
+        "y": 3.75
       },
       "prevControl": {
-        "x": 2.8951825277202166,
-        "y": 2.5468174722797836
+        "x": 1.3000000000000003,
+        "y": 3.75
       },
       "nextControl": null,
       "isLocked": false,
-      "linkedName": null
+      "linkedName": "Climb Position"
     }
   ],
-  "rotationTargets": [],
+  "rotationTargets": [
+    {
+      "waypointRelativePos": 1.1634854771784255,
+      "rotationDegrees": 180.0
+    }
+  ],
   "constraintZones": [],
   "pointTowardsZones": [],
   "eventMarkers": [],
@@ -58,13 +63,13 @@
   },
   "goalEndState": {
     "velocity": 0,
-    "rotation": 40.84035770661328
+    "rotation": 180.0
   },
   "reversed": false,
-  "folder": null,
+  "folder": "HP Trench Auto",
   "idealStartingState": {
     "velocity": 0,
-    "rotation": 0.0
+    "rotation": 29.511498557090302
   },
   "useDefaultConstraints": true
 }

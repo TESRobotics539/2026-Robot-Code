@@ -1,0 +1,118 @@
+{
+  "version": "2025.0",
+  "waypoints": [
+    {
+      "anchor": {
+        "x": 2.530522222222223,
+        "y": 4.970466666666666
+      },
+      "prevControl": null,
+      "nextControl": {
+        "x": 3.3782888888888887,
+        "y": 5.301777777777777
+      },
+      "isLocked": false,
+      "linkedName": "\"The Really Good Auto Path 2\" End"
+    },
+    {
+      "anchor": {
+        "x": 3.6901111111111113,
+        "y": 5.545388888888888
+      },
+      "prevControl": {
+        "x": 2.813056976979397,
+        "y": 5.545388888888888
+      },
+      "nextControl": {
+        "x": 4.176628272547287,
+        "y": 5.545388888888888
+      },
+      "isLocked": false,
+      "linkedName": null
+    },
+    {
+      "anchor": {
+        "x": 5.9898,
+        "y": 5.545388888888888
+      },
+      "prevControl": {
+        "x": 5.297875824999143,
+        "y": 5.545388888888888
+      },
+      "nextControl": {
+        "x": 6.4898,
+        "y": 5.545388888888888
+      },
+      "isLocked": false,
+      "linkedName": null
+    },
+    {
+      "anchor": {
+        "x": 7.6268666666666665,
+        "y": 6.636766666666667
+      },
+      "prevControl": {
+        "x": 6.9263687251930275,
+        "y": 7.202553465549222
+      },
+      "nextControl": {
+        "x": 8.386933333333333,
+        "y": 6.022866666666666
+      },
+      "isLocked": false,
+      "linkedName": null
+    },
+    {
+      "anchor": {
+        "x": 7.850988888888889,
+        "y": 4.4735
+      },
+      "prevControl": {
+        "x": 8.240766666666667,
+        "y": 4.570944444444445
+      },
+      "nextControl": {
+        "x": 6.621339170884907,
+        "y": 4.166087570499003
+      },
+      "isLocked": false,
+      "linkedName": null
+    },
+    {
+      "anchor": {
+        "x": 2.7741333333333333,
+        "y": 5.808488888888889
+      },
+      "prevControl": {
+        "x": 1.7741333333333333,
+        "y": 5.808488888888889
+      },
+      "nextControl": null,
+      "isLocked": false,
+      "linkedName": null
+    }
+  ],
+  "rotationTargets": [],
+  "constraintZones": [],
+  "pointTowardsZones": [],
+  "eventMarkers": [],
+  "globalConstraints": {
+    "maxVelocity": 3.0,
+    "maxAcceleration": 3.0,
+    "maxAngularVelocity": 540.0,
+    "maxAngularAcceleration": 720.0,
+    "nominalVoltage": 12.0,
+    "unlimited": false
+  },
+  "goalEndState": {
+    "velocity": 0,
+    "rotation": -43.14240962967975
+  },
+  "reversed": false,
+  "folder": "The Really Good Auto",
+  "idealStartingState": {
+    "velocity": 0,
+    "rotation": -24.40397168885162
+  },
+  "useDefaultConstraints": true
+}

@@ -1,0 +1,54 @@
+{
+  "version": "2025.0",
+  "waypoints": [
+    {
+      "anchor": {
+        "x": 3.5634333333333332,
+        "y": 1.7060777777777765
+      },
+      "prevControl": null,
+      "nextControl": {
+        "x": 3.2107784518930456,
+        "y": 2.276012510563923
+      },
+      "isLocked": false,
+      "linkedName": null
+    },
+    {
+      "anchor": {
+        "x": 2.6961777777777773,
+        "y": 2.894899999999999
+      },
+      "prevControl": {
+        "x": 2.4617596948683995,
+        "y": 2.9817801611709593
+      },
+      "nextControl": null,
+      "isLocked": false,
+      "linkedName": "\"HP Trench 1\" End"
+    }
+  ],
+  "rotationTargets": [],
+  "constraintZones": [],
+  "pointTowardsZones": [],
+  "eventMarkers": [],
+  "globalConstraints": {
+    "maxVelocity": 3.0,
+    "maxAcceleration": 3.0,
+    "maxAngularVelocity": 540.0,
+    "maxAngularAcceleration": 720.0,
+    "nominalVoltage": 12.0,
+    "unlimited": false
+  },
+  "goalEndState": {
+    "velocity": 0,
+    "rotation": 29.511498557090302
+  },
+  "reversed": false,
+  "folder": "HP Trench Auto",
+  "idealStartingState": {
+    "velocity": 0,
+    "rotation": 90.0
+  },
+  "useDefaultConstraints": true
+}

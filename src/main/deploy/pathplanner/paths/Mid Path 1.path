@@ -3,47 +3,86 @@
   "waypoints": [
     {
       "anchor": {
-        "x": 3.6024111111111115,
-        "y": 4.0
+        "x": 3.582922222222222,
+        "y": 4.065
       },
       "prevControl": null,
       "nextControl": {
-        "x": 1.0650907908195792,
-        "y": 2.7071172486278536
+        "x": 2.0010430111725137,
+        "y": 3.2589589454415644
       },
-      "isLocked": false,
-      "linkedName": null
+      "isLocked": true,
+      "linkedName": "Middle Position"
     },
     {
       "anchor": {
-        "x": 1.25,
-        "y": 0.7
+        "x": 3.359,
+        "y": 2.154
       },
       "prevControl": {
-        "x": 2.0433000000000003,
-        "y": 1.1311555555555548
+        "x": 3.162420415294394,
+        "y": 2.3084553879829754
       },
       "nextControl": null,
-      "isLocked": false,
-      "linkedName": null
+      "isLocked": true,
+      "linkedName": "\"Mid Path 1\" End"
     }
   ],
-  "rotationTargets": [
+  "rotationTargets": [],
+  "constraintZones": [
     {
-      "waypointRelativePos": 0.19999999999999973,
-      "rotationDegrees": 22.5
-    }
-  ],
-  "constraintZones": [],
-  "pointTowardsZones": [],
-  "eventMarkers": [
+      "name": "Starting Speed",
+      "minWaypointRelativePos": 0.0,
+      "maxWaypointRelativePos": 0.2,
+      "constraints": {
+        "maxVelocity": 1.25,
+        "maxAcceleration": 2.0,
+        "maxAngularVelocity": 540.0,
+        "maxAngularAcceleration": 720.0,
+        "nominalVoltage": 12.0,
+        "unlimited": false
+      }
+    },
     {
-      "name": "",
-      "waypointRelativePos": 0,
-      "endWaypointRelativePos": null,
-      "command": null
+      "name": "Ending Speed",
+      "minWaypointRelativePos": 0.5151364764267988,
+      "maxWaypointRelativePos": 1.0,
+      "constraints": {
+        "maxVelocity": 1.0,
+        "maxAcceleration": 1.25,
+        "maxAngularVelocity": 540.0,
+        "maxAngularAcceleration": 720.0,
+        "nominalVoltage": 12.0,
+        "unlimited": false
+      }
+    },
+    {
+      "name": "Mid Speed",
+      "minWaypointRelativePos": 0.14789081885856056,
+      "maxWaypointRelativePos": 0.5746898263027294,
+      "constraints": {
+        "maxVelocity": 1.0,
+        "maxAcceleration": 2.0,
+        "maxAngularVelocity": 540.0,
+        "maxAngularAcceleration": 720.0,
+        "nominalVoltage": 12.0,
+        "unlimited": false
+      }
     }
   ],
+  "pointTowardsZones": [
+    {
+      "fieldPosition": {
+        "x": 4.62,
+        "y": 4.035
+      },
+      "rotationOffset": 0.0,
+      "minWaypointRelativePos": 0.04863523573200998,
+      "maxWaypointRelativePos": 0.95,
+      "name": "Point Towards Zone"
+    }
+  ],
+  "eventMarkers": [],
   "globalConstraints": {
     "maxVelocity": 2.5,
     "maxAcceleration": 2.0,
@@ -53,11 +92,11 @@
     "unlimited": false
   },
   "goalEndState": {
-    "velocity": 1.0,
-    "rotation": 180.0
+    "velocity": 0.0,
+    "rotation": 56.9949471682756
   },
   "reversed": false,
-  "folder": null,
+  "folder": "Mid Path 1 Auto",
   "idealStartingState": {
     "velocity": 0,
     "rotation": 0.0

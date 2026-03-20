@@ -318,6 +318,8 @@ public class RobotContainer
       NamedCommands.registerCommand("Auto Shoot", subsystemCommands.autoShoot().andThen(ultraShooter.spinDownCommand()));
       NamedCommands.registerCommand("Climber Toggle Command", hanger.toggleCommand());
       NamedCommands.registerCommand("Climber Down and Hold", hanger.autoClimbCommand());
+      NamedCommands.registerCommand("Intake Deploy/Stow", intake.intakePressCommand());
+      NamedCommands.registerCommand("Stow Intake", intake.stowCommand());
     }
 
     /**
