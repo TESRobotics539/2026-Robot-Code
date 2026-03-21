@@ -99,6 +99,7 @@ public final class SubsystemCommands {
                 aimCommand,
                 Commands.waitUntil(() -> ultraShooter.isReady() && aimCommand.isAimed())
                     .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds)
+                    .andThen(Commands.waitSeconds(0.5))
                     .andThen(longFeed())
             ).withTimeout(4.0);
         }, Set.of(swerve, ultraShooter, feeder, floor));

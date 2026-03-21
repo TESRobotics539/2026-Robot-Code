@@ -699,6 +699,17 @@ public class Swerve extends SubsystemBase
   }
 
   /**
+   * Resets the YAGSL heading PID controller state so that no residual error
+   * from a previous angle-controlled mode bleeds into angular-velocity driving.
+   * Call this when transitioning from angle-controlled (aim) back to stick-controlled rotation.
+   */
+  public void resetHeadingController()
+  {
+    swerveDrive.swerveController.thetaController.reset();
+    swerveDrive.swerveController.lastAngleScalar = getHeading().getRadians();
+  }
+
+  /**
    * Gets the current field-relative velocity (x, y and omega) of the robot
    *
    * @return A ChassisSpeeds object of the current field-relative velocity

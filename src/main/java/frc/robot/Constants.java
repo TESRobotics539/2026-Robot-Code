@@ -157,7 +157,7 @@ public final class Constants {
     /** Seconds to wait after shooter reaches speed (and aim is confirmed) before feeding the fuel. */
     public static final double kShootWaitSeconds = 0.5;
     /** Maximum seconds to wait for the shooter to reach speed before giving up and feeding anyway. */
-    public static final double kShootReadyTimeoutSeconds = 1.33;
+    public static final double kShootReadyTimeoutSeconds = 2.0;
     /** Delay before floor motor starts feeding, so the feeder gets the fuel first. */
     public static final double kFloorFeedDelaySeconds = 0.33;
 

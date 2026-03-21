@@ -101,6 +101,7 @@ public class AimAndDriveCommand extends Command {
 
     @Override
     public void end(boolean interrupted) {
+        swerve.resetHeadingController();
         swerve.setHeadingCorrection(false);
     }
 }
