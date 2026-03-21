@@ -244,7 +244,7 @@ public class Swerve extends SubsystemBase
     //   mass/MOI/module positions — pathplanner/settings.json
     //   wheel radius/gear ratio/COF/current limit — swerve/modules/physicalproperties.json
     RobotConfig config = new RobotConfig(
-        61.235, // robot mass (kg) (before was: 74.088)
+        51.482734, // robot mass (kg) (before before was: 74.088) (Was 61.235)
         6.883, // moment of inertia (kg·m²) TODO: Change MOI to the acurate real value instead of the original Value
         new ModuleConfig(
             0.0508,                                   // wheel radius: 4" wheel → 2" = 0.0508 m
