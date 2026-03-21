@@ -75,7 +75,7 @@ public final class Constants {
 
     // ── Pivot positions (absolute encoder, 0.0–1.0) ──────────────────────
     public static final double kStowedPosition   = 0.371;
-    public static final double kDeployedPosition = 0.110;
+    public static final double kDeployedPosition = 0.160;
     public static final double kMinPosition       = 0.080;
     public static final double kMaxPosition       = 0.380;
 
@@ -111,7 +111,7 @@ public final class Constants {
 
     // ── Motor ────────────────────────────────────────────────────────────
     /** Primary current limit (amps). */
-    public static final int kSmartCurrentLimit = 50;
+    public static final int kSmartCurrentLimit = 60;
     public static final IdleMode kIdleMode = IdleMode.kCoast;
 
     // ── Setpoints ────────────────────────────────────────────────────────

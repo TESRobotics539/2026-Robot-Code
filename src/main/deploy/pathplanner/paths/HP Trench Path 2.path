@@ -3,13 +3,13 @@
   "waypoints": [
     {
       "anchor": {
-        "x": 2.7741333333333333,
-        "y": 3.0897888888888883
+        "x": 3.046977777777778,
+        "y": 2.8072000000000004
       },
       "prevControl": null,
       "nextControl": {
-        "x": 2.842344444444444,
-        "y": 1.8230111111111102
+        "x": 3.6998555555555552,
+        "y": 3.7913888888888896
       },
       "isLocked": false,
       "linkedName": "\"HP Trench 1\" End"
@@ -17,11 +17,11 @@
     {
       "anchor": {
         "x": 1.85,
-        "y": 3.7426666666666666
+        "y": 3.76
       },
       "prevControl": {
-        "x": 1.643777777777335,
-        "y": 2.5148666666607555
+        "x": 2.559755555555556,
+        "y": 3.8985777777777777
       },
       "nextControl": null,
       "isLocked": false,
@@ -34,9 +34,9 @@
   "eventMarkers": [],
   "globalConstraints": {
     "maxVelocity": 1.0,
-    "maxAcceleration": 2.0,
+    "maxAcceleration": 1.0,
     "maxAngularVelocity": 270.0,
-    "maxAngularAcceleration": 360.0,
+    "maxAngularAcceleration": 180.0,
     "nominalVoltage": 12.0,
     "unlimited": false
   },
@@ -48,7 +48,7 @@
   "folder": "HP Trench Auto",
   "idealStartingState": {
     "velocity": 0,
-    "rotation": 29.511498557090302
+    "rotation": 33.26691584358778
   },
   "useDefaultConstraints": false
 }
