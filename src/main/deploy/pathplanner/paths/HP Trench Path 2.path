@@ -8,56 +8,35 @@
       },
       "prevControl": null,
       "nextControl": {
-        "x": 2.8338454203067527,
-        "y": 3.3325531092123923
+        "x": 2.842344444444444,
+        "y": 1.8230111111111102
       },
       "isLocked": false,
       "linkedName": "\"HP Trench 1\" End"
     },
     {
       "anchor": {
-        "x": 2.1992111111111114,
-        "y": 3.75
+        "x": 1.85,
+        "y": 3.7426666666666666
       },
       "prevControl": {
-        "x": 2.4492111111111114,
-        "y": 3.75
-      },
-      "nextControl": {
-        "x": 1.6736065927113573,
-        "y": 3.75
-      },
-      "isLocked": false,
-      "linkedName": null
-    },
-    {
-      "anchor": {
-        "x": 1.05,
-        "y": 3.75
-      },
-      "prevControl": {
-        "x": 1.3,
-        "y": 3.75
+        "x": 1.643777777777335,
+        "y": 2.5148666666607555
       },
       "nextControl": null,
       "isLocked": false,
-      "linkedName": "Climb Position"
+      "linkedName": "Climb Path Start"
     }
   ],
-  "rotationTargets": [
-    {
-      "waypointRelativePos": 1.1634854771784255,
-      "rotationDegrees": 180.0
-    }
-  ],
+  "rotationTargets": [],
   "constraintZones": [],
   "pointTowardsZones": [],
   "eventMarkers": [],
   "globalConstraints": {
-    "maxVelocity": 3.0,
-    "maxAcceleration": 3.0,
-    "maxAngularVelocity": 540.0,
-    "maxAngularAcceleration": 720.0,
+    "maxVelocity": 1.0,
+    "maxAcceleration": 2.0,
+    "maxAngularVelocity": 270.0,
+    "maxAngularAcceleration": 360.0,
     "nominalVoltage": 12.0,
     "unlimited": false
   },
@@ -71,5 +50,5 @@
     "velocity": 0,
     "rotation": 29.511498557090302
   },
-  "useDefaultConstraints": true
+  "useDefaultConstraints": false
 }

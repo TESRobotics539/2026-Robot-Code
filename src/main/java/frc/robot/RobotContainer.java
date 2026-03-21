@@ -180,7 +180,7 @@ public class RobotContainer
         // Right bumper: spin up → wait for ready → feed
         driverXbox.rightBumper().whileTrue(
             Commands.defer(() -> Commands.parallel(
-                ultraShooter.spinUpPhysicsCommand(),
+                ultraShooter.startEnd(() -> ultraShooter.setTarget(41.5), ultraShooter::stop),
                 // Pulse the entire time the button is held, from first press.
                 // Cleared by finallyDo() when the sequence ends or is interrupted.
                 Commands.sequence(
