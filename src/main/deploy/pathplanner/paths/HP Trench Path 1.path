@@ -3,13 +3,13 @@
   "waypoints": [
     {
       "anchor": {
-        "x": 3.5634333333333332,
-        "y": 1.7060777777777765
+        "x": 3.397777777777778,
+        "y": 1.5306777777777767
       },
       "prevControl": null,
       "nextControl": {
-        "x": 3.2107784518930456,
-        "y": 2.276012510563923
+        "x": 3.6074813158144963,
+        "y": 1.24144288524586
       },
       "isLocked": false,
       "linkedName": null
@@ -20,8 +20,8 @@
         "y": 2.894899999999999
       },
       "prevControl": {
-        "x": 2.4617596948683995,
-        "y": 2.9817801611709593
+        "x": 2.987540994677669,
+        "y": 2.1729923040945427
       },
       "nextControl": null,
       "isLocked": false,
@@ -48,7 +48,7 @@
   "folder": "HP Trench Auto",
   "idealStartingState": {
     "velocity": 0,
-    "rotation": 90.0
+    "rotation": 45.0
   },
   "useDefaultConstraints": true
 }

@@ -23,6 +23,9 @@ public interface IntakeIO {
     /** Switch pivot idle mode. {@code coast = true} for deploying, {@code false} (brake) for stowed. */
     default void setPivotCoastMode(boolean coast) {}
 
+    /** Update the closed-loop output range clamp. Call before changing setpoints when speed needs differ. */
+    default void setPivotOutputRange(double min, double max) {}
+
     /** Set roller closed-loop velocity target (RPM). */
     default void setRollerRPM(double rpm) {}
 

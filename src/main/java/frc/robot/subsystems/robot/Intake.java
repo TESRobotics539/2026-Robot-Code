@@ -115,7 +115,6 @@ public class Intake extends SubsystemBase {
         // Cut off rollers if no load spike seen within the timeout window
         if (rollerRunning && rollerNoLoadTimer.hasElapsed(Constants.IntakeConstants.kRollerNoLoadTimeoutSeconds)) {
             stopRoller();
-            rollerRunning = false;
         }
         LoggedTracer.record("Intake");
     }
@@ -125,10 +124,14 @@ public class Intake extends SubsystemBase {
         usePercentOutput = false;
         if (position == Position.DEPLOYED) {
             io.setPivotCoastMode(true);
+            io.setPivotOutputRange(Constants.IntakeConstants.kPivotOutputRangeMin,
+                                   Constants.IntakeConstants.kPivotOutputRangeMax);
             targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
             hasSetpoint = true;
         } else if (position == Position.STOWED) {
             io.setPivotCoastMode(false);
+            io.setPivotOutputRange(Constants.IntakeConstants.kPivotOutputRangeMin,
+                                   Constants.IntakeConstants.kPivotStowOutputRangeMax);
             targetPivotPosition = Math.max(kMinPosition, Math.min(kMaxPosition, position.value));
             hasSetpoint = true;
         }
@@ -166,10 +169,29 @@ public class Intake extends SubsystemBase {
         rollerNoLoadTimer.restart();
     }
 
+    /** Toggles the roller: starts if stopped, stops if running. Does not move the pivot. */
+    public Command toggleRollerCommand() {
+        return runOnce(() -> {
+            if (rollerRunning) {
+                stopRoller();
+            } else {
+                startRoller();
+            }
+        });
+    }
+
+    /** Starts the roller intake. Activates anti-jam and no-load cutoff logic. */
+    public void startRoller() {
+        setRollerSpeed(Constants.IntakeConstants.kRollerRPM);
+        rollerRunning = true;
+    }
+
+    /** Stops the roller and clears the running flag. */
     public void stopRoller() {
         io.stopRoller();
         rollerNoLoadTimer.stop();
         rollerNoLoadTimer.reset();
+        rollerRunning = false;
     }
 
     /** Returns true once the roller has seen enough current spikes to confirm fuel pickup. */
@@ -221,34 +243,28 @@ public class Intake extends SubsystemBase {
         });
     }
 
+    /** Tap toggle: deploys if stowed, stows (and stops rollers) if deployed. */
+    public Command togglePivotCommand() {
+        return runOnce(() -> {
+            if (isDeployed()) {
+                setPivotPosition(Position.STOWED);
+                stopRoller();
+            } else {
+                setPivotPosition(Position.DEPLOYED);
+            }
+        });
+    }
+
     /** Double-tap: stow the intake and stop rollers. */
     public Command stowCommand() {
         return runOnce(() -> {
             setPivotPosition(Position.STOWED);
             stopRoller();
-            rollerRunning = false;
         });
     }
 
-    /**
-     * Repeatedly pulses the intake pivot to agitate fuel during shooting.
-     * Restores position control when interrupted.
-     */
-    public Command agitateCommand() {
-        return Commands.sequence(
-            runOnce(() -> {
-                usePercentOutput = false;
-                targetPivotPosition = Constants.IntakeConstants.kAgitateHighPosition;
-                hasSetpoint = true;
-            }),
-            Commands.waitSeconds(Constants.IntakeConstants.kAgitateUpSeconds),
-            runOnce(() -> {
-                targetPivotPosition = Constants.IntakeConstants.kAgitateLowPosition;
-                hasSetpoint = true;
-            }),
-            Commands.waitSeconds(Constants.IntakeConstants.kAgitateDownSeconds)
-        ).repeatedly();
-    }
+    // agitateCommand() disabled — kAgitate* constants commented out in Constants.java
+    // public Command agitateCommand() { ... }
 
     @Override
     public void initSendable(SendableBuilder builder) {

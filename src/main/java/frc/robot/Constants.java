@@ -68,14 +68,16 @@ public final class Constants {
     public static final double kPivotP              = 1.5;
     public static final double kPivotI              = 0.0;
     public static final double kPivotD              = 5.0;
-    public static final double kPivotOutputRangeMin = -0.15;
-    public static final double kPivotOutputRangeMax =  0.4;
+    public static final double kPivotOutputRangeMin      = -0.15;
+    public static final double kPivotOutputRangeMax      =  0.4;
+    /** Higher output cap used only when stowing — gravity assists the return so more power is safe. */
+    public static final double kPivotStowOutputRangeMax  =  0.7;
 
     // ── Pivot positions (absolute encoder, 0.0–1.0) ──────────────────────
-    public static final double kStowedPosition   = 0.350;
-    public static final double kDeployedPosition = 0.097;
-    public static final double kMinPosition       = 0.100;
-    public static final double kMaxPosition       = 0.200;
+    public static final double kStowedPosition   = 0.371;
+    public static final double kDeployedPosition = 0.110;
+    public static final double kMinPosition       = 0.080;
+    public static final double kMaxPosition       = 0.380;
 
     // ── Roller anti-jam ──────────────────────────────────────────────────
     /** Current (amps) above which a roller jam is suspected while intaking. */
@@ -94,14 +96,14 @@ public final class Constants {
     public static final double kRollerRampRateSeconds = 0.25;
 
     // ── Agitation (pivot motion during shooting to settle fuel) ──────────
-    /** Pivot position for the upper agitation hold (absolute encoder units). */
-    public static final double kAgitateHighPosition = 0.210;
-    /** Pivot position for the lower agitation hold (absolute encoder units). */
-    public static final double kAgitateLowPosition  = 0.15;
-    /** Duration to hold the upper agitation position (seconds). */
-    public static final double kAgitateUpSeconds = 0.33;
-    /** Duration to hold the lower agitation position (seconds). */
-    public static final double kAgitateDownSeconds = 0.2;
+    // /** Pivot position for the upper agitation hold (absolute encoder units). */
+    // public static final double kAgitateHighPosition = 0.210;
+    // /** Pivot position for the lower agitation hold (absolute encoder units). */
+    // public static final double kAgitateLowPosition  = 0.15;
+    // /** Duration to hold the upper agitation position (seconds). */
+    // public static final double kAgitateUpSeconds = 0.33;
+    // /** Duration to hold the lower agitation position (seconds). */
+    // public static final double kAgitateDownSeconds = 0.2;
   }
 
   // ── Feeder ────────────────────────────────────────────────────────────────
@@ -172,7 +174,7 @@ public final class Constants {
     // ── Motor ────────────────────────────────────────────────────────────
     /** Primary current limit (amps) for the hanger motor. */
     public static final int kSmartCurrentLimit = 70;
-    public static final IdleMode kIdleMode = IdleMode.kCoast;
+    public static final IdleMode kIdleMode = IdleMode.kBrake;
     /** Secondary (backup) current limit (amps) for the hanger motor. */
     public static final int kSecondaryCurrentLimit = 120;
 
@@ -342,7 +344,7 @@ public final class Constants {
      * of FMS state, fuel detection, or field position — useful for practice matches,
      * scrimmages, or debugging when the full state machine is not desired.
      */
-    public static final boolean kEnableFMSAwarePreSpinLatch = false;
+    public static final boolean kEnableFMSAwarePreSpinLatch = true;
 
     // ── Close-range backup ─────────────────────────────────────────────────
 

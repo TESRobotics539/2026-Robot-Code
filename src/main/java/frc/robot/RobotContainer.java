@@ -12,7 +12,6 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
-import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -89,7 +88,6 @@ public class RobotContainer
 
     // ── Controllers ──────────────────────────────────────────────────────────
     final CommandXboxController driverXbox = new CommandXboxController(0);
-    private double lastIntakeTriggerPressTime = Double.NEGATIVE_INFINITY;
 
     // ── Command Factories ────────────────────────────────────────────────────
     private final SubsystemCommands subsystemCommands = new SubsystemCommands(
@@ -142,12 +140,12 @@ public class RobotContainer
         RobotModeTriggers.teleop().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
         RobotModeTriggers.teleop().onTrue(intake.runOnce(intake::resetFuelDetection));
 
-        // At autonomous start: enforce brake mode and snapshot the current encoder position
-        // as the PID target. If kStowIntakeForMatch is enabled, the pivot is locked to that
-        // position for the rest of the match.
+        // At autonomous start: enforce brake mode and stow the intake. The pivot will hold
+        // the stowed position for the duration of auto; PathPlanner named commands
+        // ("Deploy Intake" / "Stow Intake") can still override this during the auto routine.
         RobotModeTriggers.autonomous().onTrue(intake.runOnce(() -> {
             intake.enforceBrakeMode();
-            intake.lockCurrentPositionAsStow();
+            intake.setPivotPosition(Intake.Position.STOWED);
         }));
 
         // At teleop start: if auto climb completed during autonomous, run the declimb sequence
@@ -175,27 +173,14 @@ public class RobotContainer
         driverXbox.back().onTrue(Commands.runOnce(drivebase::zeroGyroWithAlliance));
 
         // ── Intake ───────────────────────────────────────────────────────────
-        // Single pull → deploy/toggle rollers. Double-tap → stow.
-        driverXbox.leftTrigger().onTrue(
-            Commands.defer(() -> {
-                double now = Timer.getFPGATimestamp();
-                boolean isDoubleTap = (now - lastIntakeTriggerPressTime)
-                    < Constants.IntakeConstants.kDoubleTapWindowSeconds;
-                lastIntakeTriggerPressTime = now;
-                return isDoubleTap
-                    ? intake.stowCommand()
-                        .andThen(Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, Constants.RumbleConstants.kIntakeStowIntensity)))
-                        .andThen(Commands.waitSeconds(Constants.RumbleConstants.kIntakeStowPulseSeconds))
-                        .andThen(Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)))
-                    : intake.intakePressCommand();
-            }, Set.of(intake)));
+        // Left trigger: tap to toggle rollers on/off. No pivot movement.
+        driverXbox.leftTrigger().onTrue(intake.toggleRollerCommand());
 
         // ── Shooter ──────────────────────────────────────────────────────────
         // Right bumper: spin up → wait for ready → feed
         driverXbox.rightBumper().whileTrue(
             Commands.defer(() -> Commands.parallel(
                 ultraShooter.spinUpPhysicsCommand(),
-                intake.agitateCommand(),
                 // Pulse the entire time the button is held, from first press.
                 // Cleared by finallyDo() when the sequence ends or is interrupted.
                 Commands.sequence(
@@ -211,7 +196,7 @@ public class RobotContainer
                         feeder.feedCommand(),
                         Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds).andThen(floor.feedCommand())
                     ))
-            ), Set.of(ultraShooter, intake, feeder, floor))
+            ), Set.of(ultraShooter, feeder, floor))
             .finallyDo(interrupted -> {
                 driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0);
                 Logger.recordOutput("Commands/SpinUpShoot/Interrupted", interrupted);
@@ -248,8 +233,7 @@ public class RobotContainer
                         Commands.runOnce(() -> driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0)),
                         Commands.waitSeconds(Constants.RumbleConstants.kShootPulseOffSeconds)
                     ).repeatedly()
-                ),
-                intake.agitateCommand()
+                )
             ).finallyDo(interrupted -> {
                 driverXbox.getHID().setRumble(RumbleType.kBothRumble, 0.0);
                 Logger.recordOutput("Commands/AimShoot/Interrupted", interrupted);
@@ -257,6 +241,10 @@ public class RobotContainer
             .onFalse(Commands.parallel(
                 subsystemCommands.holdAimAndSpeedCommand(1.0),
                 intake.runOnce(intake::resetFuelDetection)));
+
+        // A: deploy intake pivot. B: stow intake pivot and stop rollers.
+        driverXbox.a().onTrue(intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)));
+        driverXbox.b().onTrue(intake.stowCommand());
 
         // ── Feeder ───────────────────────────────────────────────────────────
         driverXbox.leftBumper().whileTrue(feeder.reverseCommand());
@@ -320,6 +308,7 @@ public class RobotContainer
       NamedCommands.registerCommand("Climber Down and Hold", hanger.autoClimbCommand());
       NamedCommands.registerCommand("Intake Deploy/Stow", intake.intakePressCommand());
       NamedCommands.registerCommand("Stow Intake", intake.stowCommand());
+      NamedCommands.registerCommand("Deploy Intake", intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)));
     }
 
     /**

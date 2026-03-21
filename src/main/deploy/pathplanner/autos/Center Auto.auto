@@ -42,6 +42,12 @@
           }
         },
         {
+          "type": "named",
+          "data": {
+            "name": "Stow Intake"
+          }
+        },
+        {
           "type": "path",
           "data": {
             "pathName": "Center Auto 3"
