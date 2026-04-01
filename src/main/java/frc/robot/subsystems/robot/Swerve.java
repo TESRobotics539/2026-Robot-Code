@@ -251,7 +251,7 @@ public class Swerve extends SubsystemBase
             4.09,                                     // max drive speed (m/s) — L1 theoretical
             1.19,                                     // wheel COF
             DCMotor.getNeoVortex(1).withReduction(8.14), // SparkFlex + NEO Vortex, L1 gearing
-            40.0,                                     // drive current limit (A)
+            60,                                     // drive current limit (A)
             1                                         // motors per module
         ),
         new Translation2d( 0.273,  0.273), // FL

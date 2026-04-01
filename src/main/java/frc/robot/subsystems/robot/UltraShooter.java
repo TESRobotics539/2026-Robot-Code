@@ -247,7 +247,7 @@ public class UltraShooter extends SubsystemBase {
         trajFuelDot  = trajFuelRoot.append(new MechanismLigament2d(
                 "ball", 0.003, 0.0, 14, new Color8Bit(Color.kYellow)));
 
-        SmartDashboard.putData("Shot Trajectory", trajCanvas);
+        // SmartDashboard.putData("Shot Trajectory", trajCanvas); // disabled for match — Mechanism2d publish causes NT traffic every cycle
         SmartDashboard.putData(this);
     }
 

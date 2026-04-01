@@ -86,14 +86,10 @@ public class VisionManager extends SubsystemBase {
         Logger.processInputs("Vision/RearLimelight", rearInputs);
 
         // ── Bump detection ────────────────────────────────────────────────────
-        // 2-of-3 majority vote: Pigeon 2 + both Limelight accelerometers.
-        boolean pigeonOverBump = drivebase.isOverBump();
-        boolean frontOverBump  = Math.abs(frontInputs.imuAccelZG - 1.0)
-            > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
-        boolean rearOverBump   = Math.abs(rearInputs.imuAccelZG - 1.0)
-            > Constants.BumpDetectionConstants.kLimelightAccelZDeviationThreshold;
-        int     bumpVotes      = (pigeonOverBump ? 1 : 0) + (frontOverBump ? 1 : 0) + (rearOverBump ? 1 : 0);
-        boolean overBump       = bumpVotes >= 2;
+        // Pigeon 2 only — Limelight IMU data is unreliable in mode 0 (IMU disabled).
+        // TODO: re-add Limelight accelerometer voting once IMU mode is tuned.
+        boolean overBump  = drivebase.isOverBump();
+        int     bumpVotes = overBump ? 1 : 0;
 
         // ── Pose estimate extraction ──────────────────────────────────────────
         Optional<MeasurementResult> frontMeasurement = extractMeasurement(frontInputs, yawRateDegPS);

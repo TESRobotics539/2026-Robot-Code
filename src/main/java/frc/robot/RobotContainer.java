@@ -239,7 +239,7 @@ public class RobotContainer
                 Logger.recordOutput("Commands/AimShoot/Interrupted", interrupted);
             }))
             .onFalse(Commands.parallel(
-                subsystemCommands.holdAimAndSpeedCommand(1.0),
+                subsystemCommands.holdAimAndSpeedCommand(0.35),
                 intake.runOnce(intake::resetFuelDetection)));
 
         // A: deploy intake pivot. B: stow intake pivot and stop rollers.
@@ -309,6 +309,28 @@ public class RobotContainer
       NamedCommands.registerCommand("Intake Deploy/Stow", intake.intakePressCommand());
       NamedCommands.registerCommand("Stow Intake", intake.stowCommand());
       NamedCommands.registerCommand("Deploy Intake", intake.runOnce(() -> intake.setPivotPosition(Intake.Position.DEPLOYED)));
+      NamedCommands.registerCommand("Just Shoot", justShootCommand());
+    }
+
+    /** Fixed-speed shoot: spin up to 41.5, feed once ready, then stop. Terminates after feeding. */
+    private Command justShootCommand() {
+        return Commands.defer(
+            () -> {
+                // Build a fresh command tree each invocation — WPILib forbids reusing composed commands.
+                Command feed = Commands.sequence(
+                    Commands.waitUntil(ultraShooter::isReady)
+                        .withTimeout(Constants.ShooterConstants.kShootReadyTimeoutSeconds),
+                    Commands.waitSeconds(Constants.ShooterConstants.kShootWaitSeconds),
+                    Commands.parallel(
+                        feeder.feedCommand(),
+                        Commands.waitSeconds(Constants.ShooterConstants.kFloorFeedDelaySeconds)
+                            .andThen(floor.feedCommand())
+                    )
+                );
+                return feed.deadlineFor(ultraShooter.run(() -> ultraShooter.setTarget(41.5)))
+                           .finallyDo(__ -> ultraShooter.stop());
+            },
+            Set.of(ultraShooter, feeder, floor));
     }
 
     /**

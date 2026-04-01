@@ -76,19 +76,12 @@ public final class SubsystemCommands {
     }
 
     /**
-     * Holds flywheel speed and aim for {@code seconds}, then idles the flywheel down to
-     * pre-spin speed over 1 second. The aim (and therefore the swerve requirement) is
-     * released after {@code seconds} so the driver regains drivetrain control immediately
-     * after the hold period ends.
+     * Holds aim for {@code seconds} after the trigger is released, then hands back drivetrain
+     * control. The flywheel is intentionally not held here — its default command
+     * ({@code preSpinCommand}) takes over immediately for natural spindown.
      */
     public Command holdAimAndSpeedCommand(double seconds) {
-        return Commands.sequence(
-            Commands.parallel(
-                ultraShooter.run(() -> {}).withTimeout(seconds),
-                new AimAndDriveCommand(swerve, forwardInput, leftInput).withTimeout(seconds)
-            ),
-            ultraShooter.idleDownCommand()
-        );
+        return new AimAndDriveCommand(swerve, forwardInput, leftInput).withTimeout(seconds);
     }
 
     public Command autoShoot() {
